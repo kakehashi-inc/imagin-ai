@@ -41,21 +41,12 @@ export default {
     'quality.2k': '2K (High)',
     'quality.4k': '4K (Ultra)',
 
-    // Output format
-    'outputFormat.label': 'Output Format',
-    'outputFormat.png': 'PNG (Lossless)',
-    'outputFormat.jpeg': 'JPEG (Compact)',
-
-    // Safety
-    'safety.label': 'Safety Filter',
-    'safety.blockNone': 'None',
-    'safety.blockFew': 'Low',
-    'safety.blockSome': 'Medium',
-    'safety.blockMost': 'High',
-
     // Number of images
     'numberOfImages.label': 'Number of Images',
     'numberOfImages.warning': 'More images increase API usage.',
+
+    // API key banner
+    'apiKeyBanner.message': 'API key is not set. Please configure it in Settings.',
 
     // Prompt
     'prompt.label': 'Prompt',
@@ -79,7 +70,8 @@ export default {
     'generation.error': 'Generation failed: {{message}}',
     'generation.errorRetry': 'Retry',
     'generation.networkError': 'A network error occurred. Please check your connection and try again.',
-    'generation.diskSpaceWarning': 'Low disk space on history drive. Please free up space or change the history save location.',
+    'generation.diskSpaceWarning':
+        'Low disk space on history drive. Please free up space or change the history save location.',
     'generation.success': 'Image generated successfully!',
 
     // History
@@ -88,7 +80,7 @@ export default {
     'history.searchPlaceholder': 'Search by prompt...',
     'history.deleteConfirm': 'Are you sure you want to delete this entry? This action cannot be undone.',
     'history.deleteAllConfirm': 'All history will be permanently deleted. This action cannot be undone. Are you sure?',
-    'history.exportAndDeleteConfirm': 'All history will be archived and then deleted. Continue?',
+    'history.exportConfirm': 'Export all history as a ZIP archive?',
     'history.exportSuccess': 'History exported successfully.',
     'history.exportFailed': 'Failed to export history.',
     'history.exporting': 'Exporting history...',
@@ -101,8 +93,8 @@ export default {
     'contextMenu.delete': 'Delete',
 
     // History menu
+    'historyMenu.exportAll': 'Export All',
     'historyMenu.deleteAll': 'Delete All',
-    'historyMenu.exportAndDelete': 'Archive & Delete All',
 
     // Settings
     'settings.title': 'Settings',
@@ -113,6 +105,9 @@ export default {
     'settings.theme.system': 'System',
     'settings.apiKey': 'API Key',
     'settings.apiKey.label': 'Gemini API Key',
+    'settings.apiKey.hintPrefix': 'You can get an API key from ',
+    'settings.apiKey.hintPrefixLink': 'Google AI Studio',
+    'settings.apiKey.hintPrefixSuffix': '.',
     'settings.apiKey.placeholder': 'Enter your API key',
     'settings.apiKey.test': 'Test Connection',
     'settings.apiKey.testing': 'Testing...',
@@ -124,4 +119,37 @@ export default {
     'settings.historyDir.moveConfirm': 'Move existing history to the new location?',
     'settings.language.ja': 'Japanese',
     'settings.language.en': 'English',
+
+    // Main process - API
+    'api.keyNotSet': 'API key is not set.',
+    'api.keyValid': 'API key is valid.',
+    'api.keyInvalid': 'API key is invalid.',
+    'api.encryptionUnavailable': 'Encryption is not available. Cannot store API keys securely.',
+    'api.error.quotaExceeded': 'API quota exceeded. Please wait and try again later, or check your billing settings.',
+    'api.error.invalidKey': 'Invalid API key. Please check your API key in Settings.',
+    'api.error.accessDenied': 'Access denied. Your API key does not have permission for this operation.',
+    'api.error.modelNotFound': 'The specified model was not found. It may have been removed or renamed.',
+    'api.error.serverError': 'An internal server error occurred. Please try again later.',
+    'api.error.serviceUnavailable': 'The service is temporarily unavailable. Please try again later.',
+    'api.error.invalidRequest': 'Invalid request: {{detail}}',
+    'api.error.invalidRequestGeneric': 'The request was invalid. Please review your parameters and try again.',
+    'api.error.paidPlanRequired': 'This model is only available on paid plans. Please upgrade your Google AI account.',
+
+    'api.error.billingRequired': 'Billing or quota issue. Please check your Google AI billing settings.',
+    'api.error.noImagesGenerated': 'No images were generated. Please try a different prompt.',
+    'api.error.noResponse': 'No response received from the API.',
+
+    // Main process - IPC
+    'ipc.historyLimitExceeded':
+        'History limit ({{limit}} entries) exceeded. Please clean up history before generating.',
+
+    // Main process - Dialogs
+    'dialog.exportHistory': 'Export History',
+    'dialog.saveImageAs': 'Save Image As',
+    'dialog.selectImages': 'Select Images',
+    'dialog.selectDirectory': 'Select Directory',
+    'dialog.zipFilter': 'ZIP Archive',
+    'dialog.pngFilter': 'PNG Image',
+    'dialog.jpegFilter': 'JPEG Image',
+    'dialog.imageFilter': 'Images',
 };

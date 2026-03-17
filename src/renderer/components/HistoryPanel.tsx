@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { useHistoryStore } from '../stores/history-store';
 import { useGenerationStore } from '../stores/generation-store';
 import type { HistoryEntry } from '../../shared/types';
+import { MODEL_DEFINITIONS } from '../../shared/constants';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import SearchIcon from '@mui/icons-material/Search';
 
@@ -35,6 +36,13 @@ type ConfirmDialogState = {
     onConfirm: () => void;
 };
 
+function formatFileSize(bytes: number): string {
+    if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+    if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${bytes} B`;
+}
+
 export default function HistoryPanel() {
     const { t } = useTranslation();
     const {
@@ -47,7 +55,10 @@ export default function HistoryPanel() {
         getFilteredEntries,
         loadThumbnail,
     } = useHistoryStore();
-    const { addReferenceImages, restoreParams } = useGenerationStore();
+    const { model, addReferenceImages, restoreParams } = useGenerationStore();
+
+    const currentModel = MODEL_DEFINITIONS.find(m => m.id === model);
+    const supportsImageInput = currentModel?.supportsImageInput ?? false;
 
     const [contextMenu, setContextMenu] = React.useState<ContextMenuState>(null);
     const [headerMenuAnchor, setHeaderMenuAnchor] = React.useState<HTMLElement | null>(null);
@@ -128,8 +139,6 @@ export default function HistoryPanel() {
                 aspectRatio: e.aspectRatio,
                 quality: e.quality,
                 numberOfImages: e.numberOfImages,
-                outputMimeType: e.outputMimeType,
-                safetyFilterLevel: e.safetyFilterLevel,
             });
         }
         handleCloseContextMenu();
@@ -167,20 +176,8 @@ export default function HistoryPanel() {
 
     const handleExportAll = () => {
         setHeaderMenuAnchor(null);
-        setConfirmDialog({
-            open: true,
-            title: t('common.confirm'),
-            message: t('history.exportAndDeleteConfirm'),
-            onConfirm: async () => {
-                setConfirmDialog(prev => ({ ...prev, open: false }));
-                setExportProgress(0);
-                try {
-                    await exportAll();
-                } finally {
-                    setExportProgress(null);
-                }
-            },
-        });
+        setExportProgress(0);
+        exportAll().finally(() => setExportProgress(null));
     };
 
     // Click to open viewer - open all generated images as separate modeless windows
@@ -324,27 +321,30 @@ export default function HistoryPanel() {
                                         >
                                             {entry.prompt}
                                         </Typography>
-                                        <Box
-                                            sx={{
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                mt: 0.25,
-                                            }}
-                                        >
-                                            <Typography
-                                                variant='caption'
-                                                color='text.secondary'
-                                                sx={{ fontSize: '0.65rem' }}
-                                            >
-                                                {entry.modelDisplayName}
-                                            </Typography>
-                                            <Typography
-                                                variant='caption'
-                                                color='text.secondary'
-                                                sx={{ fontSize: '0.65rem' }}
-                                            >
-                                                {new Date(entry.updatedAt).toLocaleDateString()}
-                                            </Typography>
+                                        <Box sx={{ mt: 0.5, display: 'flex', justifyContent: 'space-between' }}>
+                                            <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                                                <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>
+                                                    {entry.modelDisplayName.replace(/\s*\(.*\)$/, '')}
+                                                </Typography>
+                                                {entry.imageWidth && entry.imageHeight ? (
+                                                    <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>
+                                                        {entry.imageWidth} x {entry.imageHeight}
+                                                    </Typography>
+                                                ) : null}
+                                                {entry.fileSize != null ? (
+                                                    <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>
+                                                        {formatFileSize(entry.fileSize)}
+                                                    </Typography>
+                                                ) : null}
+                                            </Box>
+                                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                                <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>
+                                                    {new Date(entry.updatedAt).toLocaleDateString()}
+                                                </Typography>
+                                                <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>
+                                                    {new Date(entry.updatedAt).toLocaleTimeString()}
+                                                </Typography>
+                                            </Box>
                                         </Box>
                                     </Box>
                                 </Box>
@@ -363,7 +363,9 @@ export default function HistoryPanel() {
                     contextMenu ? { top: contextMenu.mouseY, left: contextMenu.mouseX } : undefined
                 }
             >
-                <MenuItem onClick={handleAddToPrompt}>{t('contextMenu.addToPrompt')}</MenuItem>
+                <MenuItem onClick={handleAddToPrompt} disabled={!supportsImageInput}>
+                    {t('contextMenu.addToPrompt')}
+                </MenuItem>
                 <MenuItem onClick={handleSaveAs}>{t('contextMenu.saveAs')}</MenuItem>
                 <MenuItem onClick={handleRestoreParams}>{t('contextMenu.restoreParams')}</MenuItem>
                 <MenuItem onClick={handleDeleteEntry}>{t('contextMenu.delete')}</MenuItem>
@@ -375,8 +377,8 @@ export default function HistoryPanel() {
                 open={Boolean(headerMenuAnchor)}
                 onClose={() => setHeaderMenuAnchor(null)}
             >
+                <MenuItem onClick={handleExportAll}>{t('historyMenu.exportAll')}</MenuItem>
                 <MenuItem onClick={handleDeleteAll}>{t('historyMenu.deleteAll')}</MenuItem>
-                <MenuItem onClick={handleExportAll}>{t('historyMenu.exportAndDelete')}</MenuItem>
             </Menu>
 
             {/* Confirm dialog */}

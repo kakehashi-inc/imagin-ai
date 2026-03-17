@@ -1,7 +1,6 @@
-import { ipcMain, dialog, BrowserWindow, screen, nativeImage } from 'electron';
+import { ipcMain, dialog, BrowserWindow, screen, nativeImage, nativeTheme } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import os from 'os';
 import { IPC_CHANNELS, MODEL_DEFINITIONS, HISTORY_MAX_COUNT } from '../../shared/constants';
 import { loadSettings, mergeSettings, ensureHistoryDir } from '../services/settings-service';
 import { getApiKey, saveApiKey } from '../services/api-key-service';
@@ -12,14 +11,17 @@ import {
     deleteHistoryEntry,
     deleteAllHistory,
     exportAllHistory,
-    createHistoryEntry,
+    createHistoryEntries,
     getThumbnailDataUrl,
     getImageDataUrl,
     moveHistoryDir,
 } from '../services/history-service';
 import type { GenerationParams } from '../../shared/types';
+import { translate } from '../../shared/i18n/translate';
 
-const isDev = process.env.NODE_ENV === 'development' || process.argv.includes('--dev');
+function t(key: string, params?: Record<string, string | number>): string {
+    return translate(loadSettings().language, key, params);
+}
 
 /**
  * Register all application IPC handlers
@@ -71,9 +73,7 @@ export function registerIpcHandlers() {
         // Check history limit
         const count = getHistoryCount();
         if (count >= HISTORY_MAX_COUNT) {
-            throw new Error(
-                `History limit exceeded (${HISTORY_MAX_COUNT} entries). Please clean up history before generating.`
-            );
+            throw new Error(t('ipc.historyLimitExceeded', { limit: HISTORY_MAX_COUNT }));
         }
 
         // Find model display name
@@ -84,8 +84,8 @@ export function registerIpcHandlers() {
         const result = await generateImages(params);
 
         // Save to history
-        const entry = createHistoryEntry(params, modelDisplayName, result.buffers, result.mimeType);
-        return entry;
+        const entries = createHistoryEntries(params, modelDisplayName, result.buffers, result.mimeType);
+        return entries;
     });
 
     // --- History ---
@@ -110,9 +110,9 @@ export function registerIpcHandlers() {
         if (!win) return { success: false };
 
         const result = await dialog.showSaveDialog(win, {
-            title: 'Export History Archive',
+            title: t('dialog.exportHistory'),
             defaultPath: 'imaginai-history.zip',
-            filters: [{ name: 'ZIP Archive', extensions: ['zip'] }],
+            filters: [{ name: t('dialog.zipFilter'), extensions: ['zip'] }],
         });
 
         if (result.canceled || !result.filePath) {
@@ -125,7 +125,6 @@ export function registerIpcHandlers() {
                     win.webContents.send(IPC_CHANNELS.EXPORT_PROGRESS, percent);
                 }
             });
-            deleteAllHistory();
             return { success: true, path: result.filePath };
         } catch (err) {
             console.error('Failed to export history:', err);
@@ -140,11 +139,11 @@ export function registerIpcHandlers() {
         const ext = path.extname(imagePath).toLowerCase().replace('.', '');
         const filters =
             ext === 'jpg' || ext === 'jpeg'
-                ? [{ name: 'JPEG Image', extensions: ['jpg', 'jpeg'] }]
-                : [{ name: 'PNG Image', extensions: ['png'] }];
+                ? [{ name: t('dialog.jpegFilter'), extensions: ['jpg', 'jpeg'] }]
+                : [{ name: t('dialog.pngFilter'), extensions: ['png'] }];
 
         const result = await dialog.showSaveDialog(win, {
-            title: 'Save Image As',
+            title: t('dialog.saveImageAs'),
             defaultPath: path.basename(imagePath),
             filters,
         });
@@ -191,8 +190,8 @@ export function registerIpcHandlers() {
         if (!win) return [];
 
         const result = await dialog.showOpenDialog(win, {
-            title: 'Select Reference Images',
-            filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+            title: t('dialog.selectImages'),
+            filters: [{ name: t('dialog.imageFilter'), extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
             properties: ['openFile', 'multiSelections'],
         });
 
@@ -204,7 +203,7 @@ export function registerIpcHandlers() {
         if (!win) return null;
 
         const result = await dialog.showOpenDialog(win, {
-            title: 'Select Directory',
+            title: t('dialog.selectDirectory'),
             properties: ['openDirectory', 'createDirectory'],
         });
 
@@ -260,48 +259,13 @@ function openImageViewerWindow(imagePath: string, title: string) {
         title,
         autoHideMenuBar: true,
         webPreferences: {
-            preload: path.join(__dirname, '../../preload/index.js'),
+            // Allow data:text/html to reference local file:// images
+            webSecurity: false,
         },
     });
 
-    // Load a simple HTML page that displays the image
-    const imageDataUrl = getImageDataUrl(imagePath);
-    const escapedTitle = title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const htmlContent = `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>${escapedTitle}</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1a1a; }
-        body { display: flex; align-items: center; justify-content: center; }
-        img { max-width: 100%; max-height: 100%; object-fit: contain; }
-    </style>
-</head>
-<body>
-    <img src="${imageDataUrl}" alt="Generated Image" />
-</body>
-</html>`;
-
-    if (isDev) {
-        viewerWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
-    } else {
-        // Write temp HTML file for production
-        const tmpDir = path.join(os.tmpdir(), 'imaginai-viewer');
-        if (!fs.existsSync(tmpDir)) {
-            fs.mkdirSync(tmpDir, { recursive: true });
-        }
-        const tmpFile = path.join(tmpDir, `viewer-${Date.now()}.html`);
-        fs.writeFileSync(tmpFile, htmlContent, 'utf-8');
-        viewerWindow.loadFile(tmpFile);
-
-        viewerWindow.on('closed', () => {
-            try {
-                fs.unlinkSync(tmpFile);
-            } catch {
-                // Ignore cleanup errors
-            }
-        });
-    }
+    const fileUrl = `file:///${imagePath.replace(/\\/g, '/')}`;
+    const bg = nativeTheme.shouldUseDarkColors ? '#1a1a1a' : '#f5f5f5';
+    const html = `<style>*{margin:0}html,body{width:100%;height:100%;overflow:hidden;background:${bg}}img{width:100%;height:100%;object-fit:contain}</style><img src="${fileUrl}">`;
+    viewerWindow.loadURL(`data:text/html,${encodeURIComponent(html)}`);
 }

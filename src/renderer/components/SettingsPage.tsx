@@ -16,6 +16,7 @@ import {
     DialogContentText,
     DialogActions,
     InputAdornment,
+    Link,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../stores/app-store';
@@ -171,6 +172,17 @@ export default function SettingsPage({ onClose }: Props) {
                     <Box>
                         <Typography variant='subtitle2' fontWeight={600} gutterBottom>
                             {t('settings.apiKey.label')}
+                        </Typography>
+                        <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
+                            {t('settings.apiKey.hintPrefix')}
+                            <Link
+                                href='https://aistudio.google.com/apikey'
+                                target='_blank'
+                                rel='noopener noreferrer'
+                            >
+                                {t('settings.apiKey.hintPrefixLink')}
+                            </Link>
+                            {t('settings.apiKey.hintPrefixSuffix')}
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 1 }}>
                             <TextField

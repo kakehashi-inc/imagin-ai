@@ -3,6 +3,8 @@ import https from 'https';
 import http from 'http';
 import type { GenerationParams } from '../../shared/types';
 import { getApiKey } from './api-key-service';
+import { loadSettings } from './settings-service';
+import { translate } from '../../shared/i18n/translate';
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com';
 
@@ -36,6 +38,14 @@ type ImagenResponse = {
         status: string;
     };
 };
+
+function getLang(): string {
+    return loadSettings().language;
+}
+
+function t(key: string, params?: Record<string, string | number>): string {
+    return translate(getLang(), key, params);
+}
 
 function httpsRequest(url: string, options: https.RequestOptions, body: string): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -71,7 +81,7 @@ function httpsRequest(url: string, options: https.RequestOptions, body: string):
 export async function testApiKey(): Promise<{ success: boolean; message: string }> {
     const apiKey = getApiKey('gemini');
     if (!apiKey) {
-        return { success: false, message: 'API key is not set.' };
+        return { success: false, message: t('api.keyNotSet') };
     }
 
     try {
@@ -79,9 +89,9 @@ export async function testApiKey(): Promise<{ success: boolean; message: string 
         const response = await httpsRequest(url, { method: 'GET' }, '');
         const parsed = JSON.parse(response);
         if (parsed.models && Array.isArray(parsed.models)) {
-            return { success: true, message: 'API key is valid.' };
+            return { success: true, message: t('api.keyValid') };
         }
-        return { success: false, message: 'Unexpected API response.' };
+        return { success: false, message: t('api.keyInvalid') };
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return { success: false, message };
@@ -93,17 +103,113 @@ function isImagenModel(modelId: string): boolean {
     return modelId.startsWith('imagen');
 }
 
+// Extract HTTP status code from error message (format: "HTTP 429: ...")
+function extractHttpStatus(error: Error): number | null {
+    const match = error.message.match(/^HTTP (\d+):/);
+    return match ? parseInt(match[1], 10) : null;
+}
+
+// Translate API errors to user-friendly messages based on language setting
+function toUserFriendlyError(err: unknown): Error {
+    const original = err instanceof Error ? err : new Error(String(err));
+    const status = err instanceof Error ? extractHttpStatus(original) : null;
+
+    const statusKeyMap: Record<number, string> = {
+        429: 'api.error.quotaExceeded',
+        401: 'api.error.invalidKey',
+        403: 'api.error.accessDenied',
+        404: 'api.error.modelNotFound',
+        500: 'api.error.serverError',
+        503: 'api.error.serviceUnavailable',
+    };
+
+    // For errors with HTTP status and JSON body, try to extract API message first
+    if (status) {
+        const bodyMatch = original.message.match(/^HTTP \d+: (.+)$/s);
+        if (bodyMatch) {
+            try {
+                const parsed = JSON.parse(bodyMatch[1]);
+                const apiMsg: string = parsed?.error?.message || '';
+                if (apiMsg) {
+                    const translated = translateApiMessage(apiMsg);
+                    if (translated) {
+                        return new Error(translated);
+                    }
+                }
+            } catch {
+                // Not JSON, continue to status-based handling
+            }
+        }
+    }
+
+    if (status && statusKeyMap[status]) {
+        return new Error(t(statusKeyMap[status]));
+    }
+
+    // For 400 errors without a matched translation, show the raw API detail
+    if (status === 400) {
+        const bodyMatch = original.message.match(/^HTTP 400: (.+)$/s);
+        if (bodyMatch) {
+            try {
+                const parsed = JSON.parse(bodyMatch[1]);
+                const apiMsg: string = parsed?.error?.message || '';
+                if (apiMsg) {
+                    return new Error(t('api.error.invalidRequest', { detail: apiMsg }));
+                }
+            } catch {
+                // Not JSON
+            }
+        }
+        return new Error(t('api.error.invalidRequestGeneric'));
+    }
+
+    return original;
+}
+
+// Translate common API error messages to user-friendly localized messages
+function translateApiMessage(apiMsg: string): string | null {
+    const lower = apiMsg.toLowerCase();
+
+    if (
+        lower.includes('only available on paid plans') ||
+        lower.includes('upgrade your account') ||
+        lower.includes('paid tier') ||
+        lower.includes('enable billing')
+    ) {
+        return t('api.error.paidPlanRequired');
+    }
+
+    if (lower.includes('quota') || lower.includes('rate limit') || lower.includes('resource exhausted')) {
+        return t('api.error.quotaExceeded');
+    }
+
+    if (lower.includes('billing')) {
+        return t('api.error.billingRequired');
+    }
+
+    if (lower.includes('permission') || lower.includes('not authorized') || lower.includes('forbidden')) {
+        return t('api.error.accessDenied');
+    }
+
+    return null;
+}
+
 // Generate images using Gemini API
 export async function generateImages(params: GenerationParams): Promise<{ buffers: Buffer[]; mimeType: string }> {
     const apiKey = getApiKey('gemini');
     if (!apiKey) {
-        throw new Error('API key is not set. Please configure it in settings.');
+        throw new Error(t('api.keyNotSet'));
     }
 
-    if (isImagenModel(params.model)) {
-        return generateWithImagen(params, apiKey);
+    try {
+        if (isImagenModel(params.model)) {
+            return await generateWithImagen(params, apiKey);
+        }
+        return await generateWithGemini(params, apiKey);
+    } catch (err) {
+        console.error('API error (raw):', err instanceof Error ? err.message : err);
+        throw toUserFriendlyError(err);
     }
-    return generateWithGemini(params, apiKey);
 }
 
 // Generate with Imagen models
@@ -113,20 +219,23 @@ async function generateWithImagen(
 ): Promise<{ buffers: Buffer[]; mimeType: string }> {
     const url = `${GEMINI_API_BASE}/v1beta/models/${params.model}:predict?key=${apiKey}`;
 
+    // Embed negative prompt into main prompt text (negativePrompt param is deprecated)
+    let promptText = params.prompt;
+    if (params.negativePrompt) {
+        promptText += `\n\nDo not include: ${params.negativePrompt}`;
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const requestBody: any = {
-        instances: [{ prompt: params.prompt }],
+        instances: [{ prompt: promptText }],
         parameters: {
             sampleCount: params.numberOfImages,
             aspectRatio: params.aspectRatio,
-            outputMimeType: params.outputMimeType,
-            safetySetting: params.safetyFilterLevel,
         },
     };
 
-    if (params.negativePrompt) {
-        requestBody.parameters.negativePrompt = params.negativePrompt;
-    }
+    // Imagen API only supports 'block_low_and_above' for safetySetting
+    requestBody.parameters.safetySetting = 'block_low_and_above';
 
     const body = JSON.stringify(requestBody);
     const response = await httpsRequest(
@@ -141,15 +250,15 @@ async function generateWithImagen(
     const parsed = JSON.parse(response) as ImagenResponse;
 
     if (parsed.error) {
-        throw new Error(`API Error (${parsed.error.code}): ${parsed.error.message}`);
+        throw new Error(`HTTP ${parsed.error.code}: ${JSON.stringify({ error: parsed.error })}`);
     }
 
     if (!parsed.predictions || parsed.predictions.length === 0) {
-        throw new Error('No images were generated. The content may have been blocked by safety filters.');
+        throw new Error(t('api.error.noImagesGenerated'));
     }
 
     const buffers = parsed.predictions.map(p => Buffer.from(p.bytesBase64Encoded, 'base64'));
-    return { buffers, mimeType: params.outputMimeType };
+    return { buffers, mimeType: 'image/png' };
 }
 
 // Generate with Gemini models (using generateContent API)
@@ -197,13 +306,14 @@ async function generateWithGemini(
     const requestBody: any = {
         contents: [{ parts }],
         generationConfig: {
+            // responseMimeType does not accept image/* types in generateContent API.
+            // Image output is controlled by including 'IMAGE' in responseModalities.
             responseModalities: ['TEXT', 'IMAGE'],
-            responseMimeType: params.outputMimeType,
         },
     };
 
     const allBuffers: Buffer[] = [];
-    const resultMimeType = params.outputMimeType;
+    let resultMimeType = 'image/png'; // Default; will be overridden by actual response
 
     // Generate multiple images by making multiple requests if needed
     const requestCount = params.numberOfImages;
@@ -221,11 +331,11 @@ async function generateWithGemini(
         const parsed = JSON.parse(response) as GeminiResponse;
 
         if (parsed.error) {
-            throw new Error(`API Error (${parsed.error.code}): ${parsed.error.message}`);
+            throw new Error(`HTTP ${parsed.error.code}: ${JSON.stringify({ error: parsed.error })}`);
         }
 
         if (!parsed.candidates || parsed.candidates.length === 0) {
-            throw new Error('No response received. The content may have been blocked by safety filters.');
+            throw new Error(t('api.error.noResponse'));
         }
 
         for (const candidate of parsed.candidates) {
@@ -233,6 +343,10 @@ async function generateWithGemini(
                 for (const part of candidate.content.parts) {
                     if (part.inlineData?.data) {
                         allBuffers.push(Buffer.from(part.inlineData.data, 'base64'));
+                        // Use the MIME type from the API response
+                        if (part.inlineData.mimeType) {
+                            resultMimeType = part.inlineData.mimeType;
+                        }
                     }
                 }
             }
@@ -240,7 +354,7 @@ async function generateWithGemini(
     }
 
     if (allBuffers.length === 0) {
-        throw new Error('No images were generated. The content may have been blocked by safety filters.');
+        throw new Error(t('api.error.noImagesGenerated'));
     }
 
     return { buffers: allBuffers, mimeType: resultMimeType };

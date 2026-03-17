@@ -1,6 +1,6 @@
 import os from 'os';
 import path from 'path';
-import type { ModelDefinition, AspectRatio, Quality, OutputMimeType, SafetyFilterLevel } from './types';
+import type { ModelDefinition, AspectRatio, Quality } from './types';
 
 // Application directory name
 export const APP_DIR_NAME = '.imaginai';
@@ -25,8 +25,6 @@ export const GENERATION_COUNT_MAX = 4;
 // --- Default values ---
 export const DEFAULT_ASPECT_RATIO: AspectRatio = '1:1';
 export const DEFAULT_QUALITY: Quality = '1k';
-export const DEFAULT_OUTPUT_MIME_TYPE: OutputMimeType = 'image/png';
-export const DEFAULT_SAFETY_FILTER_LEVEL: SafetyFilterLevel = 'block_none';
 export const DEFAULT_NUMBER_OF_IMAGES = 1;
 
 // --- Aspect ratio options ---
@@ -50,31 +48,25 @@ export const QUALITY_OPTIONS: { value: Quality; labelKey: string }[] = [
     { value: '4k', labelKey: 'quality.4k' },
 ];
 
-// --- Output format options ---
-export const OUTPUT_MIME_TYPE_OPTIONS: { value: OutputMimeType; labelKey: string }[] = [
-    { value: 'image/png', labelKey: 'outputFormat.png' },
-    { value: 'image/jpeg', labelKey: 'outputFormat.jpeg' },
-];
-
-// --- Safety filter options ---
-export const SAFETY_FILTER_OPTIONS: { value: SafetyFilterLevel; labelKey: string }[] = [
-    { value: 'block_none', labelKey: 'safety.blockNone' },
-    { value: 'block_few', labelKey: 'safety.blockFew' },
-    { value: 'block_some', labelKey: 'safety.blockSome' },
-    { value: 'block_most', labelKey: 'safety.blockMost' },
-];
-
 // --- Model definitions ---
-// Sorted: Nano Banana family first, then Imagen family. Faster/cheaper first within each group.
+// Sorted by cost: cheaper/faster first within each family.
+// Nano Banana family first (Gemini-based, lower cost), then Imagen family.
+export const DEFAULT_MODEL_ID = 'gemini-3.1-flash-image-preview';
+
 export const MODEL_DEFINITIONS: ModelDefinition[] = [
     // Nano Banana family (flash -> flash 2 -> pro)
+    // generateContent API: no safety filter, 1 image/req
+    // Negative prompt is embedded in the text prompt
     {
         id: 'gemini-2.5-flash-image',
         displayName: 'Nano Banana (gemini-2.5-flash-image)',
         provider: 'gemini',
         supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3', '2:3', '3:2', '4:5', '5:4', '21:9'],
         supportedQualities: ['1k', '2k', '4k'],
+
         supportsImageInput: true,
+        supportsNegativePrompt: true,
+        maxImages: 1,
     },
     {
         id: 'gemini-3.1-flash-image-preview',
@@ -82,7 +74,10 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         provider: 'gemini',
         supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3', '2:3', '3:2', '4:5', '5:4', '21:9'],
         supportedQualities: ['1k', '2k', '4k'],
+
         supportsImageInput: true,
+        supportsNegativePrompt: true,
+        maxImages: 1,
     },
     {
         id: 'gemini-3-pro-image-preview',
@@ -90,16 +85,23 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         provider: 'gemini',
         supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3', '2:3', '3:2', '4:5', '5:4', '21:9'],
         supportedQualities: ['1k', '2k', '4k'],
+
         supportsImageInput: true,
+        supportsNegativePrompt: true,
+        maxImages: 1,
     },
     // Imagen 4 family (fast -> standard -> ultra)
+    // predict API: safetySetting fixed to block_low_and_above, text-to-image only, negativePrompt deprecated
     {
         id: 'imagen-4.0-fast-generate-001',
         displayName: 'Imagen 4 Fast (imagen-4.0-fast-generate-001)',
         provider: 'gemini',
         supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3'],
         supportedQualities: ['1k', '2k'],
+
         supportsImageInput: false,
+        supportsNegativePrompt: true,
+        maxImages: 4,
     },
     {
         id: 'imagen-4.0-generate-001',
@@ -107,7 +109,10 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         provider: 'gemini',
         supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3'],
         supportedQualities: ['1k', '2k'],
+
         supportsImageInput: false,
+        supportsNegativePrompt: true,
+        maxImages: 4,
     },
     {
         id: 'imagen-4.0-ultra-generate-001',
@@ -115,7 +120,10 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         provider: 'gemini',
         supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3'],
         supportedQualities: ['1k', '2k'],
+
         supportsImageInput: false,
+        supportsNegativePrompt: true,
+        maxImages: 1,
     },
 ];
 
@@ -164,9 +172,8 @@ export const IPC_CHANNELS = {
 } as const;
 
 // --- Thumbnail settings ---
-export const THUMBNAIL_SIZE = 200;
+export const THUMBNAIL_SIZE = 300;
 export const THUMBNAIL_DIR_NAME = 'thumbnails';
 
 // --- History directory structure ---
-export const HISTORY_METADATA_FILE = 'metadata.json';
 export const HISTORY_IMAGES_DIR = 'images';

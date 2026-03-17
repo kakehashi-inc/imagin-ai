@@ -2,6 +2,8 @@ import { safeStorage } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
+import { translate } from '../../shared/i18n/translate';
+import { loadSettings } from './settings-service';
 
 const API_KEYS_FILE = 'api-keys.enc';
 
@@ -36,7 +38,7 @@ function saveEncryptedKeys(keys: Record<string, string>): void {
         fs.writeFileSync(filePath, encrypted);
     } else {
         console.warn('Encryption not available, storing keys in plain text is not supported.');
-        throw new Error('Encryption is not available on this system.');
+        throw new Error(translate(loadSettings().language, 'api.encryptionUnavailable'));
     }
 }
 

@@ -14,12 +14,9 @@ import {
     MODEL_DEFINITIONS,
     ASPECT_RATIO_OPTIONS,
     QUALITY_OPTIONS,
-    OUTPUT_MIME_TYPE_OPTIONS,
-    SAFETY_FILTER_OPTIONS,
     GENERATION_COUNT_MIN,
-    GENERATION_COUNT_MAX,
 } from '../../shared/constants';
-import type { AspectRatio, Quality, OutputMimeType, SafetyFilterLevel } from '../../shared/types';
+import type { AspectRatio, Quality } from '../../shared/types';
 import InfoIcon from '@mui/icons-material/Info';
 
 export default function ParameterPanel() {
@@ -29,17 +26,15 @@ export default function ParameterPanel() {
         aspectRatio,
         quality,
         numberOfImages,
-        outputMimeType,
-        safetyFilterLevel,
         setModel,
         setAspectRatio,
         setQuality,
         setNumberOfImages,
-        setOutputMimeType,
-        setSafetyFilterLevel,
     } = useGenerationStore();
 
     const currentModel = MODEL_DEFINITIONS.find(m => m.id === model);
+    const maxImages = currentModel?.maxImages ?? 4;
+    const showNumberOfImages = maxImages > 1;
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -93,59 +88,29 @@ export default function ParameterPanel() {
                 </Select>
             </FormControl>
 
-            {/* Number of Images */}
-            <Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                    <Typography variant='body2' color='text.secondary'>
-                        {t('numberOfImages.label')}: {numberOfImages}
-                    </Typography>
-                    <Tooltip title={t('numberOfImages.warning')} arrow>
-                        <InfoIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
-                    </Tooltip>
+            {/* Number of Images - hidden when model supports only 1 */}
+            {showNumberOfImages && (
+                <Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                        <Typography variant='body2' color='text.secondary'>
+                            {t('numberOfImages.label')}: {numberOfImages}
+                        </Typography>
+                        <Tooltip title={t('numberOfImages.warning')} arrow>
+                            <InfoIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
+                        </Tooltip>
+                    </Box>
+                    <Slider
+                        value={Math.min(numberOfImages, maxImages)}
+                        min={GENERATION_COUNT_MIN}
+                        max={maxImages}
+                        step={1}
+                        marks
+                        onChange={(_e, val) => setNumberOfImages(val as number)}
+                        valueLabelDisplay='auto'
+                        size='small'
+                    />
                 </Box>
-                <Slider
-                    value={numberOfImages}
-                    min={GENERATION_COUNT_MIN}
-                    max={GENERATION_COUNT_MAX}
-                    step={1}
-                    marks
-                    onChange={(_e, val) => setNumberOfImages(val as number)}
-                    valueLabelDisplay='auto'
-                    size='small'
-                />
-            </Box>
-
-            {/* Output Format */}
-            <FormControl size='small' fullWidth>
-                <InputLabel>{t('outputFormat.label')}</InputLabel>
-                <Select
-                    value={outputMimeType}
-                    label={t('outputFormat.label')}
-                    onChange={e => setOutputMimeType(e.target.value as OutputMimeType)}
-                >
-                    {OUTPUT_MIME_TYPE_OPTIONS.map(opt => (
-                        <MenuItem key={opt.value} value={opt.value}>
-                            {t(opt.labelKey)}
-                        </MenuItem>
-                    ))}
-                </Select>
-            </FormControl>
-
-            {/* Safety Filter */}
-            <FormControl size='small' fullWidth>
-                <InputLabel>{t('safety.label')}</InputLabel>
-                <Select
-                    value={safetyFilterLevel}
-                    label={t('safety.label')}
-                    onChange={e => setSafetyFilterLevel(e.target.value as SafetyFilterLevel)}
-                >
-                    {SAFETY_FILTER_OPTIONS.map(opt => (
-                        <MenuItem key={opt.value} value={opt.value}>
-                            {t(opt.labelKey)}
-                        </MenuItem>
-                    ))}
-                </Select>
-            </FormControl>
+            )}
         </Box>
     );
 }

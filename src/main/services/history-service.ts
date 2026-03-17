@@ -3,69 +3,69 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import archiver from 'archiver';
 import type { HistoryEntry, GenerationParams } from '../../shared/types';
-import { HISTORY_METADATA_FILE, HISTORY_IMAGES_DIR, THUMBNAIL_DIR_NAME, THUMBNAIL_SIZE } from '../../shared/constants';
+import { THUMBNAIL_SIZE, THUMBNAIL_DIR_NAME, HISTORY_IMAGES_DIR } from '../../shared/constants';
 import { loadSettings, ensureHistoryDir } from './settings-service';
+
+// --- Directory helpers ---
 
 function getHistoryDir(): string {
     return ensureHistoryDir();
 }
 
-function getEntryDir(id: string): string {
-    return path.join(getHistoryDir(), id);
+function getImagesDir(): string {
+    return path.join(getHistoryDir(), HISTORY_IMAGES_DIR);
 }
 
-function getImagesDir(id: string): string {
-    return path.join(getEntryDir(id), HISTORY_IMAGES_DIR);
+function getThumbDir(): string {
+    return path.join(getHistoryDir(), THUMBNAIL_DIR_NAME);
 }
 
-function getThumbnailDir(id: string): string {
-    return path.join(getEntryDir(id), THUMBNAIL_DIR_NAME);
+function ensureDirs(): void {
+    const imagesDir = getImagesDir();
+    const thumbDir = getThumbDir();
+    if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
+    if (!fs.existsSync(thumbDir)) fs.mkdirSync(thumbDir, { recursive: true });
 }
 
-// Read a single history entry metadata
-function readMetadata(entryDir: string): HistoryEntry | null {
-    const metaPath = path.join(entryDir, HISTORY_METADATA_FILE);
+// --- Metadata helpers ---
+
+function readMetadata(jsonPath: string): HistoryEntry | null {
     try {
-        if (fs.existsSync(metaPath)) {
-            const raw = fs.readFileSync(metaPath, 'utf-8');
+        if (fs.existsSync(jsonPath)) {
+            const raw = fs.readFileSync(jsonPath, 'utf-8');
             return JSON.parse(raw) as HistoryEntry;
         }
     } catch (err) {
-        console.error(`Failed to read metadata from ${entryDir}:`, err);
+        console.error(`Failed to read metadata from ${jsonPath}:`, err);
     }
     return null;
 }
 
-// Save metadata for a history entry
 function writeMetadata(id: string, entry: HistoryEntry): void {
-    const entryDir = getEntryDir(id);
-    if (!fs.existsSync(entryDir)) {
-        fs.mkdirSync(entryDir, { recursive: true });
-    }
-    const metaPath = path.join(entryDir, HISTORY_METADATA_FILE);
+    ensureDirs();
+    const metaPath = path.join(getImagesDir(), `${id}.json`);
     fs.writeFileSync(metaPath, JSON.stringify(entry, null, 2), 'utf-8');
 }
 
+// --- Public API ---
+
 // Get all history entries sorted by updatedAt descending
 export function getAllHistory(): HistoryEntry[] {
-    const historyDir = getHistoryDir();
+    const imagesDir = getImagesDir();
     const entries: HistoryEntry[] = [];
 
     try {
-        const dirs = fs.readdirSync(historyDir, { withFileTypes: true });
-        for (const dirent of dirs) {
-            if (dirent.isDirectory() && dirent.name !== THUMBNAIL_DIR_NAME) {
-                const entry = readMetadata(path.join(historyDir, dirent.name));
-                if (entry) {
-                    entries.push(entry);
-                }
-            }
+        if (!fs.existsSync(imagesDir)) return entries;
+        const files = fs.readdirSync(imagesDir);
+        for (const file of files) {
+            if (!file.endsWith('.json')) continue;
+            const entry = readMetadata(path.join(imagesDir, file));
+            if (entry) entries.push(entry);
         }
     } catch (err) {
         console.error('Failed to read history directory:', err);
     }
 
-    // Sort by updatedAt descending
     entries.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     return entries;
 }
@@ -75,59 +75,69 @@ export function getHistoryCount(): number {
     return getAllHistory().length;
 }
 
-// Create a new history entry from generation result
-export function createHistoryEntry(
+// Create history entries from generation result (one entry per image)
+export function createHistoryEntries(
     params: GenerationParams,
     modelDisplayName: string,
     imageBuffers: Buffer[],
-    mimeType: string
-): HistoryEntry {
-    const id = uuidv4();
+    _mimeType: string
+): HistoryEntry[] {
     const now = new Date().toISOString();
-    const ext = mimeType === 'image/jpeg' ? 'jpg' : 'png';
+    const entries: HistoryEntry[] = [];
 
-    // Create directories
-    const imagesDir = getImagesDir(id);
-    const thumbDir = getThumbnailDir(id);
-    fs.mkdirSync(imagesDir, { recursive: true });
-    fs.mkdirSync(thumbDir, { recursive: true });
+    ensureDirs();
 
-    // Save images and generate thumbnails
-    const imagePaths: string[] = [];
     for (let i = 0; i < imageBuffers.length; i++) {
-        const fileName = `image_${i + 1}.${ext}`;
-        const imagePath = path.join(imagesDir, fileName);
-        fs.writeFileSync(imagePath, imageBuffers[i]);
-        imagePaths.push(imagePath);
+        const id = uuidv4();
 
-        // Generate simple thumbnail by saving the original
-        // (Native image resizing without sharp - we use Electron's nativeImage in thumbnail service)
-        const thumbPath = path.join(thumbDir, fileName);
+        // Save image as PNG
+        const imagePath = path.join(getImagesDir(), `${id}.png`);
+        fs.writeFileSync(imagePath, imageBuffers[i]);
+
+        // Generate thumbnail as JPEG
+        const thumbPath = path.join(getThumbDir(), `${id}.jpg`);
         generateThumbnail(imageBuffers[i], thumbPath);
+
+        // Get image dimensions
+        let imageWidth = 0;
+        let imageHeight = 0;
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const { nativeImage } = require('electron');
+            const img = nativeImage.createFromBuffer(imageBuffers[i]);
+            const size = img.getSize();
+            imageWidth = size.width;
+            imageHeight = size.height;
+        } catch {
+            // Ignore dimension read errors
+        }
+
+        const entry: HistoryEntry = {
+            id,
+            createdAt: now,
+            updatedAt: now,
+            model: params.model,
+            modelDisplayName,
+            prompt: params.prompt,
+            negativePrompt: params.negativePrompt,
+            aspectRatio: params.aspectRatio,
+            quality: params.quality,
+            numberOfImages: params.numberOfImages,
+            referenceImagePaths: params.referenceImagePaths,
+            generatedImagePaths: [imagePath],
+            imageWidth,
+            imageHeight,
+            fileSize: imageBuffers[i].length,
+        };
+
+        writeMetadata(id, entry);
+        entries.push(entry);
     }
 
-    const entry: HistoryEntry = {
-        id,
-        createdAt: now,
-        updatedAt: now,
-        model: params.model,
-        modelDisplayName,
-        prompt: params.prompt,
-        negativePrompt: params.negativePrompt,
-        aspectRatio: params.aspectRatio,
-        quality: params.quality,
-        numberOfImages: params.numberOfImages,
-        outputMimeType: params.outputMimeType,
-        safetyFilterLevel: params.safetyFilterLevel,
-        referenceImagePaths: params.referenceImagePaths,
-        generatedImagePaths: imagePaths,
-    };
-
-    writeMetadata(id, entry);
-    return entry;
+    return entries;
 }
 
-// Generate a thumbnail using Electron nativeImage
+// Generate a thumbnail using Electron nativeImage (JPEG, max long side THUMBNAIL_SIZE px)
 function generateThumbnail(imageBuffer: Buffer, thumbPath: string): void {
     try {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -135,25 +145,17 @@ function generateThumbnail(imageBuffer: Buffer, thumbPath: string): void {
         const img = nativeImage.createFromBuffer(imageBuffer);
         const size = img.getSize();
 
-        // Calculate resize dimensions maintaining aspect ratio
-        let width = THUMBNAIL_SIZE;
-        let height = THUMBNAIL_SIZE;
-        if (size.width > size.height) {
-            height = Math.round((THUMBNAIL_SIZE * size.height) / size.width);
-        } else {
-            width = Math.round((THUMBNAIL_SIZE * size.width) / size.height);
-        }
+        // Scale so that the long side = THUMBNAIL_SIZE, maintaining aspect ratio
+        const longSide = Math.max(size.width, size.height);
+        const scale = longSide > THUMBNAIL_SIZE ? THUMBNAIL_SIZE / longSide : 1;
+        const width = Math.round(size.width * scale);
+        const height = Math.round(size.height * scale);
 
         const resized = img.resize({ width, height, quality: 'good' });
-        const ext = path.extname(thumbPath).toLowerCase();
-        if (ext === '.jpg' || ext === '.jpeg') {
-            fs.writeFileSync(thumbPath, resized.toJPEG(80));
-        } else {
-            fs.writeFileSync(thumbPath, resized.toPNG());
-        }
+        // Always save as JPEG
+        fs.writeFileSync(thumbPath, resized.toJPEG(80));
     } catch (err) {
         console.error('Failed to generate thumbnail:', err);
-        // Fallback: save original as thumbnail
         fs.writeFileSync(thumbPath, imageBuffer);
     }
 }
@@ -161,17 +163,13 @@ function generateThumbnail(imageBuffer: Buffer, thumbPath: string): void {
 // Get thumbnail data as base64 data URL
 export function getThumbnailDataUrl(imagePath: string): string {
     try {
-        // Derive thumbnail path from image path
-        const dir = path.dirname(imagePath);
-        const parentDir = path.dirname(dir);
-        const fileName = path.basename(imagePath);
-        const thumbPath = path.join(parentDir, THUMBNAIL_DIR_NAME, fileName);
+        // Derive thumbnail path: same uuid, .jpg in thumbnails dir
+        const baseName = path.basename(imagePath, path.extname(imagePath));
+        const thumbPath = path.join(getThumbDir(), `${baseName}.jpg`);
 
         if (fs.existsSync(thumbPath)) {
             const data = fs.readFileSync(thumbPath);
-            const ext = path.extname(thumbPath).toLowerCase();
-            const mime = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png';
-            return `data:${mime};base64,${data.toString('base64')}`;
+            return `data:image/jpeg;base64,${data.toString('base64')}`;
         }
 
         // Fallback: read original image
@@ -199,33 +197,40 @@ export function getImageDataUrl(imagePath: string): string {
 
 // Delete a single history entry
 export function deleteHistoryEntry(id: string): void {
-    const entryDir = getEntryDir(id);
-    if (fs.existsSync(entryDir)) {
-        fs.rmSync(entryDir, { recursive: true, force: true });
+    const imgPath = path.join(getImagesDir(), `${id}.png`);
+    const jsonPath = path.join(getImagesDir(), `${id}.json`);
+    const thumbPath = path.join(getThumbDir(), `${id}.jpg`);
+
+    for (const p of [imgPath, jsonPath, thumbPath]) {
+        try {
+            if (fs.existsSync(p)) fs.unlinkSync(p);
+        } catch (err) {
+            console.error(`Failed to delete ${p}:`, err);
+        }
     }
 }
 
 // Delete all history entries
 export function deleteAllHistory(): void {
-    const historyDir = getHistoryDir();
-    try {
-        const dirs = fs.readdirSync(historyDir, { withFileTypes: true });
-        for (const dirent of dirs) {
-            if (dirent.isDirectory()) {
-                fs.rmSync(path.join(historyDir, dirent.name), { recursive: true, force: true });
+    const imagesDir = getImagesDir();
+    const thumbDir = getThumbDir();
+
+    for (const dir of [imagesDir, thumbDir]) {
+        try {
+            if (!fs.existsSync(dir)) continue;
+            const files = fs.readdirSync(dir);
+            for (const file of files) {
+                fs.unlinkSync(path.join(dir, file));
             }
+        } catch (err) {
+            console.error(`Failed to delete files in ${dir}:`, err);
+            throw err;
         }
-    } catch (err) {
-        console.error('Failed to delete all history:', err);
-        throw err;
     }
 }
 
 // Export all history to a ZIP file
-export function exportAllHistory(
-    outputPath: string,
-    onProgress?: (percent: number) => void
-): Promise<void> {
+export function exportAllHistory(outputPath: string, onProgress?: (percent: number) => void): Promise<void> {
     return new Promise((resolve, reject) => {
         const historyDir = getHistoryDir();
         const output = fs.createWriteStream(outputPath);
@@ -256,12 +261,10 @@ export function moveHistoryDir(newDir: string): void {
 
     if (oldDir === newDir) return;
 
-    // Ensure new directory exists
     if (!fs.existsSync(newDir)) {
         fs.mkdirSync(newDir, { recursive: true });
     }
 
-    // Move contents
     try {
         const items = fs.readdirSync(oldDir, { withFileTypes: true });
         for (const item of items) {

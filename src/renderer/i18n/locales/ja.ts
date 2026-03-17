@@ -41,21 +41,12 @@ export default {
     'quality.2k': '2K (高精細)',
     'quality.4k': '4K (最高品質)',
 
-    // Output format
-    'outputFormat.label': '出力フォーマット',
-    'outputFormat.png': 'PNG (ロスレス)',
-    'outputFormat.jpeg': 'JPEG (軽量)',
-
-    // Safety
-    'safety.label': 'セーフティフィルター',
-    'safety.blockNone': '制限なし',
-    'safety.blockFew': '低制限',
-    'safety.blockSome': '中制限',
-    'safety.blockMost': '高制限',
-
     // Number of images
     'numberOfImages.label': '生成枚数',
     'numberOfImages.warning': '枚数が多いほどAPI消費量が増加します。',
+
+    // API key banner
+    'apiKeyBanner.message': 'APIキーが設定されていません。設定画面で設定してください。',
 
     // Prompt
     'prompt.label': 'プロンプト',
@@ -78,7 +69,8 @@ export default {
     'generation.error': '生成に失敗しました: {{message}}',
     'generation.errorRetry': 'リトライ',
     'generation.networkError': 'ネットワークエラーが発生しました。接続を確認してもう一度お試しください。',
-    'generation.diskSpaceWarning': '履歴保存先のディスク容量が不足しています。空き容量を確保するか、保存先を変更してください。',
+    'generation.diskSpaceWarning':
+        '履歴保存先のディスク容量が不足しています。空き容量を確保するか、保存先を変更してください。',
     'generation.success': '画像を生成しました！',
 
     // History
@@ -87,7 +79,7 @@ export default {
     'history.searchPlaceholder': 'プロンプトで検索...',
     'history.deleteConfirm': 'この履歴を削除しますか？この操作は元に戻せません。',
     'history.deleteAllConfirm': 'すべての履歴が完全に削除されます。この操作は元に戻せません。よろしいですか？',
-    'history.exportAndDeleteConfirm': 'すべての履歴を圧縮保存してから削除します。続行しますか？',
+    'history.exportConfirm': 'すべての履歴をZIPアーカイブとしてエクスポートしますか？',
     'history.exportSuccess': '履歴をエクスポートしました。',
     'history.exportFailed': '履歴のエクスポートに失敗しました。',
     'history.exporting': '履歴をエクスポート中...',
@@ -100,8 +92,8 @@ export default {
     'contextMenu.delete': '削除',
 
     // History menu
+    'historyMenu.exportAll': 'すべて圧縮して保存',
     'historyMenu.deleteAll': 'すべて削除',
-    'historyMenu.exportAndDelete': 'すべて圧縮保存して削除',
 
     // Settings
     'settings.title': '設定',
@@ -112,6 +104,9 @@ export default {
     'settings.theme.system': 'システム',
     'settings.apiKey': 'APIキー',
     'settings.apiKey.label': 'Gemini APIキー',
+    'settings.apiKey.hintPrefix': 'APIキーは ',
+    'settings.apiKey.hintPrefixLink': 'Google AI Studio',
+    'settings.apiKey.hintPrefixSuffix': ' から取得できます。',
     'settings.apiKey.placeholder': 'APIキーを入力してください',
     'settings.apiKey.test': '接続テスト',
     'settings.apiKey.testing': 'テスト中...',
@@ -123,4 +118,37 @@ export default {
     'settings.historyDir.moveConfirm': '既存の履歴を新しい場所に移動しますか？',
     'settings.language.ja': '日本語',
     'settings.language.en': '英語',
+
+    // Main process - API
+    'api.keyNotSet': 'APIキーが設定されていません。',
+    'api.keyValid': 'APIキーは有効です。',
+    'api.keyInvalid': 'APIキーが無効です。',
+    'api.encryptionUnavailable': '暗号化が利用できません。APIキーを安全に保存できません。',
+    'api.error.quotaExceeded': 'APIのクォータに達しました。しばらく待ってから再試行するか、課金設定をご確認ください。',
+    'api.error.invalidKey': 'APIキーが無効です。設定画面でAPIキーを確認してください。',
+    'api.error.accessDenied': 'アクセスが拒否されました。APIキーにこの操作の権限がありません。',
+    'api.error.modelNotFound': '指定されたモデルが見つかりません。削除または名前が変更された可能性があります。',
+    'api.error.serverError': 'サーバー内部エラーが発生しました。しばらくしてから再試行してください。',
+    'api.error.serviceUnavailable': 'サービスが一時的に利用できません。しばらくしてから再試行してください。',
+    'api.error.invalidRequest': '無効なリクエスト: {{detail}}',
+    'api.error.invalidRequestGeneric': 'リクエストが無効です。パラメータを確認して再試行してください。',
+    'api.error.paidPlanRequired':
+        'このモデルは有料プランでのみ利用可能です。Google AIアカウントをアップグレードしてください。',
+
+    'api.error.billingRequired': '課金またはクォータの問題です。Google AIの課金設定を確認してください。',
+    'api.error.noImagesGenerated': '画像が生成されませんでした。別のプロンプトをお試しください。',
+    'api.error.noResponse': 'APIからの応答がありませんでした。',
+
+    // Main process - IPC
+    'ipc.historyLimitExceeded': '履歴が上限({{limit}}件)を超えています。履歴を整理してから生成してください。',
+
+    // Main process - Dialogs
+    'dialog.exportHistory': '履歴のエクスポート',
+    'dialog.saveImageAs': '画像を名前をつけて保存',
+    'dialog.selectImages': '画像を選択',
+    'dialog.selectDirectory': 'ディレクトリを選択',
+    'dialog.zipFilter': 'ZIPアーカイブ',
+    'dialog.pngFilter': 'PNG画像',
+    'dialog.jpegFilter': 'JPEG画像',
+    'dialog.imageFilter': '画像ファイル',
 };

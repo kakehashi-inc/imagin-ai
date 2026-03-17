@@ -58,11 +58,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     },
 
     exportAll: async () => {
-        const result = await window.imaginai.exportAllHistory();
-        if (result.success) {
-            set({ entries: [], thumbnails: new Map() });
-        }
-        return result;
+        return await window.imaginai.exportAllHistory();
     },
 
     getFilteredEntries: () => {

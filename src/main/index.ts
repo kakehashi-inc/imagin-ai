@@ -1,5 +1,5 @@
 import path from 'path';
-import { app, BrowserWindow, nativeTheme, ipcMain } from 'electron';
+import { app, BrowserWindow, nativeTheme, ipcMain, shell } from 'electron';
 import { setupConsoleBridge, setMainWindow } from './utils/console-bridge';
 import { registerIpcHandlers } from './ipc/index';
 import { loadSettings, mergeSettings, ensureHistoryDir } from './services/settings-service';
@@ -44,6 +44,14 @@ function createWindow() {
     } else {
         mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
     }
+
+    // Open external links in the default browser
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+        if (url.startsWith('https://') || url.startsWith('http://')) {
+            shell.openExternal(url);
+        }
+        return { action: 'deny' };
+    });
 
     mainWindow.on('ready-to-show', () => mainWindow?.show());
     mainWindow.on('closed', () => {

@@ -27,16 +27,14 @@ export type ModelDefinition = {
     supportedAspectRatios: string[];
     supportedQualities: string[];
     supportsImageInput: boolean;
+    supportsNegativePrompt: boolean;
+    maxImages: number;
 };
 
 // --- Generation parameters ---
 export type AspectRatio = '1:1' | '9:16' | '16:9' | '3:4' | '4:3' | '2:3' | '3:2' | '4:5' | '5:4' | '21:9';
 
 export type Quality = '1k' | '2k' | '4k';
-
-export type OutputMimeType = 'image/png' | 'image/jpeg';
-
-export type SafetyFilterLevel = 'block_none' | 'block_few' | 'block_some' | 'block_most';
 
 export type GenerationParams = {
     model: string;
@@ -45,8 +43,6 @@ export type GenerationParams = {
     aspectRatio: AspectRatio;
     quality: Quality;
     numberOfImages: number;
-    outputMimeType: OutputMimeType;
-    safetyFilterLevel: SafetyFilterLevel;
     referenceImagePaths: string[];
 };
 
@@ -62,10 +58,11 @@ export type HistoryEntry = {
     aspectRatio: AspectRatio;
     quality: Quality;
     numberOfImages: number;
-    outputMimeType: OutputMimeType;
-    safetyFilterLevel: SafetyFilterLevel;
     referenceImagePaths: string[];
     generatedImagePaths: string[];
+    imageWidth?: number;
+    imageHeight?: number;
+    fileSize?: number;
 };
 
 // --- Settings ---

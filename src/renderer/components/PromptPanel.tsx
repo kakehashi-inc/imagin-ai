@@ -1,4 +1,5 @@
-import { Box, Typography, TextField, Button, IconButton, Tooltip, Alert } from '@mui/material';
+import React from 'react';
+import { Alert, Box, Typography, TextField, Button, IconButton, Tooltip } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useGenerationStore } from '../stores/generation-store';
 import { MODEL_DEFINITIONS } from '../../shared/constants';
@@ -21,6 +22,15 @@ export default function PromptPanel() {
 
     const currentModel = MODEL_DEFINITIONS.find(m => m.id === model);
     const supportsImageInput = currentModel?.supportsImageInput ?? false;
+    const supportsNegativePrompt = currentModel?.supportsNegativePrompt ?? false;
+
+    const promptRef = React.useRef<HTMLTextAreaElement>(null);
+    const [hasApiKey, setHasApiKey] = React.useState(true);
+
+    React.useEffect(() => {
+        promptRef.current?.focus();
+        window.imaginai.getApiKey('gemini').then(key => setHasApiKey(!!key));
+    }, []);
 
     const handleSelectFiles = async () => {
         const paths = await window.imaginai.selectImages();
@@ -31,6 +41,7 @@ export default function PromptPanel() {
 
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
+        if (!supportsImageInput) return;
         const files = Array.from(e.dataTransfer.files);
         const imagePaths = files
             .filter(f => /\.(png|jpe?g|webp)$/i.test(f.name))
@@ -46,13 +57,20 @@ export default function PromptPanel() {
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {/* API key not set banner */}
+            {!hasApiKey && (
+                <Alert severity='warning' variant='outlined'>
+                    {t('apiKeyBanner.message')}
+                </Alert>
+            )}
+
             {/* Prompt label */}
             <Typography variant='body2' fontWeight={500}>
                 {t('prompt.label')}
             </Typography>
 
             {/* Reference image attachment block */}
-            {referenceImagePaths.length > 0 && (
+            {supportsImageInput && referenceImagePaths.length > 0 && (
                 <Box
                     sx={{
                         display: 'flex',
@@ -109,6 +127,7 @@ export default function PromptPanel() {
             {/* Prompt textarea */}
             <Box onDrop={handleDrop} onDragOver={handleDragOver}>
                 <TextField
+                    inputRef={promptRef}
                     multiline
                     minRows={3}
                     maxRows={8}
@@ -122,42 +141,39 @@ export default function PromptPanel() {
                     <Typography variant='caption' color='text.secondary'>
                         {t('prompt.charCount', { count: prompt.length })}
                     </Typography>
-                    <Tooltip title={!supportsImageInput ? t('referenceImages.unsupportedModel') : ''}>
-                        <span>
+                    {supportsImageInput && (
+                        <Tooltip title=''>
                             <Button
                                 size='small'
                                 startIcon={<AttachFileIcon />}
                                 onClick={handleSelectFiles}
-                                disabled={!supportsImageInput}
                                 variant='text'
                             >
                                 {t('referenceImages.selectFiles')}
                             </Button>
-                        </span>
-                    </Tooltip>
+                        </Tooltip>
+                    )}
                 </Box>
             </Box>
 
-            {!supportsImageInput && referenceImagePaths.length > 0 && (
-                <Alert severity='warning' variant='outlined'>
-                    {t('referenceImages.unsupportedModel')}
-                </Alert>
+            {/* Negative Prompt - hidden when model does not support it */}
+            {supportsNegativePrompt && (
+                <>
+                    <Typography variant='body2' fontWeight={500}>
+                        {t('negativePrompt.label')}
+                    </Typography>
+                    <TextField
+                        multiline
+                        minRows={2}
+                        maxRows={4}
+                        fullWidth
+                        size='small'
+                        placeholder={t('negativePrompt.placeholder')}
+                        value={negativePrompt}
+                        onChange={e => setNegativePrompt(e.target.value)}
+                    />
+                </>
             )}
-
-            {/* Negative Prompt */}
-            <Typography variant='body2' fontWeight={500}>
-                {t('negativePrompt.label')}
-            </Typography>
-            <TextField
-                multiline
-                minRows={2}
-                maxRows={4}
-                fullWidth
-                size='small'
-                placeholder={t('negativePrompt.placeholder')}
-                value={negativePrompt}
-                onChange={e => setNegativePrompt(e.target.value)}
-            />
         </Box>
     );
 }

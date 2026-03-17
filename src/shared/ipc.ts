@@ -33,7 +33,7 @@ export type IpcApi = {
     testApiKey(provider: string): Promise<ApiTestResult>;
 
     // Generation
-    executeGeneration(params: GenerationParams): Promise<HistoryEntry>;
+    executeGeneration(params: GenerationParams): Promise<HistoryEntry[]>;
 
     // History
     getAllHistory(): Promise<HistoryEntry[]>;
