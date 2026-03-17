@@ -1,0 +1,60 @@
+import type {
+    AppInfo,
+    AppLanguage,
+    AppTheme,
+    AppSettings,
+    ApiTestResult,
+    GenerationParams,
+    HistoryEntry,
+} from './types';
+
+// IPC API type definition
+export type IpcApi = {
+    // App info & settings
+    getAppInfo(): Promise<AppInfo>;
+    setTheme(theme: AppTheme): Promise<{ theme: AppTheme }>;
+    setLanguage(language: AppLanguage): Promise<{ language: AppLanguage }>;
+
+    // Window controls
+    minimize(): Promise<void>;
+    maximizeOrRestore(): Promise<boolean>;
+    isMaximized(): Promise<boolean>;
+    close(): Promise<void>;
+
+    // Settings
+    getSettings(): Promise<AppSettings>;
+    saveSettings(settings: Partial<AppSettings>): Promise<AppSettings>;
+    getHistoryDir(): Promise<string>;
+    changeHistoryDir(newDir: string, moveExisting: boolean): Promise<{ success: boolean; historyDir: string }>;
+
+    // API Key
+    getApiKey(provider: string): Promise<string>;
+    saveApiKey(provider: string, key: string): Promise<void>;
+    testApiKey(provider: string): Promise<ApiTestResult>;
+
+    // Generation
+    executeGeneration(params: GenerationParams): Promise<HistoryEntry>;
+
+    // History
+    getAllHistory(): Promise<HistoryEntry[]>;
+    deleteHistory(id: string): Promise<void>;
+    deleteAllHistory(): Promise<void>;
+    exportAllHistory(): Promise<{ success: boolean; path?: string }>;
+    saveImageAs(imagePath: string): Promise<{ success: boolean; path?: string }>;
+    getHistoryCount(): Promise<number>;
+    getThumbnail(imagePath: string): Promise<string>;
+    getImage(imagePath: string): Promise<string>;
+
+    // File dialogs
+    selectImages(): Promise<string[]>;
+    selectDirectory(): Promise<string | null>;
+
+    // Image viewer window
+    openImageViewer(imagePath: string, title: string): Promise<void>;
+};
+
+declare global {
+    interface Window {
+        imaginai: IpcApi;
+    }
+}

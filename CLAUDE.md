@@ -58,7 +58,7 @@ Loop:
 CRITICAL: You MUST read [README.md](README.md) BEFORE taking any action.
 </instruction>
 <development_rules>
-- All developer-facing documents, except `README.md`, MUST be placed in the `Documents` directory.
+- All developer-facing documents, except `README.md` and `README-ja.md`, MUST be placed in the `Documents` directory.
 - After every change, you MUST run the linter and fix all issues. If a linter error is intentionally suppressed, add a comment explaining the reason. **A full build is only required for releases; running the linter alone is sufficient during development.**
 - Temporary or investigative scripts (e.g., research/debug scripts) MUST be placed in the `scripts` directory.
 - When implementing data models, create one file per table.

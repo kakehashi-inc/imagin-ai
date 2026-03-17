@@ -1,0 +1,71 @@
+{
+  "name": "imagin-ai",
+  "version": "0.1.0",
+  "description": "A desktop application that allows you to control an AI image generation API via a dedicated GUI.",
+  "main": "dist/main/index.js",
+  "engines": {
+    "node": ">=22.0.0",
+    "yarn": ">=4.0.0",
+    "npm": "please-use-yarn",
+    "pnpm": "please-use-yarn"
+  },
+  "scripts": {
+    "dev": "concurrently -k -r \"yarn run dev:main\" \"yarn run dev:renderer\" \"yarn run dev:electron\"",
+    "dev:main": "tsc -w -p tsconfig.main.json",
+    "dev:renderer": "vite",
+    "dev:electron": "wait-on dist/main/index.js http://localhost:3001 && electron . --dev",
+    "build": "tsc -p tsconfig.main.json && vite build",
+    "start": "electron .",
+    "format": "prettier --write \"src/**/*.{ts,js,css,json}\"",
+    "lint": "tsc --noEmit",
+    "dist:win": "yarn build && electron-builder --win --publish=never",
+    "dist:mac": "yarn build && electron-builder --mac --publish=never",
+    "dist:linux": "yarn build && electron-builder --linux --publish=never",
+    "release:win": "yarn build && electron-builder --win --publish=always",
+    "release:mac": "yarn build && electron-builder --mac --publish=always",
+    "release:linux": "yarn build && electron-builder --linux --publish=always",
+    "clean": "rimraf dist release node_modules/.cache"
+  },
+  "keywords": [
+    "imagin-ai"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/archiver": "^7.0.0",
+    "@types/node": "^22.19.10",
+    "@types/react": "^19.2.13",
+    "@types/react-dom": "^19.2.3",
+    "@types/uuid": "^11.0.0",
+    "@types/xml2js": "^0.4.14",
+    "@typescript-eslint/eslint-plugin": "^8.54.0",
+    "@typescript-eslint/parser": "^8.54.0",
+    "@vitejs/plugin-react": "^5.1.3",
+    "concurrently": "^9.2.1",
+    "electron": "^40.2.1",
+    "electron-builder": "^26.7.0",
+    "eslint": "^10.0.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "prettier": "^3.8.1",
+    "rimraf": "^6.1.2",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "wait-on": "^9.0.3"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.7",
+    "@mui/material": "^7.3.7",
+    "archiver": "^7.0.1",
+    "i18next": "^25.8.4",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-i18next": "^16.5.4",
+    "react-router-dom": "^7.13.0",
+    "uuid": "^13.0.0",
+    "xml2js": "^0.6.2",
+    "zustand": "^5.0.11"
+  }
+}
