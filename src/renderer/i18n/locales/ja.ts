@@ -76,6 +76,9 @@ export default {
     'generation.generating': '生成中...',
     'generation.historyLimitExceeded': '履歴が上限({{limit}}件)を超えています。履歴を整理してください。',
     'generation.error': '生成に失敗しました: {{message}}',
+    'generation.errorRetry': 'リトライ',
+    'generation.networkError': 'ネットワークエラーが発生しました。接続を確認してもう一度お試しください。',
+    'generation.diskSpaceWarning': '履歴保存先のディスク容量が不足しています。空き容量を確保するか、保存先を変更してください。',
     'generation.success': '画像を生成しました！',
 
     // History
@@ -87,6 +90,8 @@ export default {
     'history.exportAndDeleteConfirm': 'すべての履歴を圧縮保存してから削除します。続行しますか？',
     'history.exportSuccess': '履歴をエクスポートしました。',
     'history.exportFailed': '履歴のエクスポートに失敗しました。',
+    'history.exporting': '履歴をエクスポート中...',
+    'history.exportProgress': '圧縮中: {{percent}}%',
 
     // Context menu
     'contextMenu.addToPrompt': 'プロンプトに追加',

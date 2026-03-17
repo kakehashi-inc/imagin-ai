@@ -120,7 +120,11 @@ export function registerIpcHandlers() {
         }
 
         try {
-            await exportAllHistory(result.filePath);
+            await exportAllHistory(result.filePath, (percent: number) => {
+                if (!win.isDestroyed()) {
+                    win.webContents.send(IPC_CHANNELS.EXPORT_PROGRESS, percent);
+                }
+            });
             deleteAllHistory();
             return { success: true, path: result.filePath };
         } catch (err) {
@@ -164,6 +168,21 @@ export function registerIpcHandlers() {
 
     ipcMain.handle(IPC_CHANNELS.HISTORY_GET_IMAGE, async (_e, imagePath: string) => {
         return getImageDataUrl(imagePath);
+    });
+
+    // --- Disk Space ---
+    ipcMain.handle(IPC_CHANNELS.DISK_CHECK_SPACE, async () => {
+        try {
+            const historyDir = ensureHistoryDir();
+            const root = path.parse(historyDir).root || historyDir;
+            const stats = fs.statfsSync(root);
+            const free = stats.bfree * stats.bsize;
+            // Warn if less than 100MB free
+            const LOW_THRESHOLD = 100 * 1024 * 1024;
+            return { free, low: free < LOW_THRESHOLD };
+        } catch {
+            return { free: -1, low: false };
+        }
     });
 
     // --- File Dialogs ---

@@ -27,9 +27,11 @@ const CH = {
     HISTORY_GET_COUNT: 'history:getCount',
     HISTORY_GET_THUMBNAIL: 'history:getThumbnail',
     HISTORY_GET_IMAGE: 'history:getImage',
+    DISK_CHECK_SPACE: 'disk:checkSpace',
     DIALOG_SELECT_IMAGES: 'dialog:selectImages',
     DIALOG_SELECT_DIRECTORY: 'dialog:selectDirectory',
     IMAGE_VIEWER_OPEN: 'imageViewer:open',
+    EXPORT_PROGRESS: 'export:progress',
 } as const;
 
 const api: IpcApi = {
@@ -114,6 +116,11 @@ const api: IpcApi = {
         return ipcRenderer.invoke(CH.HISTORY_GET_IMAGE, imagePath);
     },
 
+    // Disk space
+    async checkDiskSpace() {
+        return ipcRenderer.invoke(CH.DISK_CHECK_SPACE);
+    },
+
     // File dialogs
     async selectImages() {
         return ipcRenderer.invoke(CH.DIALOG_SELECT_IMAGES);
@@ -125,6 +132,15 @@ const api: IpcApi = {
     // Image viewer window
     async openImageViewer(imagePath, title) {
         return ipcRenderer.invoke(CH.IMAGE_VIEWER_OPEN, imagePath, title);
+    },
+
+    // Event listeners
+    onExportProgress(callback) {
+        const handler = (_event: Electron.IpcRendererEvent, percent: number) => callback(percent);
+        ipcRenderer.on(CH.EXPORT_PROGRESS, handler);
+        return () => {
+            ipcRenderer.removeListener(CH.EXPORT_PROGRESS, handler);
+        };
     },
 };
 

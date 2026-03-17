@@ -45,12 +45,18 @@ export type IpcApi = {
     getThumbnail(imagePath: string): Promise<string>;
     getImage(imagePath: string): Promise<string>;
 
+    // Disk space
+    checkDiskSpace(): Promise<{ free: number; low: boolean }>;
+
     // File dialogs
     selectImages(): Promise<string[]>;
     selectDirectory(): Promise<string | null>;
 
     // Image viewer window
     openImageViewer(imagePath: string, title: string): Promise<void>;
+
+    // Event listeners
+    onExportProgress(callback: (percent: number) => void): () => void;
 };
 
 declare global {

@@ -157,6 +157,10 @@ export const IPC_CHANNELS = {
     DIALOG_SELECT_DIRECTORY: 'dialog:selectDirectory',
     // Image viewer window
     IMAGE_VIEWER_OPEN: 'imageViewer:open',
+    // Disk space
+    DISK_CHECK_SPACE: 'disk:checkSpace',
+    // Events (main -> renderer)
+    EXPORT_PROGRESS: 'export:progress',
 } as const;
 
 // --- Thumbnail settings ---

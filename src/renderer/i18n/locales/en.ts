@@ -77,6 +77,9 @@ export default {
     'generation.historyLimitExceeded':
         'History limit ({{limit}} entries) exceeded. Please clean up history before generating.',
     'generation.error': 'Generation failed: {{message}}',
+    'generation.errorRetry': 'Retry',
+    'generation.networkError': 'A network error occurred. Please check your connection and try again.',
+    'generation.diskSpaceWarning': 'Low disk space on history drive. Please free up space or change the history save location.',
     'generation.success': 'Image generated successfully!',
 
     // History
@@ -88,6 +91,8 @@ export default {
     'history.exportAndDeleteConfirm': 'All history will be archived and then deleted. Continue?',
     'history.exportSuccess': 'History exported successfully.',
     'history.exportFailed': 'Failed to export history.',
+    'history.exporting': 'Exporting history...',
+    'history.exportProgress': 'Compressing: {{percent}}%',
 
     // Context menu
     'contextMenu.addToPrompt': 'Add to Prompt',

@@ -13,6 +13,7 @@ import {
     DialogActions,
     Button,
     InputAdornment,
+    LinearProgress,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useHistoryStore } from '../stores/history-store';
@@ -56,8 +57,17 @@ export default function HistoryPanel() {
         message: '',
         onConfirm: () => {},
     });
+    const [exportProgress, setExportProgress] = React.useState<number | null>(null);
     const [panelHeight, setPanelHeight] = React.useState(300);
     const resizeRef = React.useRef<{ startY: number; startHeight: number } | null>(null);
+
+    // Listen for export progress events
+    React.useEffect(() => {
+        const unsubscribe = window.imaginai.onExportProgress((percent: number) => {
+            setExportProgress(percent);
+        });
+        return unsubscribe;
+    }, []);
 
     const filteredEntries = getFilteredEntries();
 
@@ -100,8 +110,10 @@ export default function HistoryPanel() {
     };
 
     const handleSaveAs = async () => {
-        if (contextMenu?.entry && contextMenu.entry.generatedImagePaths.length > 0) {
-            await window.imaginai.saveImageAs(contextMenu.entry.generatedImagePaths[0]);
+        if (contextMenu?.entry) {
+            for (const imgPath of contextMenu.entry.generatedImagePaths) {
+                await window.imaginai.saveImageAs(imgPath);
+            }
         }
         handleCloseContextMenu();
     };
@@ -160,18 +172,23 @@ export default function HistoryPanel() {
             title: t('common.confirm'),
             message: t('history.exportAndDeleteConfirm'),
             onConfirm: async () => {
-                await exportAll();
                 setConfirmDialog(prev => ({ ...prev, open: false }));
+                setExportProgress(0);
+                try {
+                    await exportAll();
+                } finally {
+                    setExportProgress(null);
+                }
             },
         });
     };
 
-    // Click to open viewer
+    // Click to open viewer - open all generated images as separate modeless windows
     const handleImageClick = (entry: HistoryEntry) => {
-        if (entry.generatedImagePaths.length > 0) {
-            const imgPath = entry.generatedImagePaths[0];
-            const title = entry.prompt.substring(0, 60) || 'Generated Image';
-            window.imaginai.openImageViewer(imgPath, title);
+        const baseTitle = entry.prompt.substring(0, 60) || 'Generated Image';
+        for (let i = 0; i < entry.generatedImagePaths.length; i++) {
+            const title = entry.generatedImagePaths.length > 1 ? `${baseTitle} (${i + 1}/${entry.generatedImagePaths.length})` : baseTitle;
+            window.imaginai.openImageViewer(entry.generatedImagePaths[i], title);
         }
     };
 
@@ -376,6 +393,17 @@ export default function HistoryPanel() {
                         {t('common.confirm')}
                     </Button>
                 </DialogActions>
+            </Dialog>
+
+            {/* Export progress dialog */}
+            <Dialog open={exportProgress !== null}>
+                <DialogTitle>{t('history.exporting')}</DialogTitle>
+                <DialogContent sx={{ minWidth: 320 }}>
+                    <Typography variant='body2' sx={{ mb: 1 }}>
+                        {t('history.exportProgress', { percent: exportProgress ?? 0 })}
+                    </Typography>
+                    <LinearProgress variant='determinate' value={exportProgress ?? 0} />
+                </DialogContent>
             </Dialog>
         </Box>
     );

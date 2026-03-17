@@ -222,7 +222,10 @@ export function deleteAllHistory(): void {
 }
 
 // Export all history to a ZIP file
-export function exportAllHistory(outputPath: string): Promise<void> {
+export function exportAllHistory(
+    outputPath: string,
+    onProgress?: (percent: number) => void
+): Promise<void> {
     return new Promise((resolve, reject) => {
         const historyDir = getHistoryDir();
         const output = fs.createWriteStream(outputPath);
@@ -230,6 +233,15 @@ export function exportAllHistory(outputPath: string): Promise<void> {
 
         output.on('close', () => resolve());
         archive.on('error', (err: Error) => reject(err));
+
+        if (onProgress) {
+            archive.on('progress', (progress: { entries: { total: number; processed: number } }) => {
+                const total = progress.entries.total;
+                const processed = progress.entries.processed;
+                const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
+                onProgress(percent);
+            });
+        }
 
         archive.pipe(output);
         archive.directory(historyDir, false);
