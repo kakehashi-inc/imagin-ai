@@ -142,14 +142,4 @@ export default {
     // Main process - IPC
     'ipc.historyLimitExceeded':
         'History limit ({{limit}} entries) exceeded. Please clean up history before generating.',
-
-    // Main process - Dialogs
-    'dialog.exportHistory': 'Export History',
-    'dialog.saveImageAs': 'Save Image As',
-    'dialog.selectImages': 'Select Images',
-    'dialog.selectDirectory': 'Select Directory',
-    'dialog.zipFilter': 'ZIP Archive',
-    'dialog.pngFilter': 'PNG Image',
-    'dialog.jpegFilter': 'JPEG Image',
-    'dialog.imageFilter': 'Images',
 };

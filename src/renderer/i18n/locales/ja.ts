@@ -142,13 +142,4 @@ export default {
     // Main process - IPC
     'ipc.historyLimitExceeded': '履歴が上限({{limit}}件)を超えています。履歴を整理してから生成してください。',
 
-    // Main process - Dialogs
-    'dialog.exportHistory': '履歴のエクスポート',
-    'dialog.saveImageAs': '画像を名前をつけて保存',
-    'dialog.selectImages': '画像を選択',
-    'dialog.selectDirectory': 'ディレクトリを選択',
-    'dialog.zipFilter': 'ZIPアーカイブ',
-    'dialog.pngFilter': 'PNG画像',
-    'dialog.jpegFilter': 'JPEG画像',
-    'dialog.imageFilter': '画像ファイル',
 };

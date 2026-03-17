@@ -17,11 +17,6 @@ import {
     moveHistoryDir,
 } from '../services/history-service';
 import type { GenerationParams } from '../../shared/types';
-import { translate } from '../../shared/i18n/translate';
-
-function t(key: string, params?: Record<string, string | number>): string {
-    return translate(loadSettings().language, key, params);
-}
 
 /**
  * Register all application IPC handlers
@@ -73,7 +68,7 @@ export function registerIpcHandlers() {
         // Check history limit
         const count = getHistoryCount();
         if (count >= HISTORY_MAX_COUNT) {
-            throw new Error(t('ipc.historyLimitExceeded', { limit: HISTORY_MAX_COUNT }));
+            throw new Error(`ipc.historyLimitExceeded::limit=${HISTORY_MAX_COUNT}`);
         }
 
         // Find model display name
@@ -110,9 +105,9 @@ export function registerIpcHandlers() {
         if (!win) return { success: false };
 
         const result = await dialog.showSaveDialog(win, {
-            title: t('dialog.exportHistory'),
+            title: 'Export History',
             defaultPath: 'imaginai-history.zip',
-            filters: [{ name: t('dialog.zipFilter'), extensions: ['zip'] }],
+            filters: [{ name: 'ZIP Archive', extensions: ['zip'] }],
         });
 
         if (result.canceled || !result.filePath) {
@@ -139,11 +134,11 @@ export function registerIpcHandlers() {
         const ext = path.extname(imagePath).toLowerCase().replace('.', '');
         const filters =
             ext === 'jpg' || ext === 'jpeg'
-                ? [{ name: t('dialog.jpegFilter'), extensions: ['jpg', 'jpeg'] }]
-                : [{ name: t('dialog.pngFilter'), extensions: ['png'] }];
+                ? [{ name: 'JPEG Image', extensions: ['jpg', 'jpeg'] }]
+                : [{ name: 'PNG Image', extensions: ['png'] }];
 
         const result = await dialog.showSaveDialog(win, {
-            title: t('dialog.saveImageAs'),
+            title: 'Save Image As',
             defaultPath: path.basename(imagePath),
             filters,
         });
@@ -190,8 +185,8 @@ export function registerIpcHandlers() {
         if (!win) return [];
 
         const result = await dialog.showOpenDialog(win, {
-            title: t('dialog.selectImages'),
-            filters: [{ name: t('dialog.imageFilter'), extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+            title: 'Select Images',
+            filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
             properties: ['openFile', 'multiSelections'],
         });
 
@@ -203,7 +198,7 @@ export function registerIpcHandlers() {
         if (!win) return null;
 
         const result = await dialog.showOpenDialog(win, {
-            title: t('dialog.selectDirectory'),
+            title: 'Select Directory',
             properties: ['openDirectory', 'createDirectory'],
         });
 

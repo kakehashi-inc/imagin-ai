@@ -20,6 +20,29 @@ function isNetworkError(error: string): boolean {
     return patterns.some(p => lower.includes(p.toLowerCase()));
 }
 
+// Translate error messages from main process (i18n keys like "api.error.xxx" or "key::param=value")
+function translateError(error: string, t: (key: string, params?: Record<string, string>) => string): string {
+    // Check if it looks like an i18n key (dotted notation starting with known prefixes)
+    if (/^(api|ipc)\./.test(error)) {
+        // Parse "key::param1=value1" format
+        const separatorIndex = error.indexOf('::');
+        if (separatorIndex !== -1) {
+            const key = error.substring(0, separatorIndex);
+            const paramStr = error.substring(separatorIndex + 2);
+            const params: Record<string, string> = {};
+            for (const pair of paramStr.split('&')) {
+                const eqIndex = pair.indexOf('=');
+                if (eqIndex !== -1) {
+                    params[pair.substring(0, eqIndex)] = pair.substring(eqIndex + 1);
+                }
+            }
+            return t(key, params);
+        }
+        return t(error);
+    }
+    return error;
+}
+
 export default function GenerateButton() {
     const { t } = useTranslation();
     const { prompt, isGenerating, error, generate, clearError } = useGenerationStore();
@@ -79,7 +102,9 @@ export default function GenerateButton() {
                         ) : undefined
                     }
                 >
-                    {networkError ? t('generation.networkError') : t('generation.error', { message: error })}
+                    {networkError
+                        ? t('generation.networkError')
+                        : t('generation.error', { message: translateError(error, t) })}
                 </Alert>
             )}
 

@@ -3,8 +3,6 @@ import https from 'https';
 import http from 'http';
 import type { GenerationParams } from '../../shared/types';
 import { getApiKey } from './api-key-service';
-import { loadSettings } from './settings-service';
-import { translate } from '../../shared/i18n/translate';
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com';
 
@@ -38,14 +36,6 @@ type ImagenResponse = {
         status: string;
     };
 };
-
-function getLang(): string {
-    return loadSettings().language;
-}
-
-function t(key: string, params?: Record<string, string | number>): string {
-    return translate(getLang(), key, params);
-}
 
 function httpsRequest(url: string, options: https.RequestOptions, body: string): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -81,7 +71,7 @@ function httpsRequest(url: string, options: https.RequestOptions, body: string):
 export async function testApiKey(): Promise<{ success: boolean; message: string }> {
     const apiKey = getApiKey('gemini');
     if (!apiKey) {
-        return { success: false, message: t('api.keyNotSet') };
+        return { success: false, message: 'api.keyNotSet' };
     }
 
     try {
@@ -89,9 +79,9 @@ export async function testApiKey(): Promise<{ success: boolean; message: string 
         const response = await httpsRequest(url, { method: 'GET' }, '');
         const parsed = JSON.parse(response);
         if (parsed.models && Array.isArray(parsed.models)) {
-            return { success: true, message: t('api.keyValid') };
+            return { success: true, message: 'api.keyValid' };
         }
-        return { success: false, message: t('api.keyInvalid') };
+        return { success: false, message: 'api.keyInvalid' };
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return { success: false, message };
@@ -109,7 +99,7 @@ function extractHttpStatus(error: Error): number | null {
     return match ? parseInt(match[1], 10) : null;
 }
 
-// Translate API errors to user-friendly messages based on language setting
+// Map API errors to i18n keys for renderer-side translation
 function toUserFriendlyError(err: unknown): Error {
     const original = err instanceof Error ? err : new Error(String(err));
     const status = err instanceof Error ? extractHttpStatus(original) : null;
@@ -131,9 +121,9 @@ function toUserFriendlyError(err: unknown): Error {
                 const parsed = JSON.parse(bodyMatch[1]);
                 const apiMsg: string = parsed?.error?.message || '';
                 if (apiMsg) {
-                    const translated = translateApiMessage(apiMsg);
-                    if (translated) {
-                        return new Error(translated);
+                    const key = classifyApiMessage(apiMsg);
+                    if (key) {
+                        return new Error(key);
                     }
                 }
             } catch {
@@ -143,10 +133,10 @@ function toUserFriendlyError(err: unknown): Error {
     }
 
     if (status && statusKeyMap[status]) {
-        return new Error(t(statusKeyMap[status]));
+        return new Error(statusKeyMap[status]);
     }
 
-    // For 400 errors without a matched translation, show the raw API detail
+    // For 400 errors without a matched classification, include the raw API detail
     if (status === 400) {
         const bodyMatch = original.message.match(/^HTTP 400: (.+)$/s);
         if (bodyMatch) {
@@ -154,20 +144,20 @@ function toUserFriendlyError(err: unknown): Error {
                 const parsed = JSON.parse(bodyMatch[1]);
                 const apiMsg: string = parsed?.error?.message || '';
                 if (apiMsg) {
-                    return new Error(t('api.error.invalidRequest', { detail: apiMsg }));
+                    return new Error(`api.error.invalidRequest::detail=${apiMsg}`);
                 }
             } catch {
                 // Not JSON
             }
         }
-        return new Error(t('api.error.invalidRequestGeneric'));
+        return new Error('api.error.invalidRequestGeneric');
     }
 
     return original;
 }
 
-// Translate common API error messages to user-friendly localized messages
-function translateApiMessage(apiMsg: string): string | null {
+// Classify common API error messages into i18n keys
+function classifyApiMessage(apiMsg: string): string | null {
     const lower = apiMsg.toLowerCase();
 
     if (
@@ -176,19 +166,19 @@ function translateApiMessage(apiMsg: string): string | null {
         lower.includes('paid tier') ||
         lower.includes('enable billing')
     ) {
-        return t('api.error.paidPlanRequired');
+        return 'api.error.paidPlanRequired';
     }
 
     if (lower.includes('quota') || lower.includes('rate limit') || lower.includes('resource exhausted')) {
-        return t('api.error.quotaExceeded');
+        return 'api.error.quotaExceeded';
     }
 
     if (lower.includes('billing')) {
-        return t('api.error.billingRequired');
+        return 'api.error.billingRequired';
     }
 
     if (lower.includes('permission') || lower.includes('not authorized') || lower.includes('forbidden')) {
-        return t('api.error.accessDenied');
+        return 'api.error.accessDenied';
     }
 
     return null;
@@ -198,7 +188,7 @@ function translateApiMessage(apiMsg: string): string | null {
 export async function generateImages(params: GenerationParams): Promise<{ buffers: Buffer[]; mimeType: string }> {
     const apiKey = getApiKey('gemini');
     if (!apiKey) {
-        throw new Error(t('api.keyNotSet'));
+        throw new Error('api.keyNotSet');
     }
 
     try {
@@ -254,7 +244,7 @@ async function generateWithImagen(
     }
 
     if (!parsed.predictions || parsed.predictions.length === 0) {
-        throw new Error(t('api.error.noImagesGenerated'));
+        throw new Error('api.error.noImagesGenerated');
     }
 
     const buffers = parsed.predictions.map(p => Buffer.from(p.bytesBase64Encoded, 'base64'));
@@ -335,7 +325,7 @@ async function generateWithGemini(
         }
 
         if (!parsed.candidates || parsed.candidates.length === 0) {
-            throw new Error(t('api.error.noResponse'));
+            throw new Error('api.error.noResponse');
         }
 
         for (const candidate of parsed.candidates) {
@@ -354,7 +344,7 @@ async function generateWithGemini(
     }
 
     if (allBuffers.length === 0) {
-        throw new Error(t('api.error.noImagesGenerated'));
+        throw new Error('api.error.noImagesGenerated');
     }
 
     return { buffers: allBuffers, mimeType: resultMimeType };

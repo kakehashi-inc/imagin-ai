@@ -76,7 +76,9 @@ export default function SettingsPage({ onClose }: Props) {
             const result = await window.imaginai.testApiKey('gemini');
             setApiKeyStatus({
                 type: result.success ? 'success' : 'error',
-                message: result.success ? t('settings.apiKey.valid') : result.message,
+                message: result.success
+                    ? t('settings.apiKey.valid')
+                    : t(result.message, { defaultValue: result.message }),
             });
         } catch (err) {
             setApiKeyStatus({
