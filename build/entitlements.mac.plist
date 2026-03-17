@@ -18,27 +18,26 @@
     <key>com.apple.security.cs.disable-library-validation</key>
     <true/>
 
-    <!-- Allow DYLD environment variables (helps with command execution and PATH resolution) -->
+    <!-- Allow DYLD environment variables (required by Electron for native module loading) -->
     <key>com.apple.security.cs.allow-dyld-environment-variables</key>
     <true/>
 
-    <!-- Allow execution of external commands -->
-    <!-- Required for executing which, brew, code, cursor, and other package managers -->
-    <key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
-    <array>
-      <string>com.apple.coreservices.launchservicesd</string>
-    </array>
-
+    <!-- Allow user-selected file access (file dialogs for image save/load) -->
     <key>com.apple.security.files.user-selected.read-write</key>
     <true/>
 
-    <!-- Allow reading from user home directory and Library folders -->
+    <!-- Allow reading/writing to user home directory -->
     <!-- Required for accessing:
          - ~/.imaginai (app config)
+         - User-specified history save directories
     -->
     <key>com.apple.security.temporary-exception.files.absolute-path.read-write</key>
     <array>
       <string>/Users/</string>
     </array>
+
+    <!-- Allow outgoing network connections (required for Gemini API calls) -->
+    <key>com.apple.security.network.client</key>
+    <true/>
   </dict>
 </plist>

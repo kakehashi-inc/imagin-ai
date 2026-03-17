@@ -58,7 +58,7 @@ nsis:
   deleteAppDataOnUninstall: true
 
 mac:
-  category: public.app-category.developer-tools
+  category: public.app-category.graphics-design
   icon: public/icon.png
   hardenedRuntime: true
   gatekeeperAssess: false
@@ -73,7 +73,7 @@ mac:
 
 linux:
   icon: public/icon.png
-  category: Development
+  category: Graphics
   target:
     - target: AppImage
       arch:
@@ -91,4 +91,4 @@ linux:
     entry:
       Name: ImaginAI
       Comment: "A desktop application that allows you to control an AI image generation API via a dedicated GUI."
-      Categories: Development;
+      Categories: Graphics;
