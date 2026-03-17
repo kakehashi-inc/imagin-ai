@@ -27,22 +27,34 @@ export const DEFAULT_ASPECT_RATIO: AspectRatio = '1:1';
 export const DEFAULT_QUALITY: Quality = '1k';
 export const DEFAULT_NUMBER_OF_IMAGES = 1;
 
-// --- Aspect ratio options ---
-export const ASPECT_RATIO_OPTIONS: { value: AspectRatio; labelKey: string }[] = [
-    { value: '1:1', labelKey: 'aspectRatio.1:1' },
-    { value: '9:16', labelKey: 'aspectRatio.9:16' },
-    { value: '16:9', labelKey: 'aspectRatio.16:9' },
-    { value: '3:4', labelKey: 'aspectRatio.3:4' },
-    { value: '4:3', labelKey: 'aspectRatio.4:3' },
-    { value: '2:3', labelKey: 'aspectRatio.2:3' },
-    { value: '3:2', labelKey: 'aspectRatio.3:2' },
-    { value: '4:5', labelKey: 'aspectRatio.4:5' },
-    { value: '5:4', labelKey: 'aspectRatio.5:4' },
-    { value: '21:9', labelKey: 'aspectRatio.21:9' },
+// --- Aspect ratio option groups (square, landscape, portrait) ---
+export type AspectRatioGroup = 'square' | 'landscape' | 'portrait';
+
+export const ASPECT_RATIO_OPTIONS: { value: AspectRatio; labelKey: string; group: AspectRatioGroup }[] = [
+    // Square
+    { value: '1:1', labelKey: 'aspectRatio.1:1', group: 'square' },
+    // Landscape (wide)
+    { value: '4:3', labelKey: 'aspectRatio.4:3', group: 'landscape' },
+    { value: '3:2', labelKey: 'aspectRatio.3:2', group: 'landscape' },
+    { value: '5:4', labelKey: 'aspectRatio.5:4', group: 'landscape' },
+    { value: '16:9', labelKey: 'aspectRatio.16:9', group: 'landscape' },
+    { value: '21:9', labelKey: 'aspectRatio.21:9', group: 'landscape' },
+    { value: '4:1', labelKey: 'aspectRatio.4:1', group: 'landscape' },
+    { value: '8:1', labelKey: 'aspectRatio.8:1', group: 'landscape' },
+    // Portrait (tall)
+    { value: '3:4', labelKey: 'aspectRatio.3:4', group: 'portrait' },
+    { value: '2:3', labelKey: 'aspectRatio.2:3', group: 'portrait' },
+    { value: '4:5', labelKey: 'aspectRatio.4:5', group: 'portrait' },
+    { value: '9:16', labelKey: 'aspectRatio.9:16', group: 'portrait' },
+    { value: '1:4', labelKey: 'aspectRatio.1:4', group: 'portrait' },
+    { value: '1:8', labelKey: 'aspectRatio.1:8', group: 'portrait' },
 ];
+
+export const ASPECT_RATIO_GROUP_ORDER: AspectRatioGroup[] = ['square', 'landscape', 'portrait'];
 
 // --- Quality options ---
 export const QUALITY_OPTIONS: { value: Quality; labelKey: string }[] = [
+    { value: '512px', labelKey: 'quality.512px' },
     { value: '1k', labelKey: 'quality.1k' },
     { value: '2k', labelKey: 'quality.2k' },
     { value: '4k', labelKey: 'quality.4k' },
@@ -61,8 +73,8 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         id: 'gemini-2.5-flash-image',
         displayName: 'Nano Banana (gemini-2.5-flash-image)',
         provider: 'gemini',
-        supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3', '2:3', '3:2', '4:5', '5:4', '21:9'],
-        supportedQualities: ['1k', '2k', '4k'],
+        supportedAspectRatios: ['1:1', '4:3', '3:2', '5:4', '16:9', '21:9', '4:1', '8:1', '3:4', '2:3', '4:5', '9:16', '1:4', '1:8'],
+        supportedQualities: [],
 
         supportsImageInput: true,
         supportsNegativePrompt: true,
@@ -72,8 +84,8 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         id: 'gemini-3.1-flash-image-preview',
         displayName: 'Nano Banana 2 (gemini-3.1-flash-image-preview)',
         provider: 'gemini',
-        supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3', '2:3', '3:2', '4:5', '5:4', '21:9'],
-        supportedQualities: ['1k', '2k', '4k'],
+        supportedAspectRatios: ['1:1', '4:3', '3:2', '5:4', '16:9', '21:9', '4:1', '8:1', '3:4', '2:3', '4:5', '9:16', '1:4', '1:8'],
+        supportedQualities: ['512px', '1k', '2k', '4k'],
 
         supportsImageInput: true,
         supportsNegativePrompt: true,
@@ -83,7 +95,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         id: 'gemini-3-pro-image-preview',
         displayName: 'Nano Banana Pro (gemini-3-pro-image-preview)',
         provider: 'gemini',
-        supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3', '2:3', '3:2', '4:5', '5:4', '21:9'],
+        supportedAspectRatios: ['1:1', '4:3', '3:2', '5:4', '16:9', '21:9', '4:1', '8:1', '3:4', '2:3', '4:5', '9:16', '1:4', '1:8'],
         supportedQualities: ['1k', '2k', '4k'],
 
         supportsImageInput: true,
@@ -91,13 +103,13 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         maxImages: 1,
     },
     // Imagen 4 family (fast -> standard -> ultra)
-    // predict API: safetySetting fixed to block_low_and_above, text-to-image only, negativePrompt deprecated
+    // predict API: text-to-image only, negativePrompt deprecated (embedded in prompt text)
     {
         id: 'imagen-4.0-fast-generate-001',
         displayName: 'Imagen 4 Fast (imagen-4.0-fast-generate-001)',
         provider: 'gemini',
-        supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3'],
-        supportedQualities: ['1k', '2k'],
+        supportedAspectRatios: ['1:1', '4:3', '16:9', '3:4', '9:16'],
+        supportedQualities: [],
 
         supportsImageInput: false,
         supportsNegativePrompt: true,
@@ -107,7 +119,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         id: 'imagen-4.0-generate-001',
         displayName: 'Imagen 4 (imagen-4.0-generate-001)',
         provider: 'gemini',
-        supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3'],
+        supportedAspectRatios: ['1:1', '4:3', '16:9', '3:4', '9:16'],
         supportedQualities: ['1k', '2k'],
 
         supportsImageInput: false,
@@ -118,12 +130,12 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         id: 'imagen-4.0-ultra-generate-001',
         displayName: 'Imagen 4 Ultra (imagen-4.0-ultra-generate-001)',
         provider: 'gemini',
-        supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3'],
+        supportedAspectRatios: ['1:1', '4:3', '16:9', '3:4', '9:16'],
         supportedQualities: ['1k', '2k'],
 
         supportsImageInput: false,
         supportsNegativePrompt: true,
-        maxImages: 1,
+        maxImages: 4,
     },
 ];
 

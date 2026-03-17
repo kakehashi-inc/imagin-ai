@@ -2,6 +2,7 @@ import fs from 'fs';
 import https from 'https';
 import http from 'http';
 import type { GenerationParams } from '../../shared/types';
+import { MODEL_DEFINITIONS } from '../../shared/constants';
 import { getApiKey } from './api-key-service';
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com';
@@ -216,16 +217,23 @@ async function generateWithImagen(
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const requestBody: any = {
-        instances: [{ prompt: promptText }],
-        parameters: {
-            sampleCount: params.numberOfImages,
-            aspectRatio: params.aspectRatio,
-        },
+    const parameters: any = {
+        sampleCount: params.numberOfImages,
+        aspectRatio: params.aspectRatio,
     };
 
-    // Imagen API only supports 'block_low_and_above' for safetySetting
-    requestBody.parameters.safetySetting = 'block_low_and_above';
+    // imageSize is only supported by models with supportedQualities
+    const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
+    if (modelDef && modelDef.supportedQualities.length > 0) {
+        const imageSizeMap: Record<string, string> = { '512px': '512px', '1k': '1K', '2k': '2K' };
+        parameters.imageSize = imageSizeMap[params.quality] ?? '1K';
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const requestBody: any = {
+        instances: [{ prompt: promptText }],
+        parameters,
+    };
 
     const body = JSON.stringify(requestBody);
     const response = await httpsRequest(
@@ -292,6 +300,19 @@ async function generateWithGemini(
     }
     parts.push({ text: promptText });
 
+    // Build imageConfig based on model capabilities
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const imageConfig: any = {
+        aspectRatio: params.aspectRatio,
+    };
+
+    // imageSize is only supported by models with supportedQualities
+    const geminiModelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
+    if (geminiModelDef && geminiModelDef.supportedQualities.length > 0) {
+        const imageSizeMap: Record<string, string> = { '512px': '512px', '1k': '1K', '2k': '2K', '4k': '4K' };
+        imageConfig.imageSize = imageSizeMap[params.quality] ?? '1K';
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const requestBody: any = {
         contents: [{ parts }],
@@ -299,6 +320,7 @@ async function generateWithGemini(
             // responseMimeType does not accept image/* types in generateContent API.
             // Image output is controlled by including 'IMAGE' in responseModalities.
             responseModalities: ['TEXT', 'IMAGE'],
+            imageConfig,
         },
     };
 

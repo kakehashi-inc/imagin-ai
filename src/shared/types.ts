@@ -32,9 +32,23 @@ export type ModelDefinition = {
 };
 
 // --- Generation parameters ---
-export type AspectRatio = '1:1' | '9:16' | '16:9' | '3:4' | '4:3' | '2:3' | '3:2' | '4:5' | '5:4' | '21:9';
+export type AspectRatio =
+    | '1:1'
+    | '4:3'
+    | '3:2'
+    | '5:4'
+    | '16:9'
+    | '21:9'
+    | '4:1'
+    | '8:1'
+    | '3:4'
+    | '2:3'
+    | '4:5'
+    | '9:16'
+    | '1:4'
+    | '1:8';
 
-export type Quality = '1k' | '2k' | '4k';
+export type Quality = '512px' | '1k' | '2k' | '4k';
 
 export type GenerationParams = {
     model: string;

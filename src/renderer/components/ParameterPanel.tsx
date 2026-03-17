@@ -4,15 +4,18 @@ import {
     InputLabel,
     Select,
     MenuItem,
+    ListSubheader,
     Slider,
     Typography,
     Tooltip,
 } from '@mui/material';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useGenerationStore } from '../stores/generation-store';
 import {
     MODEL_DEFINITIONS,
     ASPECT_RATIO_OPTIONS,
+    ASPECT_RATIO_GROUP_ORDER,
     QUALITY_OPTIONS,
     GENERATION_COUNT_MIN,
 } from '../../shared/constants';
@@ -35,6 +38,30 @@ export default function ParameterPanel() {
     const currentModel = MODEL_DEFINITIONS.find(m => m.id === model);
     const maxImages = currentModel?.maxImages ?? 4;
     const showNumberOfImages = maxImages > 1;
+    const showQuality = !currentModel || currentModel.supportedQualities.length > 0;
+
+    const groupedAspectRatioItems = useMemo(() => {
+        const supported = ASPECT_RATIO_OPTIONS.filter(
+            opt => currentModel?.supportedAspectRatios.includes(opt.value) ?? true
+        );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const items: any[] = [];
+        for (const group of ASPECT_RATIO_GROUP_ORDER) {
+            const groupItems = supported.filter(opt => opt.group === group);
+            if (groupItems.length === 0) continue;
+            items.push(
+                <ListSubheader key={`group-${group}`}>{t(`aspectRatio.group.${group}`)}</ListSubheader>
+            );
+            for (const opt of groupItems) {
+                items.push(
+                    <MenuItem key={opt.value} value={opt.value}>
+                        {t(opt.labelKey)}
+                    </MenuItem>
+                );
+            }
+        }
+        return items;
+    }, [currentModel, t]);
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -58,35 +85,30 @@ export default function ParameterPanel() {
                     label={t('aspectRatio.label')}
                     onChange={e => setAspectRatio(e.target.value as AspectRatio)}
                 >
-                    {ASPECT_RATIO_OPTIONS.map(opt => {
-                        const supported = currentModel?.supportedAspectRatios.includes(opt.value) ?? true;
-                        return (
-                            <MenuItem key={opt.value} value={opt.value} disabled={!supported}>
-                                {t(opt.labelKey)}
-                            </MenuItem>
-                        );
-                    })}
+                    {groupedAspectRatioItems}
                 </Select>
             </FormControl>
 
-            {/* Quality */}
-            <FormControl size='small' fullWidth>
-                <InputLabel>{t('quality.label')}</InputLabel>
-                <Select
-                    value={quality}
-                    label={t('quality.label')}
-                    onChange={e => setQuality(e.target.value as Quality)}
-                >
-                    {QUALITY_OPTIONS.map(opt => {
-                        const supported = currentModel?.supportedQualities.includes(opt.value) ?? true;
-                        return (
-                            <MenuItem key={opt.value} value={opt.value} disabled={!supported}>
-                                {t(opt.labelKey)}
-                            </MenuItem>
-                        );
-                    })}
-                </Select>
-            </FormControl>
+            {/* Quality - hidden when model has no resolution options */}
+            {showQuality && (
+                <FormControl size='small' fullWidth>
+                    <InputLabel>{t('quality.label')}</InputLabel>
+                    <Select
+                        value={quality}
+                        label={t('quality.label')}
+                        onChange={e => setQuality(e.target.value as Quality)}
+                    >
+                        {QUALITY_OPTIONS.map(opt => {
+                            const supported = currentModel?.supportedQualities.includes(opt.value) ?? true;
+                            return (
+                                <MenuItem key={opt.value} value={opt.value} disabled={!supported}>
+                                    {t(opt.labelKey)}
+                                </MenuItem>
+                            );
+                        })}
+                    </Select>
+                </FormControl>
+            )}
 
             {/* Number of Images - hidden when model supports only 1 */}
             {showNumberOfImages && (
