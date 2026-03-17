@@ -26,7 +26,7 @@ export const GENERATION_COUNT_MAX = 4;
 export const DEFAULT_ASPECT_RATIO: AspectRatio = '1:1';
 export const DEFAULT_QUALITY: Quality = '1k';
 export const DEFAULT_OUTPUT_MIME_TYPE: OutputMimeType = 'image/png';
-export const DEFAULT_SAFETY_FILTER_LEVEL: SafetyFilterLevel = 'block_some';
+export const DEFAULT_SAFETY_FILTER_LEVEL: SafetyFilterLevel = 'block_none';
 export const DEFAULT_NUMBER_OF_IMAGES = 1;
 
 // --- Aspect ratio options ---
@@ -65,30 +65,57 @@ export const SAFETY_FILTER_OPTIONS: { value: SafetyFilterLevel; labelKey: string
 ];
 
 // --- Model definitions ---
+// Sorted: Nano Banana family first, then Imagen family. Faster/cheaper first within each group.
 export const MODEL_DEFINITIONS: ModelDefinition[] = [
+    // Nano Banana family (flash -> flash 2 -> pro)
     {
-        id: 'imagen-3.0-generate-002',
-        displayName: 'Imagen 3',
-        provider: 'gemini',
-        supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3'],
-        supportedQualities: ['1k'],
-        supportsImageInput: false,
-    },
-    {
-        id: 'gemini-2.0-flash-preview-image-generation',
-        displayName: 'Gemini 2.0 Flash',
-        provider: 'gemini',
-        supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3', '2:3', '3:2', '4:5', '5:4'],
-        supportedQualities: ['1k', '2k'],
-        supportsImageInput: true,
-    },
-    {
-        id: 'gemini-2.5-flash-preview-image-generation',
-        displayName: 'Gemini 2.5 Flash',
+        id: 'gemini-2.5-flash-image',
+        displayName: 'Nano Banana (gemini-2.5-flash-image)',
         provider: 'gemini',
         supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3', '2:3', '3:2', '4:5', '5:4', '21:9'],
         supportedQualities: ['1k', '2k', '4k'],
         supportsImageInput: true,
+    },
+    {
+        id: 'gemini-3.1-flash-image-preview',
+        displayName: 'Nano Banana 2 (gemini-3.1-flash-image-preview)',
+        provider: 'gemini',
+        supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3', '2:3', '3:2', '4:5', '5:4', '21:9'],
+        supportedQualities: ['1k', '2k', '4k'],
+        supportsImageInput: true,
+    },
+    {
+        id: 'gemini-3-pro-image-preview',
+        displayName: 'Nano Banana Pro (gemini-3-pro-image-preview)',
+        provider: 'gemini',
+        supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3', '2:3', '3:2', '4:5', '5:4', '21:9'],
+        supportedQualities: ['1k', '2k', '4k'],
+        supportsImageInput: true,
+    },
+    // Imagen 4 family (fast -> standard -> ultra)
+    {
+        id: 'imagen-4.0-fast-generate-001',
+        displayName: 'Imagen 4 Fast (imagen-4.0-fast-generate-001)',
+        provider: 'gemini',
+        supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3'],
+        supportedQualities: ['1k', '2k'],
+        supportsImageInput: false,
+    },
+    {
+        id: 'imagen-4.0-generate-001',
+        displayName: 'Imagen 4 (imagen-4.0-generate-001)',
+        provider: 'gemini',
+        supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3'],
+        supportedQualities: ['1k', '2k'],
+        supportsImageInput: false,
+    },
+    {
+        id: 'imagen-4.0-ultra-generate-001',
+        displayName: 'Imagen 4 Ultra (imagen-4.0-ultra-generate-001)',
+        provider: 'gemini',
+        supportedAspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3'],
+        supportedQualities: ['1k', '2k'],
+        supportsImageInput: false,
     },
 ];
 
