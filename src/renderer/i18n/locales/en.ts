@@ -49,9 +49,29 @@ export default {
     'quality.2k': '2K (High)',
     'quality.4k': '4K (Ultra)',
 
-    // Number of images
+    // Duration (video)
+    'duration.label': 'Duration',
+    'duration.4s': '4 seconds',
+    'duration.6s': '6 seconds',
+    'duration.8s': '8 seconds',
+
+    // Resolution (video)
+    'resolution.label': 'Video Resolution',
+    'resolution.720p': '720p (HD)',
+    'resolution.1080p': '1080p (Full HD)',
+
+    // Resolution (video) - 4k
+    'resolution.4k': '4K (Ultra HD)',
+
+    // Seed (video)
+    'seed.label': 'Seed',
+    'seed.placeholder': 'Optional (for reproducibility)',
+
+    // Number of images/videos
     'numberOfImages.label': 'Number of Images',
     'numberOfImages.warning': 'More images increase API usage.',
+    'numberOfVideos.label': 'Number of Videos',
+    'numberOfVideos.warning': 'More videos increase API usage and generation time.',
 
     // API key banner
     'apiKeyBanner.message': 'API key is not set. Please configure it in Settings.',
@@ -72,7 +92,11 @@ export default {
     'referenceImages.unsupportedModel': 'This model does not support image input.',
 
     // Generation
+    'common.generateVideo': 'Generate Video',
     'generation.generating': 'Generating...',
+    'generation.generatingVideo': 'Generating video...',
+    'generation.generatingVideoProgress': 'Generating video... ({{elapsed}}s)',
+    'generation.videoDurationConstraint': '1080p/4K resolution requires a duration of 8 seconds.',
     'generation.historyLimitExceeded':
         'History limit ({{limit}} entries) exceeded. Please clean up history before generating.',
     'generation.error': 'Generation failed: {{message}}',
@@ -145,6 +169,8 @@ export default {
 
     'api.error.billingRequired': 'Billing or quota issue. Please check your Google AI billing settings.',
     'api.error.noImagesGenerated': 'No images were generated. Please try a different prompt.',
+    'api.error.noVideoGenerated': 'No video was generated. Please try a different prompt.',
+    'api.error.videoTimeout': 'Video generation timed out. Please try again.',
     'api.error.noResponse': 'No response received from the API.',
 
     // Main process - IPC

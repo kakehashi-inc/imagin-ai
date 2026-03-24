@@ -19,16 +19,31 @@ export type AppInfo = {
 // --- API Provider ---
 export type ApiProvider = 'gemini';
 
+// --- Media type ---
+export type MediaType = 'image' | 'video';
+
+// --- Video generation parameters ---
+export type VideoDuration = 4 | 6 | 8;
+export type VideoResolution = '720p' | '1080p' | '4k';
+
 // --- Model definition ---
 export type ModelDefinition = {
     id: string;
     displayName: string;
     provider: ApiProvider;
+    mediaType: MediaType;
     supportedAspectRatios: string[];
-    supportedQualities: string[];
-    supportsImageInput: boolean;
-    supportsNegativePrompt: boolean;
-    maxImages: number;
+    // Image model properties
+    supportedQualities?: string[];
+    supportsImageInput?: boolean;
+    maxImages?: number;
+    // Video model properties
+    supportedDurations?: VideoDuration[];
+    supportedResolutions?: VideoResolution[];
+    supportsSeed?: boolean;
+    // Common
+    supportsNegativePrompt?: boolean;
+    costLabel?: string;
 };
 
 // --- Generation parameters ---
@@ -58,6 +73,9 @@ export type GenerationParams = {
     quality: Quality;
     numberOfImages: number;
     referenceImagePaths: string[];
+    duration?: VideoDuration;
+    resolution?: VideoResolution;
+    seed?: number;
 };
 
 // --- History entry ---
@@ -77,6 +95,10 @@ export type HistoryEntry = {
     imageWidth?: number;
     imageHeight?: number;
     fileSize?: number;
+    mediaType?: MediaType;
+    videoDuration?: VideoDuration;
+    videoResolution?: VideoResolution;
+    seed?: number;
 };
 
 // --- Settings ---

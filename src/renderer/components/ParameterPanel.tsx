@@ -6,6 +6,7 @@ import {
     MenuItem,
     ListSubheader,
     Slider,
+    TextField,
     Typography,
     Tooltip,
 } from '@mui/material';
@@ -17,9 +18,12 @@ import {
     ASPECT_RATIO_OPTIONS,
     ASPECT_RATIO_GROUP_ORDER,
     QUALITY_OPTIONS,
+    DURATION_OPTIONS,
+    RESOLUTION_OPTIONS,
     GENERATION_COUNT_MIN,
+    COST_REFERENCE_DATE,
 } from '../../shared/constants';
-import type { AspectRatio, Quality } from '../../shared/types';
+import type { AspectRatio, Quality, VideoDuration, VideoResolution } from '../../shared/types';
 import InfoIcon from '@mui/icons-material/Info';
 
 export default function ParameterPanel() {
@@ -29,16 +33,26 @@ export default function ParameterPanel() {
         aspectRatio,
         quality,
         numberOfImages,
+        duration,
+        resolution,
+        seed,
         setModel,
         setAspectRatio,
         setQuality,
         setNumberOfImages,
+        setDuration,
+        setResolution,
+        setSeed,
     } = useGenerationStore();
 
     const currentModel = MODEL_DEFINITIONS.find(m => m.id === model);
-    const maxImages = currentModel?.maxImages ?? 4;
+    const isVideoModel = currentModel?.mediaType === 'video';
+    const maxImages = currentModel?.maxImages ?? 1;
     const showNumberOfImages = maxImages > 1;
-    const showQuality = !currentModel || currentModel.supportedQualities.length > 0;
+    const showQuality = !isVideoModel && (!currentModel || (currentModel.supportedQualities?.length ?? 0) > 0);
+    const showDuration = isVideoModel && (currentModel?.supportedDurations?.length ?? 0) > 0;
+    const showResolution = isVideoModel && (currentModel?.supportedResolutions?.length ?? 0) > 0;
+    const showSeed = isVideoModel && currentModel?.supportsSeed;
 
     const groupedAspectRatioItems = useMemo(() => {
         const supported = ASPECT_RATIO_OPTIONS.filter(
@@ -76,6 +90,11 @@ export default function ParameterPanel() {
                     ))}
                 </Select>
             </FormControl>
+            {currentModel?.costLabel && (
+                <Typography variant='caption' color='text.secondary' sx={{ mt: -1, ml: 0.5 }}>
+                    {currentModel.costLabel} ({COST_REFERENCE_DATE})
+                </Typography>
+            )}
 
             {/* Aspect Ratio */}
             <FormControl size='small' fullWidth>
@@ -99,7 +118,7 @@ export default function ParameterPanel() {
                         onChange={e => setQuality(e.target.value as Quality)}
                     >
                         {QUALITY_OPTIONS.map(opt => {
-                            const supported = currentModel?.supportedQualities.includes(opt.value) ?? true;
+                            const supported = currentModel?.supportedQualities?.includes(opt.value) ?? true;
                             return (
                                 <MenuItem key={opt.value} value={opt.value} disabled={!supported}>
                                     {t(opt.labelKey)}
@@ -110,14 +129,56 @@ export default function ParameterPanel() {
                 </FormControl>
             )}
 
-            {/* Number of Images - hidden when model supports only 1 */}
+            {/* Duration - shown only for video models */}
+            {showDuration && (
+                <FormControl size='small' fullWidth>
+                    <InputLabel>{t('duration.label')}</InputLabel>
+                    <Select
+                        value={duration}
+                        label={t('duration.label')}
+                        onChange={e => setDuration(Number(e.target.value) as VideoDuration)}
+                    >
+                        {DURATION_OPTIONS.map(opt => {
+                            const supported = currentModel?.supportedDurations?.includes(opt.value) ?? true;
+                            return (
+                                <MenuItem key={opt.value} value={opt.value} disabled={!supported}>
+                                    {t(opt.labelKey)}
+                                </MenuItem>
+                            );
+                        })}
+                    </Select>
+                </FormControl>
+            )}
+
+            {/* Resolution - shown only for video models */}
+            {showResolution && (
+                <FormControl size='small' fullWidth>
+                    <InputLabel>{t('resolution.label')}</InputLabel>
+                    <Select
+                        value={resolution}
+                        label={t('resolution.label')}
+                        onChange={e => setResolution(e.target.value as VideoResolution)}
+                    >
+                        {RESOLUTION_OPTIONS.map(opt => {
+                            const supported = currentModel?.supportedResolutions?.includes(opt.value) ?? true;
+                            return (
+                                <MenuItem key={opt.value} value={opt.value} disabled={!supported}>
+                                    {t(opt.labelKey)}
+                                </MenuItem>
+                            );
+                        })}
+                    </Select>
+                </FormControl>
+            )}
+
+            {/* Number of Images/Videos */}
             {showNumberOfImages && (
                 <Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                         <Typography variant='body2' color='text.secondary'>
-                            {t('numberOfImages.label')}: {numberOfImages}
+                            {t(isVideoModel ? 'numberOfVideos.label' : 'numberOfImages.label')}: {numberOfImages}
                         </Typography>
-                        <Tooltip title={t('numberOfImages.warning')} arrow>
+                        <Tooltip title={t(isVideoModel ? 'numberOfVideos.warning' : 'numberOfImages.warning')} arrow>
                             <InfoIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
                         </Tooltip>
                     </Box>
@@ -132,6 +193,22 @@ export default function ParameterPanel() {
                         size='small'
                     />
                 </Box>
+            )}
+
+            {/* Seed - shown only for video models */}
+            {showSeed && (
+                <TextField
+                    size='small'
+                    fullWidth
+                    label={t('seed.label')}
+                    placeholder={t('seed.placeholder')}
+                    value={seed}
+                    onChange={e => {
+                        const val = e.target.value.replace(/\D/g, '');
+                        setSeed(val);
+                    }}
+                    inputProps={{ inputMode: 'numeric' }}
+                />
             )}
         </Box>
     );

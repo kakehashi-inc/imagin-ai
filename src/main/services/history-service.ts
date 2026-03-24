@@ -5,6 +5,7 @@ import archiver from 'archiver';
 import type { HistoryEntry, GenerationParams } from '../../shared/types';
 import { THUMBNAIL_SIZE, THUMBNAIL_DIR_NAME, HISTORY_IMAGES_DIR } from '../../shared/constants';
 import { loadSettings, ensureHistoryDir } from './settings-service';
+import { extractVideoThumbnail } from './ffmpeg-service';
 
 // --- Directory helpers ---
 
@@ -137,6 +138,49 @@ export function createHistoryEntries(
     return entries;
 }
 
+// Create history entry from video generation result
+export function createVideoHistoryEntry(
+    params: GenerationParams,
+    modelDisplayName: string,
+    videoBuffer: Buffer
+): HistoryEntry {
+    const now = new Date().toISOString();
+    const id = uuidv4();
+
+    ensureDirs();
+
+    // Save video as MP4
+    const videoPath = path.join(getImagesDir(), `${id}.mp4`);
+    fs.writeFileSync(videoPath, videoBuffer);
+
+    // Generate thumbnail from the video using ffmpeg
+    const thumbPath = path.join(getThumbDir(), `${id}.jpg`);
+    extractVideoThumbnail(videoPath, thumbPath, THUMBNAIL_SIZE);
+
+    const entry: HistoryEntry = {
+        id,
+        createdAt: now,
+        updatedAt: now,
+        model: params.model,
+        modelDisplayName,
+        prompt: params.prompt,
+        negativePrompt: params.negativePrompt,
+        aspectRatio: params.aspectRatio,
+        quality: params.quality,
+        numberOfImages: 1,
+        referenceImagePaths: params.referenceImagePaths,
+        generatedImagePaths: [videoPath],
+        fileSize: videoBuffer.length,
+        mediaType: 'video',
+        videoDuration: params.duration,
+        videoResolution: params.resolution,
+        seed: params.seed,
+    };
+
+    writeMetadata(id, entry);
+    return entry;
+}
+
 // Generate a thumbnail using Electron nativeImage (JPEG, max long side THUMBNAIL_SIZE px)
 function generateThumbnail(imageBuffer: Buffer, thumbPath: string): void {
     try {
@@ -153,7 +197,7 @@ function generateThumbnail(imageBuffer: Buffer, thumbPath: string): void {
 
         const resized = img.resize({ width, height, quality: 'good' });
         // Always save as JPEG
-        fs.writeFileSync(thumbPath, resized.toJPEG(80));
+        fs.writeFileSync(thumbPath, resized.toJPEG(60));
     } catch (err) {
         console.error('Failed to generate thumbnail:', err);
         fs.writeFileSync(thumbPath, imageBuffer);
@@ -186,7 +230,9 @@ export function getImageDataUrl(imagePath: string): string {
         if (fs.existsSync(imagePath)) {
             const data = fs.readFileSync(imagePath);
             const ext = path.extname(imagePath).toLowerCase();
-            const mime = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png';
+            let mime = 'image/png';
+            if (ext === '.jpg' || ext === '.jpeg') mime = 'image/jpeg';
+            else if (ext === '.mp4') mime = 'video/mp4';
             return `data:${mime};base64,${data.toString('base64')}`;
         }
     } catch (err) {
@@ -195,13 +241,22 @@ export function getImageDataUrl(imagePath: string): string {
     return '';
 }
 
+// Get file path for video playback (returns file:// URL)
+export function getVideoFileUrl(videoPath: string): string {
+    if (fs.existsSync(videoPath)) {
+        return `file://${videoPath}`;
+    }
+    return '';
+}
+
 // Delete a single history entry
 export function deleteHistoryEntry(id: string): void {
-    const imgPath = path.join(getImagesDir(), `${id}.png`);
+    const pngPath = path.join(getImagesDir(), `${id}.png`);
+    const mp4Path = path.join(getImagesDir(), `${id}.mp4`);
     const jsonPath = path.join(getImagesDir(), `${id}.json`);
     const thumbPath = path.join(getThumbDir(), `${id}.jpg`);
 
-    for (const p of [imgPath, jsonPath, thumbPath]) {
+    for (const p of [pngPath, mp4Path, jsonPath, thumbPath]) {
         try {
             if (fs.existsSync(p)) fs.unlinkSync(p);
         } catch (err) {

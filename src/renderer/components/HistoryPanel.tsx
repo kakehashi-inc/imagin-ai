@@ -22,6 +22,7 @@ import type { HistoryEntry } from '../../shared/types';
 import { MODEL_DEFINITIONS } from '../../shared/constants';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import SearchIcon from '@mui/icons-material/Search';
+import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
 
 type ContextMenuState = {
     mouseX: number;
@@ -122,8 +123,13 @@ export default function HistoryPanel() {
 
     const handleSaveAs = async () => {
         if (contextMenu?.entry) {
-            for (const imgPath of contextMenu.entry.generatedImagePaths) {
-                await window.imaginai.saveImageAs(imgPath);
+            const isVideo = contextMenu.entry.mediaType === 'video';
+            for (const filePath of contextMenu.entry.generatedImagePaths) {
+                if (isVideo) {
+                    await window.imaginai.saveVideoAs(filePath);
+                } else {
+                    await window.imaginai.saveImageAs(filePath);
+                }
             }
         }
         handleCloseContextMenu();
@@ -139,6 +145,9 @@ export default function HistoryPanel() {
                 aspectRatio: e.aspectRatio,
                 quality: e.quality,
                 numberOfImages: e.numberOfImages,
+                duration: e.videoDuration,
+                resolution: e.videoResolution,
+                seed: e.seed,
             });
         }
         handleCloseContextMenu();
@@ -180,12 +189,17 @@ export default function HistoryPanel() {
         exportAll().finally(() => setExportProgress(null));
     };
 
-    // Click to open viewer - open all generated images as separate modeless windows
-    const handleImageClick = (entry: HistoryEntry) => {
-        const baseTitle = entry.prompt.substring(0, 60) || 'Generated Image';
+    // Click to open viewer - open all generated images/videos as separate modeless windows
+    const handleEntryClick = (entry: HistoryEntry) => {
+        const isVideo = entry.mediaType === 'video';
+        const baseTitle = entry.prompt.substring(0, 60) || (isVideo ? 'Generated Video' : 'Generated Image');
         for (let i = 0; i < entry.generatedImagePaths.length; i++) {
             const title = entry.generatedImagePaths.length > 1 ? `${baseTitle} (${i + 1}/${entry.generatedImagePaths.length})` : baseTitle;
-            window.imaginai.openImageViewer(entry.generatedImagePaths[i], title);
+            if (isVideo) {
+                window.imaginai.openVideoViewer(entry.generatedImagePaths[i], title);
+            } else {
+                window.imaginai.openImageViewer(entry.generatedImagePaths[i], title);
+            }
         }
     };
 
@@ -268,7 +282,7 @@ export default function HistoryPanel() {
                             return (
                                 <Box
                                     key={entry.id}
-                                    onClick={() => handleImageClick(entry)}
+                                    onClick={() => handleEntryClick(entry)}
                                     onContextMenu={e => handleContextMenu(e, entry)}
                                     sx={{
                                         width: 160,
@@ -292,6 +306,7 @@ export default function HistoryPanel() {
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
+                                            position: 'relative',
                                         }}
                                     >
                                         {thumbUrl ? (
@@ -305,6 +320,19 @@ export default function HistoryPanel() {
                                             <Typography variant='caption' color='text.disabled'>
                                                 ...
                                             </Typography>
+                                        )}
+                                        {entry.mediaType === 'video' && (
+                                            <PlayCircleOutlineIcon
+                                                sx={{
+                                                    position: 'absolute',
+                                                    top: '50%',
+                                                    left: '50%',
+                                                    transform: 'translate(-50%, -50%)',
+                                                    fontSize: 40,
+                                                    color: 'rgba(255,255,255,0.85)',
+                                                    filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))',
+                                                }}
+                                            />
                                         )}
                                     </Box>
                                     <Box sx={{ p: 0.75 }}>
@@ -326,7 +354,11 @@ export default function HistoryPanel() {
                                                 <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>
                                                     {entry.modelDisplayName.replace(/\s*\(.*\)$/, '')}
                                                 </Typography>
-                                                {entry.imageWidth && entry.imageHeight ? (
+                                                {entry.mediaType === 'video' && entry.videoDuration ? (
+                                                    <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>
+                                                        {entry.videoDuration}s {entry.videoResolution ?? ''}
+                                                    </Typography>
+                                                ) : entry.imageWidth && entry.imageHeight ? (
                                                     <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>
                                                         {entry.imageWidth} x {entry.imageHeight}
                                                     </Typography>
@@ -363,7 +395,7 @@ export default function HistoryPanel() {
                     contextMenu ? { top: contextMenu.mouseY, left: contextMenu.mouseX } : undefined
                 }
             >
-                <MenuItem onClick={handleAddToPrompt} disabled={!supportsImageInput}>
+                <MenuItem onClick={handleAddToPrompt} disabled={!supportsImageInput || contextMenu?.entry?.mediaType === 'video'}>
                     {t('contextMenu.addToPrompt')}
                 </MenuItem>
                 <MenuItem onClick={handleSaveAs}>{t('contextMenu.saveAs')}</MenuItem>

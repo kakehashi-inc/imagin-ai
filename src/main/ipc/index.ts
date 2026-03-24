@@ -4,7 +4,7 @@ import fs from 'fs';
 import { IPC_CHANNELS, MODEL_DEFINITIONS, HISTORY_MAX_COUNT } from '../../shared/constants';
 import { loadSettings, mergeSettings, ensureHistoryDir } from '../services/settings-service';
 import { getApiKey, saveApiKey } from '../services/api-key-service';
-import { testApiKey, generateImages } from '../services/gemini-service';
+import { testApiKey, generateImages, setGenerationProgressCallback } from '../services/gemini-service';
 import {
     getAllHistory,
     getHistoryCount,
@@ -12,6 +12,7 @@ import {
     deleteAllHistory,
     exportAllHistory,
     createHistoryEntries,
+    createVideoHistoryEntry,
     getThumbnailDataUrl,
     getImageDataUrl,
     moveHistoryDir,
@@ -71,16 +72,38 @@ export function registerIpcHandlers() {
             throw new Error(`ipc.historyLimitExceeded::limit=${HISTORY_MAX_COUNT}`);
         }
 
-        // Find model display name
+        // Find model definition
         const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
         const modelDisplayName = modelDef?.displayName || params.model;
+        const isVideo = modelDef?.mediaType === 'video';
 
-        // Generate images
-        const result = await generateImages(params);
+        // Set up progress callback for video generation
+        const win = BrowserWindow.getFocusedWindow();
+        if (isVideo && win) {
+            setGenerationProgressCallback((status: string) => {
+                if (!win.isDestroyed()) {
+                    win.webContents.send(IPC_CHANNELS.GENERATION_PROGRESS, status);
+                }
+            });
+        }
 
-        // Save to history
-        const entries = createHistoryEntries(params, modelDisplayName, result.buffers, result.mimeType);
-        return entries;
+        try {
+            // Generate images or video
+            const result = await generateImages(params);
+
+            if (isVideo) {
+                // Save each video to history (sampleCount 1-4)
+                const entries = result.buffers.map(buf => createVideoHistoryEntry(params, modelDisplayName, buf));
+                return entries;
+            }
+
+            // Save images to history
+            const entries = createHistoryEntries(params, modelDisplayName, result.buffers, result.mimeType);
+            return entries;
+        } finally {
+            // Clear progress callback
+            setGenerationProgressCallback(null);
+        }
     });
 
     // --- History ---
@@ -209,6 +232,35 @@ export function registerIpcHandlers() {
     ipcMain.handle(IPC_CHANNELS.IMAGE_VIEWER_OPEN, async (_e, imagePath: string, title: string) => {
         openImageViewerWindow(imagePath, title);
     });
+
+    // --- Video Viewer Window ---
+    ipcMain.handle(IPC_CHANNELS.VIDEO_VIEWER_OPEN, async (_e, videoPath: string, title: string) => {
+        openVideoViewerWindow(videoPath, title);
+    });
+
+    // --- Save Video As ---
+    ipcMain.handle(IPC_CHANNELS.HISTORY_SAVE_VIDEO_AS, async (_e, videoPath: string) => {
+        const win = BrowserWindow.getFocusedWindow();
+        if (!win) return { success: false };
+
+        const result = await dialog.showSaveDialog(win, {
+            title: 'Save Video As',
+            defaultPath: path.basename(videoPath),
+            filters: [{ name: 'MP4 Video', extensions: ['mp4'] }],
+        });
+
+        if (result.canceled || !result.filePath) {
+            return { success: false };
+        }
+
+        try {
+            fs.copyFileSync(videoPath, result.filePath);
+            return { success: true, path: result.filePath };
+        } catch (err) {
+            console.error('Failed to save video:', err);
+            throw err;
+        }
+    });
 }
 
 function openImageViewerWindow(imagePath: string, title: string) {
@@ -262,5 +314,27 @@ function openImageViewerWindow(imagePath: string, title: string) {
     const fileUrl = `file:///${imagePath.replace(/\\/g, '/')}`;
     const bg = nativeTheme.shouldUseDarkColors ? '#1a1a1a' : '#f5f5f5';
     const html = `<style>*{margin:0}html,body{width:100%;height:100%;overflow:hidden;background:${bg}}img{width:100%;height:100%;object-fit:contain}</style><img src="${fileUrl}">`;
+    viewerWindow.loadURL(`data:text/html,${encodeURIComponent(html)}`);
+}
+
+function openVideoViewerWindow(videoPath: string, title: string) {
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+    const winWidth = Math.min(960, Math.floor(screenWidth * 0.7));
+    const winHeight = Math.min(540, Math.floor(screenHeight * 0.7));
+
+    const viewerWindow = new BrowserWindow({
+        width: winWidth,
+        height: winHeight,
+        title,
+        autoHideMenuBar: true,
+        webPreferences: {
+            webSecurity: false,
+        },
+    });
+
+    const fileUrl = `file:///${videoPath.replace(/\\/g, '/')}`;
+    const bg = nativeTheme.shouldUseDarkColors ? '#1a1a1a' : '#f5f5f5';
+    const html = `<style>*{margin:0}html,body{width:100%;height:100%;overflow:hidden;background:${bg};display:flex;align-items:center;justify-content:center}video{max-width:100%;max-height:100%}</style><video src="${fileUrl}" controls autoplay></video>`;
     viewerWindow.loadURL(`data:text/html,${encodeURIComponent(html)}`);
 }

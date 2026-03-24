@@ -1,10 +1,12 @@
 import { create } from 'zustand';
-import type { AspectRatio, Quality, GenerationParams } from '../../shared/types';
+import type { AspectRatio, Quality, GenerationParams, VideoDuration, VideoResolution } from '../../shared/types';
 import {
     DEFAULT_ASPECT_RATIO,
     DEFAULT_QUALITY,
     DEFAULT_NUMBER_OF_IMAGES,
     DEFAULT_MODEL_ID,
+    DEFAULT_DURATION,
+    DEFAULT_RESOLUTION,
     MODEL_DEFINITIONS,
 } from '../../shared/constants';
 
@@ -15,9 +17,13 @@ type GenerationState = {
     aspectRatio: AspectRatio;
     quality: Quality;
     numberOfImages: number;
+    duration: VideoDuration;
+    resolution: VideoResolution;
+    seed: string;
     referenceImagePaths: string[];
     referenceImageThumbnails: Map<string, string>;
     isGenerating: boolean;
+    generationProgress: string | null;
     error: string | null;
     // Actions
     setModel: (model: string) => void;
@@ -26,6 +32,9 @@ type GenerationState = {
     setAspectRatio: (aspectRatio: AspectRatio) => void;
     setQuality: (quality: Quality) => void;
     setNumberOfImages: (count: number) => void;
+    setDuration: (duration: VideoDuration) => void;
+    setResolution: (resolution: VideoResolution) => void;
+    setSeed: (seed: string) => void;
     addReferenceImages: (paths: string[]) => void;
     removeReferenceImage: (path: string) => void;
     clearReferenceImages: () => void;
@@ -44,9 +53,13 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     aspectRatio: DEFAULT_ASPECT_RATIO,
     quality: DEFAULT_QUALITY,
     numberOfImages: DEFAULT_NUMBER_OF_IMAGES,
+    duration: DEFAULT_DURATION,
+    resolution: DEFAULT_RESOLUTION,
+    seed: '',
     referenceImagePaths: [],
     referenceImageThumbnails: new Map(),
     isGenerating: false,
+    generationProgress: null,
     error: null,
 
     setModel: (model: string) => {
@@ -59,11 +72,20 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         const aspectRatio = modelDef.supportedAspectRatios.includes(state.aspectRatio)
             ? state.aspectRatio
             : (modelDef.supportedAspectRatios[0] as AspectRatio) || DEFAULT_ASPECT_RATIO;
-        const quality = modelDef.supportedQualities.includes(state.quality)
+        const quality = modelDef.supportedQualities?.includes(state.quality)
             ? state.quality
-            : (modelDef.supportedQualities[0] as Quality) || DEFAULT_QUALITY;
-        const numberOfImages = Math.min(state.numberOfImages, modelDef.maxImages);
-        set({ model, aspectRatio, quality, numberOfImages });
+            : (modelDef.supportedQualities?.[0] as Quality) || DEFAULT_QUALITY;
+        const numberOfImages = Math.min(state.numberOfImages, modelDef.maxImages ?? 1);
+
+        // Set video defaults when switching to/from video models
+        const duration = modelDef.supportedDurations?.includes(state.duration)
+            ? state.duration
+            : (modelDef.supportedDurations?.[0] ?? DEFAULT_DURATION);
+        const resolution = modelDef.supportedResolutions?.includes(state.resolution)
+            ? state.resolution
+            : (modelDef.supportedResolutions?.[0] ?? DEFAULT_RESOLUTION);
+
+        set({ model, aspectRatio, quality, numberOfImages, duration, resolution });
     },
 
     setPrompt: (prompt: string) => set({ prompt }),
@@ -71,7 +93,9 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     setAspectRatio: (aspectRatio: AspectRatio) => set({ aspectRatio }),
     setQuality: (quality: Quality) => set({ quality }),
     setNumberOfImages: (count: number) => set({ numberOfImages: count }),
-
+    setDuration: (duration: VideoDuration) => set({ duration }),
+    setResolution: (resolution: VideoResolution) => set({ resolution }),
+    setSeed: (seed: string) => set({ seed }),
     addReferenceImages: (paths: string[]) => {
         const state = get();
         const existing = new Set(state.referenceImagePaths);
@@ -115,6 +139,9 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
             aspectRatio: params.aspectRatio ?? get().aspectRatio,
             quality: params.quality ?? get().quality,
             numberOfImages: params.numberOfImages ?? get().numberOfImages,
+            duration: params.duration ?? get().duration,
+            resolution: params.resolution ?? get().resolution,
+            seed: params.seed != null ? String(params.seed) : get().seed,
             referenceImagePaths: [],
             referenceImageThumbnails: new Map(),
         });
@@ -122,7 +149,18 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
 
     generate: async () => {
         const state = get();
-        set({ isGenerating: true, error: null });
+        const modelDef = MODEL_DEFINITIONS.find(m => m.id === state.model);
+        const isVideo = modelDef?.mediaType === 'video';
+
+        set({ isGenerating: true, error: null, generationProgress: null });
+
+        // Subscribe to progress events for video generation
+        let unsubProgress: (() => void) | null = null;
+        if (isVideo) {
+            unsubProgress = window.imaginai.onGenerationProgress((status: string) => {
+                set({ generationProgress: status });
+            });
+        }
 
         try {
             const params: GenerationParams = {
@@ -133,6 +171,9 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
                 quality: state.quality,
                 numberOfImages: state.numberOfImages,
                 referenceImagePaths: state.referenceImagePaths,
+                duration: isVideo ? state.duration : undefined,
+                resolution: isVideo ? state.resolution : undefined,
+                seed: isVideo && state.seed ? parseInt(state.seed, 10) || undefined : undefined,
             };
 
             await window.imaginai.executeGeneration(params);
@@ -141,7 +182,8 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
             set({ error: message });
             throw err;
         } finally {
-            set({ isGenerating: false });
+            unsubProgress?.();
+            set({ isGenerating: false, generationProgress: null });
         }
     },
 

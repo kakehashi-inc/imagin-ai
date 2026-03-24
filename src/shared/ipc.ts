@@ -55,8 +55,15 @@ export type IpcApi = {
     // Image viewer window
     openImageViewer(imagePath: string, title: string): Promise<void>;
 
+    // Video viewer window
+    openVideoViewer(videoPath: string, title: string): Promise<void>;
+
+    // Save video as
+    saveVideoAs(videoPath: string): Promise<{ success: boolean; path?: string }>;
+
     // Event listeners
     onExportProgress(callback: (percent: number) => void): () => void;
+    onGenerationProgress(callback: (status: string) => void): () => void;
 };
 
 declare global {

@@ -1,6 +1,6 @@
 import os from 'os';
 import path from 'path';
-import type { ModelDefinition, AspectRatio, Quality } from './types';
+import type { ModelDefinition, AspectRatio, Quality, VideoDuration, VideoResolution } from './types';
 
 // Application directory name
 export const APP_DIR_NAME = '.imaginai';
@@ -26,6 +26,25 @@ export const GENERATION_COUNT_MAX = 4;
 export const DEFAULT_ASPECT_RATIO: AspectRatio = '1:1';
 export const DEFAULT_QUALITY: Quality = '1k';
 export const DEFAULT_NUMBER_OF_IMAGES = 1;
+export const DEFAULT_DURATION: VideoDuration = 4;
+export const DEFAULT_RESOLUTION: VideoResolution = '720p';
+
+// --- Cost reference date ---
+export const COST_REFERENCE_DATE = '2026.3.24';
+
+// --- Duration options ---
+export const DURATION_OPTIONS: { value: VideoDuration; labelKey: string }[] = [
+    { value: 4, labelKey: 'duration.4s' },
+    { value: 6, labelKey: 'duration.6s' },
+    { value: 8, labelKey: 'duration.8s' },
+];
+
+// --- Resolution options ---
+export const RESOLUTION_OPTIONS: { value: VideoResolution; labelKey: string }[] = [
+    { value: '720p', labelKey: 'resolution.720p' },
+    { value: '1080p', labelKey: 'resolution.1080p' },
+    { value: '4k', labelKey: 'resolution.4k' },
+];
 
 // --- Aspect ratio option groups (square, landscape, portrait) ---
 export type AspectRatioGroup = 'square' | 'landscape' | 'portrait';
@@ -73,34 +92,82 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         id: 'gemini-2.5-flash-image',
         displayName: 'Nano Banana (gemini-2.5-flash-image)',
         provider: 'gemini',
-        supportedAspectRatios: ['1:1', '4:3', '3:2', '5:4', '16:9', '21:9', '4:1', '8:1', '3:4', '2:3', '4:5', '9:16', '1:4', '1:8'],
+        mediaType: 'image',
+        supportedAspectRatios: [
+            '1:1',
+            '4:3',
+            '3:2',
+            '5:4',
+            '16:9',
+            '21:9',
+            '4:1',
+            '8:1',
+            '3:4',
+            '2:3',
+            '4:5',
+            '9:16',
+            '1:4',
+            '1:8',
+        ],
         supportedQualities: [],
-
         supportsImageInput: true,
         supportsNegativePrompt: true,
         maxImages: 1,
+        costLabel: '$0.04/image',
     },
     {
         id: 'gemini-3.1-flash-image-preview',
         displayName: 'Nano Banana 2 (gemini-3.1-flash-image-preview)',
         provider: 'gemini',
-        supportedAspectRatios: ['1:1', '4:3', '3:2', '5:4', '16:9', '21:9', '4:1', '8:1', '3:4', '2:3', '4:5', '9:16', '1:4', '1:8'],
+        mediaType: 'image',
+        supportedAspectRatios: [
+            '1:1',
+            '4:3',
+            '3:2',
+            '5:4',
+            '16:9',
+            '21:9',
+            '4:1',
+            '8:1',
+            '3:4',
+            '2:3',
+            '4:5',
+            '9:16',
+            '1:4',
+            '1:8',
+        ],
         supportedQualities: ['512px', '1k', '2k', '4k'],
-
         supportsImageInput: true,
         supportsNegativePrompt: true,
         maxImages: 1,
+        costLabel: '$0.045~$0.151/image',
     },
     {
         id: 'gemini-3-pro-image-preview',
         displayName: 'Nano Banana Pro (gemini-3-pro-image-preview)',
         provider: 'gemini',
-        supportedAspectRatios: ['1:1', '4:3', '3:2', '5:4', '16:9', '21:9', '4:1', '8:1', '3:4', '2:3', '4:5', '9:16', '1:4', '1:8'],
+        mediaType: 'image',
+        supportedAspectRatios: [
+            '1:1',
+            '4:3',
+            '3:2',
+            '5:4',
+            '16:9',
+            '21:9',
+            '4:1',
+            '8:1',
+            '3:4',
+            '2:3',
+            '4:5',
+            '9:16',
+            '1:4',
+            '1:8',
+        ],
         supportedQualities: ['1k', '2k', '4k'],
-
         supportsImageInput: true,
         supportsNegativePrompt: true,
         maxImages: 1,
+        costLabel: '$0.134~$0.240/image',
     },
     // Imagen 4 family (fast -> standard -> ultra)
     // predict API: text-to-image only, negativePrompt deprecated (embedded in prompt text)
@@ -108,34 +175,67 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         id: 'imagen-4.0-fast-generate-001',
         displayName: 'Imagen 4 Fast (imagen-4.0-fast-generate-001)',
         provider: 'gemini',
+        mediaType: 'image',
         supportedAspectRatios: ['1:1', '4:3', '16:9', '3:4', '9:16'],
         supportedQualities: [],
-
         supportsImageInput: false,
         supportsNegativePrompt: true,
         maxImages: 4,
+        costLabel: '$0.02/image',
     },
     {
         id: 'imagen-4.0-generate-001',
         displayName: 'Imagen 4 (imagen-4.0-generate-001)',
         provider: 'gemini',
+        mediaType: 'image',
         supportedAspectRatios: ['1:1', '4:3', '16:9', '3:4', '9:16'],
         supportedQualities: ['1k', '2k'],
-
         supportsImageInput: false,
         supportsNegativePrompt: true,
         maxImages: 4,
+        costLabel: '$0.04/image',
     },
     {
         id: 'imagen-4.0-ultra-generate-001',
         displayName: 'Imagen 4 Ultra (imagen-4.0-ultra-generate-001)',
         provider: 'gemini',
+        mediaType: 'image',
         supportedAspectRatios: ['1:1', '4:3', '16:9', '3:4', '9:16'],
         supportedQualities: ['1k', '2k'],
-
         supportsImageInput: false,
         supportsNegativePrompt: true,
         maxImages: 4,
+        costLabel: '$0.06/image',
+    },
+    // Veo 3.1 family (fast -> standard)
+    // predictLongRunning API: text-to-video, image-to-video, native audio generation
+    // Gemini API: 1 video per request, negativePrompt, personGeneration, seed supported
+    // Preview endpoints deprecated on 2026/4/2
+    {
+        id: 'veo-3.1-fast-generate-preview',
+        displayName: 'Veo 3.1 Fast (veo-3.1-fast-generate-preview)',
+        provider: 'gemini',
+        mediaType: 'video',
+        supportedAspectRatios: ['16:9', '9:16'],
+        supportedDurations: [4, 6, 8],
+        supportedResolutions: ['720p', '1080p', '4k'],
+        supportsNegativePrompt: true,
+        supportsImageInput: true,
+        supportsSeed: true,
+        costLabel: '$0.15/sec (4K: $0.35)',
+    },
+    {
+        id: 'veo-3.1-generate-preview',
+        displayName: 'Veo 3.1 (veo-3.1-generate-preview)',
+        provider: 'gemini',
+        mediaType: 'video',
+        supportedAspectRatios: ['16:9', '9:16'],
+        supportedDurations: [4, 6, 8],
+        supportedResolutions: ['720p', '1080p', '4k'],
+        supportsNegativePrompt: true,
+        supportsImageInput: true,
+        supportsSeed: true,
+        costLabel: '$0.40/sec (4K: $0.60)',
     },
 ];
 
@@ -179,8 +279,13 @@ export const IPC_CHANNELS = {
     IMAGE_VIEWER_OPEN: 'imageViewer:open',
     // Disk space
     DISK_CHECK_SPACE: 'disk:checkSpace',
+    // Video viewer window
+    VIDEO_VIEWER_OPEN: 'videoViewer:open',
+    // Video save
+    HISTORY_SAVE_VIDEO_AS: 'history:saveVideoAs',
     // Events (main -> renderer)
     EXPORT_PROGRESS: 'export:progress',
+    GENERATION_PROGRESS: 'generation:progress',
 } as const;
 
 // --- Thumbnail settings ---

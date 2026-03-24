@@ -17,7 +17,10 @@ releaseInfo:
   releaseNotes: |
     ## New Features
 
-    -
+    - Add Veo 3.1 video generation support (text-to-video, image-to-video) with duration and resolution controls
+    - Display estimated API cost per model in the parameter panel
+    - Add video playback viewer with native controls
+    - Show play icon overlay on video thumbnails in history
 
     ## Bug Fixes
 

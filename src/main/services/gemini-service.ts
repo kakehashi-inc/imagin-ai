@@ -1,7 +1,7 @@
 import fs from 'fs';
 import https from 'https';
 import http from 'http';
-import type { GenerationParams } from '../../shared/types';
+import type { GenerationParams, VideoDuration, VideoResolution } from '../../shared/types';
 import { MODEL_DEFINITIONS } from '../../shared/constants';
 import { getApiKey } from './api-key-service';
 
@@ -93,6 +93,24 @@ export async function testApiKey(): Promise<{ success: boolean; message: string 
 function isImagenModel(modelId: string): boolean {
     return modelId.startsWith('imagen');
 }
+
+// Check if a model is Veo (video generation model)
+function isVeoModel(modelId: string): boolean {
+    return modelId.startsWith('veo');
+}
+
+// Long-Running Operation response
+type LroResponse = {
+    name?: string;
+    done?: boolean;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    response?: any;
+    error?: {
+        code: number;
+        message: string;
+        status: string;
+    };
+};
 
 // Extract HTTP status code from error message (format: "HTTP 429: ...")
 function extractHttpStatus(error: Error): number | null {
@@ -193,6 +211,9 @@ export async function generateImages(params: GenerationParams): Promise<{ buffer
     }
 
     try {
+        if (isVeoModel(params.model)) {
+            return await generateWithVeo(params, apiKey);
+        }
         if (isImagenModel(params.model)) {
             return await generateWithImagen(params, apiKey);
         }
@@ -224,7 +245,7 @@ async function generateWithImagen(
 
     // imageSize is only supported by models with supportedQualities
     const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
-    if (modelDef && modelDef.supportedQualities.length > 0) {
+    if (modelDef && modelDef.supportedQualities && modelDef.supportedQualities.length > 0) {
         const imageSizeMap: Record<string, string> = { '512px': '512px', '1k': '1K', '2k': '2K' };
         parameters.imageSize = imageSizeMap[params.quality] ?? '1K';
     }
@@ -308,7 +329,7 @@ async function generateWithGemini(
 
     // imageSize is only supported by models with supportedQualities
     const geminiModelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
-    if (geminiModelDef && geminiModelDef.supportedQualities.length > 0) {
+    if (geminiModelDef && geminiModelDef.supportedQualities && geminiModelDef.supportedQualities.length > 0) {
         const imageSizeMap: Record<string, string> = { '512px': '512px', '1k': '1K', '2k': '2K', '4k': '4K' };
         imageConfig.imageSize = imageSizeMap[params.quality] ?? '1K';
     }
@@ -370,4 +391,210 @@ async function generateWithGemini(
     }
 
     return { buffers: allBuffers, mimeType: resultMimeType };
+}
+
+// Simple HTTPS GET request
+function httpsGet(url: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const parsedUrl = new URL(url);
+        const reqFn = parsedUrl.protocol === 'https:' ? https : http;
+        reqFn
+            .get(url, res => {
+                let data = '';
+                res.on('data', (chunk: Buffer) => {
+                    data += chunk.toString();
+                });
+                res.on('end', () => {
+                    if (res.statusCode && res.statusCode >= 400) {
+                        reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+                    } else {
+                        resolve(data);
+                    }
+                });
+            })
+            .on('error', reject);
+    });
+}
+
+// Download binary data from URL (with API key passed via x-goog-api-key header)
+function downloadBuffer(url: string, apiKey?: string): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+        const parsedUrl = new URL(url);
+        const reqFn = parsedUrl.protocol === 'https:' ? https : http;
+        const options: https.RequestOptions = {
+            hostname: parsedUrl.hostname,
+            port: parsedUrl.port,
+            path: parsedUrl.pathname + parsedUrl.search,
+            method: 'GET',
+            headers: apiKey ? { 'x-goog-api-key': apiKey } : {},
+        };
+
+        reqFn
+            .request(options, res => {
+                // Follow redirects (pass apiKey for subsequent requests)
+                if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                    downloadBuffer(res.headers.location, apiKey).then(resolve, reject);
+                    return;
+                }
+                const chunks: Buffer[] = [];
+                res.on('data', (chunk: Buffer) => chunks.push(chunk));
+                res.on('end', () => {
+                    if (res.statusCode && res.statusCode >= 400) {
+                        reject(new Error(`HTTP ${res.statusCode}: download failed`));
+                    } else {
+                        resolve(Buffer.concat(chunks));
+                    }
+                });
+            })
+            .on('error', reject)
+            .end();
+    });
+}
+
+// Polling interval and timeout for Veo LRO
+const VEO_POLL_INTERVAL_MS = 10000;
+const VEO_POLL_TIMEOUT_MS = 600000; // 10 minutes
+
+// Event emitter for generation progress (set by IPC layer)
+let progressCallback: ((status: string) => void) | null = null;
+
+export function setGenerationProgressCallback(cb: ((status: string) => void) | null): void {
+    progressCallback = cb;
+}
+
+// Generate video with Veo models (using generateVideos API + LRO polling)
+async function generateWithVeo(
+    params: GenerationParams,
+    apiKey: string
+): Promise<{ buffers: Buffer[]; mimeType: string }> {
+    const duration: VideoDuration = params.duration ?? 4;
+    const resolution: VideoResolution = params.resolution ?? '720p';
+
+    const url = `${GEMINI_API_BASE}/v1beta/models/${params.model}:predictLongRunning?key=${apiKey}`;
+
+    // Build request body
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const instance: any = { prompt: params.prompt };
+
+    // Image-to-video: attach first reference image as the starting frame
+    if (params.referenceImagePaths && params.referenceImagePaths.length > 0) {
+        try {
+            const imgPath = params.referenceImagePaths[0];
+            const imageData = fs.readFileSync(imgPath);
+            const base64 = imageData.toString('base64');
+            const ext = imgPath.toLowerCase().split('.').pop();
+            let mimeType = 'image/png';
+            if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
+            else if (ext === 'webp') mimeType = 'image/webp';
+            instance.image = { bytesBase64Encoded: base64, mimeType };
+        } catch (err) {
+            console.warn('Failed to read reference image for video generation:', err);
+        }
+    }
+
+    // Build parameters object faithful to Gemini API spec
+    // Gemini API generates 1 video per request (numberOfVideos not needed)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const parameters: any = {
+        aspectRatio: params.aspectRatio,
+        durationSeconds: duration,
+        resolution,
+    };
+
+    // Negative prompt
+    if (params.negativePrompt) {
+        parameters.negativePrompt = params.negativePrompt;
+    }
+
+    // Seed for reproducibility
+    if (params.seed != null) {
+        parameters.seed = params.seed;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const requestBody: any = {
+        instances: [instance],
+        parameters,
+    };
+
+    const body = JSON.stringify(requestBody);
+    const response = await httpsRequest(
+        url,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        },
+        body
+    );
+
+    const lro = JSON.parse(response) as LroResponse;
+
+    if (lro.error) {
+        throw new Error(`HTTP ${lro.error.code}: ${JSON.stringify({ error: lro.error })}`);
+    }
+
+    if (!lro.name) {
+        throw new Error('api.error.noResponse');
+    }
+
+    // Poll for completion
+    const operationUrl = `${GEMINI_API_BASE}/v1beta/${lro.name}?key=${apiKey}`;
+    const startTime = Date.now();
+
+    while (true) {
+        await new Promise(resolve => setTimeout(resolve, VEO_POLL_INTERVAL_MS));
+
+        const elapsed = Math.round((Date.now() - startTime) / 1000);
+        if (progressCallback) {
+            progressCallback(`generating:${elapsed}`);
+        }
+
+        if (Date.now() - startTime > VEO_POLL_TIMEOUT_MS) {
+            throw new Error('api.error.videoTimeout');
+        }
+
+        const pollResponse = await httpsGet(operationUrl);
+        const pollResult = JSON.parse(pollResponse) as LroResponse;
+
+        if (pollResult.error) {
+            throw new Error(`HTTP ${pollResult.error.code}: ${JSON.stringify({ error: pollResult.error })}`);
+        }
+
+        if (pollResult.done) {
+            // Extract video data from the completed operation
+            const videoResult = pollResult.response;
+            if (!videoResult) {
+                throw new Error('api.error.noVideoGenerated');
+            }
+
+            // Gemini API response: generateVideoResponse.generatedSamples[]
+            const generateVideoResponse = videoResult.generateVideoResponse || videoResult;
+            const generatedSamples =
+                generateVideoResponse.generatedSamples ||
+                generateVideoResponse.generatedVideos ||
+                videoResult.generatedVideos ||
+                [];
+            if (generatedSamples.length === 0) {
+                throw new Error('api.error.noVideoGenerated');
+            }
+
+            // Extract video buffer
+            const allBuffers: Buffer[] = [];
+            for (const sample of generatedSamples) {
+                const video = sample.video;
+                if (video?.bytesBase64Encoded) {
+                    allBuffers.push(Buffer.from(video.bytesBase64Encoded, 'base64'));
+                } else if (video?.uri) {
+                    const buffer = await downloadBuffer(video.uri, apiKey);
+                    allBuffers.push(buffer);
+                }
+            }
+
+            if (allBuffers.length === 0) {
+                throw new Error('api.error.noVideoGenerated');
+            }
+
+            return { buffers: allBuffers, mimeType: 'video/mp4' };
+        }
+    }
 }

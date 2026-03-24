@@ -49,9 +49,29 @@ export default {
     'quality.2k': '2K (高精細)',
     'quality.4k': '4K (最高品質)',
 
-    // Number of images
+    // Duration (video)
+    'duration.label': '長さ',
+    'duration.4s': '4秒',
+    'duration.6s': '6秒',
+    'duration.8s': '8秒',
+
+    // Resolution (video)
+    'resolution.label': '動画解像度',
+    'resolution.720p': '720p (HD)',
+    'resolution.1080p': '1080p (Full HD)',
+
+    // Resolution (video) - 4k
+    'resolution.4k': '4K (Ultra HD)',
+
+    // Seed (video)
+    'seed.label': 'シード値',
+    'seed.placeholder': '任意 (再現性のため)',
+
+    // Number of images/videos
     'numberOfImages.label': '生成枚数',
     'numberOfImages.warning': '枚数が多いほどAPI消費量が増加します。',
+    'numberOfVideos.label': '生成本数',
+    'numberOfVideos.warning': '本数が多いほどAPI消費量と生成時間が増加します。',
 
     // API key banner
     'apiKeyBanner.message': 'APIキーが設定されていません。設定画面で設定してください。',
@@ -72,7 +92,11 @@ export default {
     'referenceImages.unsupportedModel': 'このモデルは画像入力に対応していません。',
 
     // Generation
+    'common.generateVideo': '動画を生成',
     'generation.generating': '生成中...',
+    'generation.generatingVideo': '動画を生成中...',
+    'generation.generatingVideoProgress': '動画を生成中... ({{elapsed}}秒)',
+    'generation.videoDurationConstraint': '1080p/4K解像度では長さは8秒のみ指定できます。',
     'generation.historyLimitExceeded': '履歴が上限({{limit}}件)を超えています。履歴を整理してください。',
     'generation.error': '生成に失敗しました: {{message}}',
     'generation.errorRetry': 'リトライ',
@@ -145,9 +169,10 @@ export default {
 
     'api.error.billingRequired': '課金またはクォータの問題です。Google AIの課金設定を確認してください。',
     'api.error.noImagesGenerated': '画像が生成されませんでした。別のプロンプトをお試しください。',
+    'api.error.noVideoGenerated': '動画が生成されませんでした。別のプロンプトをお試しください。',
+    'api.error.videoTimeout': '動画生成がタイムアウトしました。もう一度お試しください。',
     'api.error.noResponse': 'APIからの応答がありませんでした。',
 
     // Main process - IPC
     'ipc.historyLimitExceeded': '履歴が上限({{limit}}件)を超えています。履歴を整理してから生成してください。',
-
 };

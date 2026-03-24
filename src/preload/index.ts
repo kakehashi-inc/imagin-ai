@@ -31,7 +31,10 @@ const CH = {
     DIALOG_SELECT_IMAGES: 'dialog:selectImages',
     DIALOG_SELECT_DIRECTORY: 'dialog:selectDirectory',
     IMAGE_VIEWER_OPEN: 'imageViewer:open',
+    VIDEO_VIEWER_OPEN: 'videoViewer:open',
+    HISTORY_SAVE_VIDEO_AS: 'history:saveVideoAs',
     EXPORT_PROGRESS: 'export:progress',
+    GENERATION_PROGRESS: 'generation:progress',
 } as const;
 
 const api: IpcApi = {
@@ -134,12 +137,29 @@ const api: IpcApi = {
         return ipcRenderer.invoke(CH.IMAGE_VIEWER_OPEN, imagePath, title);
     },
 
+    // Video viewer window
+    async openVideoViewer(videoPath, title) {
+        return ipcRenderer.invoke(CH.VIDEO_VIEWER_OPEN, videoPath, title);
+    },
+
+    // Save video as
+    async saveVideoAs(videoPath) {
+        return ipcRenderer.invoke(CH.HISTORY_SAVE_VIDEO_AS, videoPath);
+    },
+
     // Event listeners
     onExportProgress(callback) {
         const handler = (_event: Electron.IpcRendererEvent, percent: number) => callback(percent);
         ipcRenderer.on(CH.EXPORT_PROGRESS, handler);
         return () => {
             ipcRenderer.removeListener(CH.EXPORT_PROGRESS, handler);
+        };
+    },
+    onGenerationProgress(callback) {
+        const handler = (_event: Electron.IpcRendererEvent, status: string) => callback(status);
+        ipcRenderer.on(CH.GENERATION_PROGRESS, handler);
+        return () => {
+            ipcRenderer.removeListener(CH.GENERATION_PROGRESS, handler);
         };
     },
 };
