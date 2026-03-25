@@ -141,7 +141,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
             numberOfImages: params.numberOfImages ?? get().numberOfImages,
             duration: params.duration ?? get().duration,
             resolution: params.resolution ?? get().resolution,
-            seed: params.seed != null ? String(params.seed) : get().seed,
+            seed: params.seed != null ? String(params.seed) : '',
             referenceImagePaths: [],
             referenceImageThumbnails: new Map(),
         });
@@ -163,6 +163,16 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         }
 
         try {
+            // Auto-generate seed for video models when not specified (API does not return seed)
+            let seedValue: number | undefined;
+            if (isVideo) {
+                seedValue = state.seed ? parseInt(state.seed, 10) || undefined : undefined;
+                if (seedValue == null) {
+                    seedValue = Math.floor(Math.random() * 4294967296);
+                    set({ seed: String(seedValue) });
+                }
+            }
+
             const params: GenerationParams = {
                 model: state.model,
                 prompt: state.prompt,
@@ -173,7 +183,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
                 referenceImagePaths: state.referenceImagePaths,
                 duration: isVideo ? state.duration : undefined,
                 resolution: isVideo ? state.resolution : undefined,
-                seed: isVideo && state.seed ? parseInt(state.seed, 10) || undefined : undefined,
+                seed: seedValue,
             };
 
             await window.imaginai.executeGeneration(params);

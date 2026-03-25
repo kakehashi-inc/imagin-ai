@@ -21,7 +21,7 @@ releaseInfo:
 
     ## Bug Fixes
 
-    -
+    - Fix Veo video generation to auto-generate a random seed when not specified, persist it in history JSON, and reflect it in the UI parameter panel
 
 files:
   - dist/**/*
