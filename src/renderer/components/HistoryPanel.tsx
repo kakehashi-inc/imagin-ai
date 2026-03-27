@@ -23,6 +23,7 @@ import { MODEL_DEFINITIONS } from '../../shared/constants';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import SearchIcon from '@mui/icons-material/Search';
 import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
+import MusicNoteIcon from '@mui/icons-material/MusicNote';
 
 type ContextMenuState = {
     mouseX: number;
@@ -123,9 +124,11 @@ export default function HistoryPanel() {
 
     const handleSaveAs = async () => {
         if (contextMenu?.entry) {
-            const isVideo = contextMenu.entry.mediaType === 'video';
+            const mediaType = contextMenu.entry.mediaType;
             for (const filePath of contextMenu.entry.generatedImagePaths) {
-                if (isVideo) {
+                if (mediaType === 'audio') {
+                    await window.imaginai.saveAudioAs(filePath);
+                } else if (mediaType === 'video') {
                     await window.imaginai.saveVideoAs(filePath);
                 } else {
                     await window.imaginai.saveImageAs(filePath);
@@ -189,13 +192,20 @@ export default function HistoryPanel() {
         exportAll().finally(() => setExportProgress(null));
     };
 
-    // Click to open viewer - open all generated images/videos as separate modeless windows
+    // Click to open viewer - open all generated images/videos/audio as separate modeless windows
     const handleEntryClick = (entry: HistoryEntry) => {
-        const isVideo = entry.mediaType === 'video';
-        const baseTitle = entry.prompt.substring(0, 60) || (isVideo ? 'Generated Video' : 'Generated Image');
+        const mediaType = entry.mediaType;
+        const baseTitle =
+            entry.prompt.substring(0, 60) ||
+            (mediaType === 'audio' ? 'Generated Music' : mediaType === 'video' ? 'Generated Video' : 'Generated Image');
         for (let i = 0; i < entry.generatedImagePaths.length; i++) {
-            const title = entry.generatedImagePaths.length > 1 ? `${baseTitle} (${i + 1}/${entry.generatedImagePaths.length})` : baseTitle;
-            if (isVideo) {
+            const title =
+                entry.generatedImagePaths.length > 1
+                    ? `${baseTitle} (${i + 1}/${entry.generatedImagePaths.length})`
+                    : baseTitle;
+            if (mediaType === 'audio') {
+                window.imaginai.openAudioPlayer(entry.generatedImagePaths[i], title, entry.audioTexts);
+            } else if (mediaType === 'video') {
                 window.imaginai.openVideoViewer(entry.generatedImagePaths[i], title);
             } else {
                 window.imaginai.openImageViewer(entry.generatedImagePaths[i], title);
@@ -309,7 +319,11 @@ export default function HistoryPanel() {
                                             position: 'relative',
                                         }}
                                     >
-                                        {thumbUrl ? (
+                                        {entry.mediaType === 'audio' ? (
+                                            <MusicNoteIcon
+                                                sx={{ fontSize: 48, color: 'text.disabled' }}
+                                            />
+                                        ) : thumbUrl ? (
                                             <Box
                                                 component='img'
                                                 src={thumbUrl}
@@ -354,7 +368,11 @@ export default function HistoryPanel() {
                                                 <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>
                                                     {entry.modelDisplayName.replace(/\s*\(.*\)$/, '')}
                                                 </Typography>
-                                                {entry.mediaType === 'video' && entry.videoDuration ? (
+                                                {entry.mediaType === 'audio' ? (
+                                                    <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>
+                                                        MP3
+                                                    </Typography>
+                                                ) : entry.mediaType === 'video' && entry.videoDuration ? (
                                                     <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>
                                                         {entry.videoDuration}s {entry.videoResolution ?? ''}
                                                     </Typography>
@@ -395,7 +413,7 @@ export default function HistoryPanel() {
                     contextMenu ? { top: contextMenu.mouseY, left: contextMenu.mouseX } : undefined
                 }
             >
-                <MenuItem onClick={handleAddToPrompt} disabled={!supportsImageInput || contextMenu?.entry?.mediaType === 'video'}>
+                <MenuItem onClick={handleAddToPrompt} disabled={!supportsImageInput || contextMenu?.entry?.mediaType === 'video' || contextMenu?.entry?.mediaType === 'audio'}>
                     {t('contextMenu.addToPrompt')}
                 </MenuItem>
                 <MenuItem onClick={handleSaveAs}>{t('contextMenu.saveAs')}</MenuItem>

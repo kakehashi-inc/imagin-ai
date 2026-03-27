@@ -21,6 +21,8 @@ export default {
 
     // Model selection
     'model.label': 'モデル',
+    'model.note.lyriaClip': '30秒固定',
+    'model.note.lyriaPro': 'プロンプトで3分までの長さを指示可能',
 
     // Aspect ratio
     'aspectRatio.label': 'アスペクト比',
@@ -79,6 +81,7 @@ export default {
     // Prompt
     'prompt.label': 'プロンプト',
     'prompt.placeholder': '生成したい画像を説明してください...',
+    'prompt.placeholderMusic': '作成したい音楽を説明してください（ジャンル、雰囲気、楽器、BPMなど）。歌詞についての指示を含めると歌詞付きで生成されます。',
     'prompt.required': 'プロンプトは必須です',
     'prompt.charCount': '{{count}}文字',
 
@@ -93,8 +96,10 @@ export default {
 
     // Generation
     'common.generateVideo': '動画を生成',
+    'common.generateMusic': '音楽を生成',
     'generation.generating': '生成中...',
     'generation.generatingVideo': '動画を生成中...',
+    'generation.generatingMusic': '音楽を生成中...',
     'generation.generatingVideoProgress': '動画を生成中... ({{elapsed}}秒)',
     'generation.videoDurationConstraint': '1080p/4K解像度では長さは8秒のみ指定できます。',
     'generation.historyLimitExceeded': '履歴が上限({{limit}}件)を超えています。履歴を整理してください。',
@@ -170,6 +175,7 @@ export default {
     'api.error.billingRequired': '課金またはクォータの問題です。Google AIの課金設定を確認してください。',
     'api.error.noImagesGenerated': '画像が生成されませんでした。別のプロンプトをお試しください。',
     'api.error.noVideoGenerated': '動画が生成されませんでした。別のプロンプトをお試しください。',
+    'api.error.noAudioGenerated': '音楽が生成されませんでした。別のプロンプトをお試しください。',
     'api.error.videoTimeout': '動画生成がタイムアウトしました。もう一度お試しください。',
     'api.error.noResponse': 'APIからの応答がありませんでした。',
 

@@ -33,6 +33,8 @@ const CH = {
     IMAGE_VIEWER_OPEN: 'imageViewer:open',
     VIDEO_VIEWER_OPEN: 'videoViewer:open',
     HISTORY_SAVE_VIDEO_AS: 'history:saveVideoAs',
+    AUDIO_PLAYER_OPEN: 'audioPlayer:open',
+    HISTORY_SAVE_AUDIO_AS: 'history:saveAudioAs',
     EXPORT_PROGRESS: 'export:progress',
     GENERATION_PROGRESS: 'generation:progress',
 } as const;
@@ -145,6 +147,16 @@ const api: IpcApi = {
     // Save video as
     async saveVideoAs(videoPath) {
         return ipcRenderer.invoke(CH.HISTORY_SAVE_VIDEO_AS, videoPath);
+    },
+
+    // Audio player window
+    async openAudioPlayer(audioPath, title, audioTexts) {
+        return ipcRenderer.invoke(CH.AUDIO_PLAYER_OPEN, audioPath, title, audioTexts);
+    },
+
+    // Save audio as
+    async saveAudioAs(audioPath) {
+        return ipcRenderer.invoke(CH.HISTORY_SAVE_AUDIO_AS, audioPath);
     },
 
     // Event listeners

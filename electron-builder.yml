@@ -17,7 +17,7 @@ releaseInfo:
   releaseNotes: |
     ## New Features
 
-    -
+    - Add music generation support (Lyria 3 Pro / Lyria 3 Clip)
 
     ## Bug Fixes
 

@@ -181,6 +181,44 @@ export function createVideoHistoryEntry(
     return entry;
 }
 
+// Create history entry from music generation result
+export function createAudioHistoryEntry(
+    params: GenerationParams,
+    modelDisplayName: string,
+    audioBuffer: Buffer,
+    audioTexts?: string[]
+): HistoryEntry {
+    const now = new Date().toISOString();
+    const id = uuidv4();
+
+    ensureDirs();
+
+    // Save audio as MP3
+    const audioPath = path.join(getImagesDir(), `${id}.mp3`);
+    fs.writeFileSync(audioPath, audioBuffer);
+
+    const entry: HistoryEntry = {
+        id,
+        createdAt: now,
+        updatedAt: now,
+        model: params.model,
+        modelDisplayName,
+        prompt: params.prompt,
+        negativePrompt: '',
+        aspectRatio: params.aspectRatio,
+        quality: params.quality,
+        numberOfImages: 1,
+        referenceImagePaths: params.referenceImagePaths,
+        generatedImagePaths: [audioPath],
+        fileSize: audioBuffer.length,
+        mediaType: 'audio',
+        audioTexts,
+    };
+
+    writeMetadata(id, entry);
+    return entry;
+}
+
 // Generate a thumbnail using Electron nativeImage (JPEG, max long side THUMBNAIL_SIZE px)
 function generateThumbnail(imageBuffer: Buffer, thumbPath: string): void {
     try {
@@ -253,10 +291,11 @@ export function getVideoFileUrl(videoPath: string): string {
 export function deleteHistoryEntry(id: string): void {
     const pngPath = path.join(getImagesDir(), `${id}.png`);
     const mp4Path = path.join(getImagesDir(), `${id}.mp4`);
+    const mp3Path = path.join(getImagesDir(), `${id}.mp3`);
     const jsonPath = path.join(getImagesDir(), `${id}.json`);
     const thumbPath = path.join(getThumbDir(), `${id}.jpg`);
 
-    for (const p of [pngPath, mp4Path, jsonPath, thumbPath]) {
+    for (const p of [pngPath, mp4Path, mp3Path, jsonPath, thumbPath]) {
         try {
             if (fs.existsSync(p)) fs.unlinkSync(p);
         } catch (err) {

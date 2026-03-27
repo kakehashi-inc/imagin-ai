@@ -47,9 +47,12 @@ export default function ParameterPanel() {
 
     const currentModel = MODEL_DEFINITIONS.find(m => m.id === model);
     const isVideoModel = currentModel?.mediaType === 'video';
+    const isAudioModel = currentModel?.mediaType === 'audio';
     const maxImages = currentModel?.maxImages ?? 1;
-    const showNumberOfImages = maxImages > 1;
-    const showQuality = !isVideoModel && (!currentModel || (currentModel.supportedQualities?.length ?? 0) > 0);
+    const showAspectRatio = !isAudioModel && (currentModel?.supportedAspectRatios?.length ?? 0) > 0;
+    const showNumberOfImages = !isAudioModel && maxImages > 1;
+    const showQuality =
+        !isVideoModel && !isAudioModel && (!currentModel || (currentModel.supportedQualities?.length ?? 0) > 0);
     const showDuration = isVideoModel && (currentModel?.supportedDurations?.length ?? 0) > 0;
     const showResolution = isVideoModel && (currentModel?.supportedResolutions?.length ?? 0) > 0;
     const showSeed = isVideoModel && currentModel?.supportsSeed;
@@ -95,18 +98,25 @@ export default function ParameterPanel() {
                     {currentModel.costLabel} ({COST_REFERENCE_DATE})
                 </Typography>
             )}
+            {currentModel?.noteKey && (
+                <Typography variant='caption' color='text.secondary' sx={{ mt: -1, ml: 0.5, whiteSpace: 'pre-line' }}>
+                    {t(currentModel.noteKey)}
+                </Typography>
+            )}
 
-            {/* Aspect Ratio */}
-            <FormControl size='small' fullWidth>
-                <InputLabel>{t('aspectRatio.label')}</InputLabel>
-                <Select
-                    value={aspectRatio}
-                    label={t('aspectRatio.label')}
-                    onChange={e => setAspectRatio(e.target.value as AspectRatio)}
-                >
-                    {groupedAspectRatioItems}
-                </Select>
-            </FormControl>
+            {/* Aspect Ratio - hidden for audio models */}
+            {showAspectRatio && (
+                <FormControl size='small' fullWidth>
+                    <InputLabel>{t('aspectRatio.label')}</InputLabel>
+                    <Select
+                        value={aspectRatio}
+                        label={t('aspectRatio.label')}
+                        onChange={e => setAspectRatio(e.target.value as AspectRatio)}
+                    >
+                        {groupedAspectRatioItems}
+                    </Select>
+                </FormControl>
+            )}
 
             {/* Quality - hidden when model has no resolution options */}
             {showQuality && (

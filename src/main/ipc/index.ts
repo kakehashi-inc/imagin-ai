@@ -13,6 +13,7 @@ import {
     exportAllHistory,
     createHistoryEntries,
     createVideoHistoryEntry,
+    createAudioHistoryEntry,
     getThumbnailDataUrl,
     getImageDataUrl,
     moveHistoryDir,
@@ -76,6 +77,7 @@ export function registerIpcHandlers() {
         const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
         const modelDisplayName = modelDef?.displayName || params.model;
         const isVideo = modelDef?.mediaType === 'video';
+        const isAudio = modelDef?.mediaType === 'audio';
 
         // Set up progress callback for video generation
         const win = BrowserWindow.getFocusedWindow();
@@ -88,8 +90,16 @@ export function registerIpcHandlers() {
         }
 
         try {
-            // Generate images or video
+            // Generate images, video, or audio
             const result = await generateImages(params);
+
+            if (isAudio) {
+                // Save each audio to history
+                const entries = result.buffers.map(buf =>
+                    createAudioHistoryEntry(params, modelDisplayName, buf, result.audioTexts)
+                );
+                return entries;
+            }
 
             if (isVideo) {
                 // Save each video to history (sampleCount 1-4)
@@ -238,6 +248,38 @@ export function registerIpcHandlers() {
         openVideoViewerWindow(videoPath, title);
     });
 
+    // --- Audio Player Window ---
+    ipcMain.handle(
+        IPC_CHANNELS.AUDIO_PLAYER_OPEN,
+        async (_e, audioPath: string, title: string, audioTexts?: string[]) => {
+            openAudioPlayerWindow(audioPath, title, audioTexts);
+        }
+    );
+
+    // --- Save Audio As ---
+    ipcMain.handle(IPC_CHANNELS.HISTORY_SAVE_AUDIO_AS, async (_e, audioPath: string) => {
+        const win = BrowserWindow.getFocusedWindow();
+        if (!win) return { success: false };
+
+        const result = await dialog.showSaveDialog(win, {
+            title: 'Save Audio As',
+            defaultPath: path.basename(audioPath),
+            filters: [{ name: 'MP3 Audio', extensions: ['mp3'] }],
+        });
+
+        if (result.canceled || !result.filePath) {
+            return { success: false };
+        }
+
+        try {
+            fs.copyFileSync(audioPath, result.filePath);
+            return { success: true, path: result.filePath };
+        } catch (err) {
+            console.error('Failed to save audio:', err);
+            throw err;
+        }
+    });
+
     // --- Save Video As ---
     ipcMain.handle(IPC_CHANNELS.HISTORY_SAVE_VIDEO_AS, async (_e, videoPath: string) => {
         const win = BrowserWindow.getFocusedWindow();
@@ -337,4 +379,40 @@ function openVideoViewerWindow(videoPath: string, title: string) {
     const bg = nativeTheme.shouldUseDarkColors ? '#1a1a1a' : '#f5f5f5';
     const html = `<style>*{margin:0}html,body{width:100%;height:100%;overflow:hidden;background:${bg};display:flex;align-items:center;justify-content:center}video{max-width:100%;max-height:100%}</style><video src="${fileUrl}" controls autoplay></video>`;
     viewerWindow.loadURL(`data:text/html,${encodeURIComponent(html)}`);
+}
+
+function openAudioPlayerWindow(audioPath: string, title: string, audioTexts?: string[]) {
+    const hasText = audioTexts && audioTexts.length > 0;
+    const viewerWindow = new BrowserWindow({
+        width: 480,
+        height: hasText ? 520 : 200,
+        title,
+        autoHideMenuBar: true,
+        webPreferences: {
+            webSecurity: false,
+        },
+    });
+
+    const fileUrl = `file:///${audioPath.replace(/\\/g, '/')}`;
+    const isDark = nativeTheme.shouldUseDarkColors;
+    const bg = isDark ? '#1a1a1a' : '#f5f5f5';
+    const fg = isDark ? '#e0e0e0' : '#333333';
+    const border = isDark ? '#333333' : '#dddddd';
+
+    const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const preStyle = `white-space:pre-wrap;word-wrap:break-word;font-family:'Segoe UI',sans-serif;font-size:14px;line-height:1.6;margin:0;padding:12px`;
+
+    let textHtml = '';
+    if (hasText) {
+        textHtml = audioTexts
+            .map((text, i) => {
+                const sep = i > 0 ? `<hr style="border:none;border-top:1px solid ${border};margin:8px 12px">` : '';
+                return `${sep}<pre style="${preStyle};color:${fg}">${escapeHtml(text)}</pre>`;
+            })
+            .join('');
+    }
+
+    const bodyHtml = hasText ? `<div style="flex:1;overflow:auto">${textHtml}</div>` : '';
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><style>*{margin:0;box-sizing:border-box}html,body{width:100%;height:100%;background:${bg};display:flex;flex-direction:column}audio{width:100%;flex-shrink:0}</style><audio src="${fileUrl}" controls autoplay></audio>${bodyHtml}</body></html>`;
+    viewerWindow.loadURL(`data:text/html;charset=utf-8;base64,${Buffer.from(html, 'utf-8').toString('base64')}`);
 }

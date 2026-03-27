@@ -61,6 +61,12 @@ export type IpcApi = {
     // Save video as
     saveVideoAs(videoPath: string): Promise<{ success: boolean; path?: string }>;
 
+    // Audio player window
+    openAudioPlayer(audioPath: string, title: string, audioTexts?: string[]): Promise<void>;
+
+    // Save audio as
+    saveAudioAs(audioPath: string): Promise<{ success: boolean; path?: string }>;
+
     // Event listeners
     onExportProgress(callback: (percent: number) => void): () => void;
     onGenerationProgress(callback: (status: string) => void): () => void;

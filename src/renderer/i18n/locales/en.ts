@@ -21,6 +21,8 @@ export default {
 
     // Model selection
     'model.label': 'Model',
+    'model.note.lyriaClip': 'Fixed 30-second clip',
+    'model.note.lyriaPro': 'Up to 3 min (specify duration in prompt)',
 
     // Aspect ratio
     'aspectRatio.label': 'Aspect Ratio',
@@ -79,6 +81,7 @@ export default {
     // Prompt
     'prompt.label': 'Prompt',
     'prompt.placeholder': 'Describe the image you want to generate...',
+    'prompt.placeholderMusic': 'Describe the music you want to create (genre, mood, instruments, BPM, etc.). Include lyrics instructions to generate vocals.',
     'prompt.required': 'Prompt is required',
     'prompt.charCount': '{{count}} characters',
 
@@ -93,8 +96,10 @@ export default {
 
     // Generation
     'common.generateVideo': 'Generate Video',
+    'common.generateMusic': 'Generate Music',
     'generation.generating': 'Generating...',
     'generation.generatingVideo': 'Generating video...',
+    'generation.generatingMusic': 'Generating music...',
     'generation.generatingVideoProgress': 'Generating video... ({{elapsed}}s)',
     'generation.videoDurationConstraint': '1080p/4K resolution requires a duration of 8 seconds.',
     'generation.historyLimitExceeded':
@@ -170,6 +175,7 @@ export default {
     'api.error.billingRequired': 'Billing or quota issue. Please check your Google AI billing settings.',
     'api.error.noImagesGenerated': 'No images were generated. Please try a different prompt.',
     'api.error.noVideoGenerated': 'No video was generated. Please try a different prompt.',
+    'api.error.noAudioGenerated': 'No audio was generated. Please try a different prompt.',
     'api.error.videoTimeout': 'Video generation timed out. Please try again.',
     'api.error.noResponse': 'No response received from the API.',
 

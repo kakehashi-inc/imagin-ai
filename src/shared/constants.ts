@@ -237,6 +237,31 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         supportsSeed: true,
         costLabel: '$0.40/sec (4K: $0.60)',
     },
+    // Lyria 3 family (clip -> pro)
+    // generateContent API: text-to-music, image-to-music, lyrics generation
+    // Output: MP3, 48kHz stereo, SynthID watermarked
+    {
+        id: 'lyria-3-clip-preview',
+        displayName: 'Lyria 3 Clip (lyria-3-clip-preview)',
+        provider: 'gemini',
+        mediaType: 'audio',
+        supportedAspectRatios: [],
+        supportsImageInput: true,
+        supportsNegativePrompt: false,
+        costLabel: '$0.04/song',
+        noteKey: 'model.note.lyriaClip',
+    },
+    {
+        id: 'lyria-3-pro-preview',
+        displayName: 'Lyria 3 Pro (lyria-3-pro-preview)',
+        provider: 'gemini',
+        mediaType: 'audio',
+        supportedAspectRatios: [],
+        supportsImageInput: true,
+        supportsNegativePrompt: false,
+        costLabel: '$0.08/song',
+        noteKey: 'model.note.lyriaPro',
+    },
 ];
 
 // --- IPC Channel definitions ---
@@ -283,6 +308,10 @@ export const IPC_CHANNELS = {
     VIDEO_VIEWER_OPEN: 'videoViewer:open',
     // Video save
     HISTORY_SAVE_VIDEO_AS: 'history:saveVideoAs',
+    // Audio player window
+    AUDIO_PLAYER_OPEN: 'audioPlayer:open',
+    // Audio save
+    HISTORY_SAVE_AUDIO_AS: 'history:saveAudioAs',
     // Events (main -> renderer)
     EXPORT_PROGRESS: 'export:progress',
     GENERATION_PROGRESS: 'generation:progress',

@@ -6,6 +6,7 @@ import { useHistoryStore } from '../stores/history-store';
 import { HISTORY_MAX_COUNT, MODEL_DEFINITIONS } from '../../shared/constants';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import VideocamIcon from '@mui/icons-material/Videocam';
+import MusicNoteIcon from '@mui/icons-material/MusicNote';
 
 function isNetworkError(error: string): boolean {
     const patterns = [
@@ -49,6 +50,7 @@ export default function GenerateButton() {
     const { prompt, model, isGenerating, generationProgress, error, generate, clearError } = useGenerationStore();
     const currentModel = MODEL_DEFINITIONS.find(m => m.id === model);
     const isVideoModel = currentModel?.mediaType === 'video';
+    const isAudioModel = currentModel?.mediaType === 'audio';
     const { loadHistory, isOverLimit } = useHistoryStore();
     const overLimit = isOverLimit();
     const [diskWarning, setDiskWarning] = React.useState(false);
@@ -136,6 +138,8 @@ export default function GenerateButton() {
                 startIcon={
                     isGenerating ? (
                         <CircularProgress size={20} color='inherit' />
+                    ) : isAudioModel ? (
+                        <MusicNoteIcon />
                     ) : isVideoModel ? (
                         <VideocamIcon />
                     ) : (
@@ -151,10 +155,14 @@ export default function GenerateButton() {
                           })
                         : isVideoModel
                           ? t('generation.generatingVideo')
-                          : t('generation.generating')
-                    : isVideoModel
-                      ? t('common.generateVideo')
-                      : t('common.generate')}
+                          : isAudioModel
+                            ? t('generation.generatingMusic')
+                            : t('generation.generating')
+                    : isAudioModel
+                      ? t('common.generateMusic')
+                      : isVideoModel
+                        ? t('common.generateVideo')
+                        : t('common.generate')}
             </Button>
         </Box>
     );

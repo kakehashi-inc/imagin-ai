@@ -23,6 +23,7 @@ export default function PromptPanel() {
     const currentModel = MODEL_DEFINITIONS.find(m => m.id === model);
     const supportsImageInput = currentModel?.supportsImageInput ?? false;
     const supportsNegativePrompt = currentModel?.supportsNegativePrompt ?? false;
+    const isAudioModel = currentModel?.mediaType === 'audio';
 
     const promptRef = React.useRef<HTMLTextAreaElement>(null);
     const [hasApiKey, setHasApiKey] = React.useState(true);
@@ -133,7 +134,7 @@ export default function PromptPanel() {
                     maxRows={8}
                     fullWidth
                     size='small'
-                    placeholder={t('prompt.placeholder')}
+                    placeholder={t(isAudioModel ? 'prompt.placeholderMusic' : 'prompt.placeholder')}
                     value={prompt}
                     onChange={e => setPrompt(e.target.value)}
                 />

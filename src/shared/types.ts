@@ -20,7 +20,7 @@ export type AppInfo = {
 export type ApiProvider = 'gemini';
 
 // --- Media type ---
-export type MediaType = 'image' | 'video';
+export type MediaType = 'image' | 'video' | 'audio';
 
 // --- Video generation parameters ---
 export type VideoDuration = 4 | 6 | 8;
@@ -44,6 +44,7 @@ export type ModelDefinition = {
     // Common
     supportsNegativePrompt?: boolean;
     costLabel?: string;
+    noteKey?: string;
 };
 
 // --- Generation parameters ---
@@ -99,6 +100,7 @@ export type HistoryEntry = {
     videoDuration?: VideoDuration;
     videoResolution?: VideoResolution;
     seed?: number;
+    audioTexts?: string[];
 };
 
 // --- Settings ---

@@ -99,6 +99,11 @@ function isVeoModel(modelId: string): boolean {
     return modelId.startsWith('veo');
 }
 
+// Check if a model is Lyria (music generation model)
+function isLyriaModel(modelId: string): boolean {
+    return modelId.startsWith('lyria');
+}
+
 // Long-Running Operation response
 type LroResponse = {
     name?: string;
@@ -204,13 +209,18 @@ function classifyApiMessage(apiMsg: string): string | null {
 }
 
 // Generate images using Gemini API
-export async function generateImages(params: GenerationParams): Promise<{ buffers: Buffer[]; mimeType: string }> {
+export async function generateImages(
+    params: GenerationParams
+): Promise<{ buffers: Buffer[]; mimeType: string; audioTexts?: string[] }> {
     const apiKey = getApiKey('gemini');
     if (!apiKey) {
         throw new Error('api.keyNotSet');
     }
 
     try {
+        if (isLyriaModel(params.model)) {
+            return await generateWithLyria(params, apiKey);
+        }
         if (isVeoModel(params.model)) {
             return await generateWithVeo(params, apiKey);
         }
@@ -460,6 +470,101 @@ let progressCallback: ((status: string) => void) | null = null;
 
 export function setGenerationProgressCallback(cb: ((status: string) => void) | null): void {
     progressCallback = cb;
+}
+
+// Generate music with Lyria models (using generateContent API)
+async function generateWithLyria(
+    params: GenerationParams,
+    apiKey: string
+): Promise<{ buffers: Buffer[]; mimeType: string; audioTexts?: string[] }> {
+    const url = `${GEMINI_API_BASE}/v1beta/models/${params.model}:generateContent?key=${apiKey}`;
+
+    // Build parts array
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const parts: any[] = [];
+
+    // Add reference images if present (image-to-music)
+    if (params.referenceImagePaths && params.referenceImagePaths.length > 0) {
+        for (const imgPath of params.referenceImagePaths) {
+            try {
+                const imageData = fs.readFileSync(imgPath);
+                const base64 = imageData.toString('base64');
+                const ext = imgPath.toLowerCase().split('.').pop();
+                let mimeType = 'image/png';
+                if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
+                else if (ext === 'webp') mimeType = 'image/webp';
+
+                parts.push({
+                    inlineData: {
+                        mimeType,
+                        data: base64,
+                    },
+                });
+            } catch (err) {
+                console.warn(`Failed to read reference image: ${imgPath}`, err);
+            }
+        }
+    }
+
+    // Add text prompt
+    parts.push({ text: params.prompt });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const requestBody: any = {
+        contents: [{ parts }],
+        generationConfig: {
+            responseModalities: ['AUDIO', 'TEXT'],
+        },
+    };
+
+    const body = JSON.stringify(requestBody);
+    const response = await httpsRequest(
+        url,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        },
+        body
+    );
+
+    const parsed = JSON.parse(response) as GeminiResponse;
+
+    if (parsed.error) {
+        throw new Error(`HTTP ${parsed.error.code}: ${JSON.stringify({ error: parsed.error })}`);
+    }
+
+    if (!parsed.candidates || parsed.candidates.length === 0) {
+        throw new Error('api.error.noResponse');
+    }
+
+    // Extract audio buffers, lyrics, and description from response parts (order is not guaranteed).
+    // The API may return up to two text parts: LYRICS (song lyrics) and DESCRIPTION (caption + metadata).
+    const audioBuffers: Buffer[] = [];
+    let resultMimeType = 'audio/mpeg';
+    const textParts: string[] = [];
+
+    for (const candidate of parsed.candidates) {
+        if (candidate.content?.parts) {
+            for (const part of candidate.content.parts) {
+                if (part.inlineData?.data && part.inlineData.mimeType?.startsWith('audio/')) {
+                    audioBuffers.push(Buffer.from(part.inlineData.data, 'base64'));
+                    resultMimeType = part.inlineData.mimeType;
+                } else if (part.text) {
+                    textParts.push(part.text);
+                }
+            }
+        }
+    }
+
+    if (audioBuffers.length === 0) {
+        throw new Error('api.error.noAudioGenerated');
+    }
+
+    return {
+        buffers: audioBuffers,
+        mimeType: resultMimeType,
+        audioTexts: textParts.length > 0 ? textParts : undefined,
+    };
 }
 
 // Generate video with Veo models (using generateVideos API + LRO polling)

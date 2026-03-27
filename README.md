@@ -4,15 +4,16 @@
 
 ## 1. Overview
 
-ImaginAI is a desktop application for controlling AI image/video generation APIs through a dedicated GUI. It supports the Google Gemini API (Image Generation) and Veo 3.1 (Video Generation), with an extensible architecture designed to accommodate additional AI generation APIs in the future.
+ImaginAI is a desktop application for controlling AI image/video/music generation APIs through a dedicated GUI. It supports the Google Gemini API (Image Generation), Veo 3.1 (Video Generation), and Lyria 3 (Music Generation), with an extensible architecture designed to accommodate additional AI generation APIs in the future.
 
 Key features:
 
 - **Image Generation**: Configure parameters such as model, aspect ratio, resolution, image count, output format, and safety filter via the GUI, and generate images from text prompts
 - **Video Generation**: Generate videos from text prompts or images using Veo 3.1 models, with configurable duration, resolution, and aspect ratio
-- **Reference Image Attachment**: Image-to-image/video generation via file picker, drag & drop, or from history entries
-- **Generation History**: Thumbnail grid view, search, parameter restore, save as, and bulk ZIP archive export (supports both images and videos)
-- **Image/Video Viewer**: View images and play videos in modeless windows
+- **Music Generation**: Generate music from text prompts or images using Lyria 3 models (30-second clips or up to 3-minute full songs)
+- **Reference Image Attachment**: Image-to-image/video/music generation via file picker, drag & drop, or from history entries
+- **Generation History**: Thumbnail grid view, search, parameter restore, save as, and bulk ZIP archive export (supports images, videos, and audio)
+- **Image/Video/Audio Viewer**: View images, play videos, and listen to generated music in modeless windows
 - **Settings**: Language (Japanese/English), theme (light/dark/system), API key management (encrypted storage & connection test), history save location
 - **Security**: API keys encrypted with Electron safeStorage; IPC-based architecture prevents direct access from the Renderer process
 
