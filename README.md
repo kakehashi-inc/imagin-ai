@@ -27,16 +27,6 @@ Note: This project does not perform code signing on Windows. If SmartScreen disp
 
 ## 3. Developer Reference
 
-### Development Rules
-
-- Developer-facing documents, except `README.md` and `README-ja.md`, must be placed in the `Documents` directory.
-- After every change, run the linter and fix all issues. If a linter error is intentionally suppressed, add a comment explaining the reason. **A full build is only required for releases; running the linter alone is sufficient during development.**
-- Temporary or investigative scripts (e.g., research/debug scripts) must be placed in the `scripts` directory.
-- When implementing data models, create one file per table.
-- When creating or modifying a data model, update `Documents/テーブル定義.md`. Table definitions must be expressed as one table per database table, with column names, types, and relations documented within the table.
-- When system behavior changes, update `Documents/システム仕様.md`.
-- When adding features or fixing bugs, update the `releaseNotes` field in `electron-builder.yml`. Entries must be placed under the appropriate section: `## New Features` for new or enhanced functionality, and `## Bug Fixes` for bug fixes. All entries must be written in English.
-
 ### Prerequisites
 
 - Node.js 22.x or higher
