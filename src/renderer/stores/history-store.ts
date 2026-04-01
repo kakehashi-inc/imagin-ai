@@ -7,12 +7,14 @@ type HistoryState = {
     totalCount: number;
     thumbnails: Map<string, string>;
     searchQuery: string;
+    filterModel: string;
     isLoading: boolean;
     hasMore: boolean;
     // Actions
     loadHistory: () => Promise<void>;
     loadMore: () => Promise<void>;
     setSearchQuery: (query: string) => void;
+    setFilterModel: (model: string) => void;
     deleteEntry: (id: string) => Promise<void>;
     deleteAll: () => Promise<void>;
     exportAll: () => Promise<{ success: boolean; path?: string }>;
@@ -27,6 +29,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     totalCount: 0,
     thumbnails: new Map(),
     searchQuery: '',
+    filterModel: '',
     isLoading: false,
     hasMore: true,
 
@@ -68,6 +71,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     },
 
     setSearchQuery: (query: string) => set({ searchQuery: query }),
+    setFilterModel: (model: string) => set({ filterModel: model }),
 
     deleteEntry: async (id: string) => {
         await window.imaginai.deleteHistory(id);
@@ -89,11 +93,15 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
 
     getFilteredEntries: () => {
         const state = get();
-        if (!state.searchQuery.trim()) {
-            return state.entries;
+        let result = state.entries;
+        if (state.filterModel) {
+            result = result.filter(e => e.model === state.filterModel);
         }
-        const query = state.searchQuery.toLowerCase();
-        return state.entries.filter(e => e.prompt.toLowerCase().includes(query));
+        if (state.searchQuery.trim()) {
+            const query = state.searchQuery.toLowerCase();
+            result = result.filter(e => e.prompt.toLowerCase().includes(query));
+        }
+        return result;
     },
 
     isOverLimit: () => {

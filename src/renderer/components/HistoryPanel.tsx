@@ -15,6 +15,8 @@ import {
     InputAdornment,
     LinearProgress,
     CircularProgress,
+    FormControl,
+    Select,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useHistoryStore } from '../stores/history-store';
@@ -70,9 +72,12 @@ function formatElapsedTime(ms: number): string {
 export default function HistoryPanel() {
     const { t } = useTranslation();
     const {
+        entries,
         thumbnails,
         searchQuery,
         setSearchQuery,
+        filterModel,
+        setFilterModel,
         deleteEntry,
         deleteAll,
         exportAll,
@@ -98,6 +103,15 @@ export default function HistoryPanel() {
     const [exportProgress, setExportProgress] = React.useState<number | null>(null);
     const [panelHeight, setPanelHeight] = React.useState(300);
     const resizeRef = React.useRef<{ startY: number; startHeight: number } | null>(null);
+
+    // Build unique model list for filter dropdown, ordered by MODEL_DEFINITIONS
+    const modelOptions = React.useMemo(() => {
+        const usedModels = new Set(entries.map(e => e.model));
+        return MODEL_DEFINITIONS.filter(m => usedModels.has(m.id)).map(m => ({
+            id: m.id,
+            name: m.displayName.replace(/\s*\(.*\)$/, ''),
+        }));
+    }, [entries]);
 
     // Listen for export progress events
     React.useEffect(() => {
@@ -305,6 +319,21 @@ export default function HistoryPanel() {
                 <IconButton size='small' onClick={e => setHeaderMenuAnchor(e.currentTarget)}>
                     <MoreHorizIcon fontSize='small' />
                 </IconButton>
+                <FormControl size='small' sx={{ minWidth: 140, ml: 'auto', flexShrink: 0 }}>
+                    <Select
+                        value={filterModel}
+                        onChange={e => setFilterModel(e.target.value)}
+                        displayEmpty
+                        sx={{ fontSize: '0.8rem' }}
+                    >
+                        <MenuItem value=''>{t('history.allModels')}</MenuItem>
+                        {modelOptions.map(m => (
+                            <MenuItem key={m.id} value={m.id} sx={{ fontSize: '0.8rem' }}>
+                                {m.name}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
                 <TextField
                     size='small'
                     type='search'
@@ -320,7 +349,7 @@ export default function HistoryPanel() {
                             ),
                         },
                     }}
-                    sx={{ ml: 'auto', maxWidth: 280 }}
+                    sx={{ maxWidth: 280 }}
                 />
             </Box>
 

@@ -23,6 +23,7 @@ releaseInfo:
     - Per-resolution pricing is now shown for Nano Banana 2 and Nano Banana Pro
     - Default aspect ratio changed to 16:9
     - Error messages now show a "Details" link to view the full API response
+    - Model filter dropdown added to history panel
     - History search box now has a clear button
     - DevTools can be opened with F12 in production builds
     - Imagen 4 shutdown notice (2026/6/24) displayed in model selector

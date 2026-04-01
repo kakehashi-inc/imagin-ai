@@ -118,6 +118,7 @@ export default {
     // History
     'history.title': 'Generation History',
     'history.empty': 'No entries found.',
+    'history.allModels': 'All Models',
     'history.searchPlaceholder': 'Search by prompt...',
     'history.deleteConfirm': 'Are you sure you want to delete this entry? This action cannot be undone.',
     'history.deleteAllConfirm': 'All history will be permanently deleted. This action cannot be undone. Are you sure?',

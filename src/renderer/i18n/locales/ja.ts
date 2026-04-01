@@ -117,6 +117,7 @@ export default {
     // History
     'history.title': '生成履歴',
     'history.empty': '該当する履歴がありません。',
+    'history.allModels': '全モデル',
     'history.searchPlaceholder': 'プロンプトで検索...',
     'history.deleteConfirm': 'この履歴を削除しますか？この操作は元に戻せません。',
     'history.deleteAllConfirm': 'すべての履歴が完全に削除されます。この操作は元に戻せません。よろしいですか？',
