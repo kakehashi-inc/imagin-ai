@@ -102,5 +102,5 @@ linux:
   desktop:
     entry:
       Name: ImaginAI
-      Comment: "A desktop application that allows you to control an AI image generation API via a dedicated GUI."
-      Categories: Graphics;
+      Comment: "A desktop application for controlling AI image/video/music generation APIs through a dedicated GUI."
+      Categories: Graphics;AudioVideo;

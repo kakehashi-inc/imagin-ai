@@ -36,7 +36,7 @@
       <string>/Users/</string>
     </array>
 
-    <!-- Allow outgoing network connections (required for Gemini API calls) -->
+    <!-- Allow outgoing network connections (required for AI generation API calls) -->
     <key>com.apple.security.network.client</key>
     <true/>
   </dict>
