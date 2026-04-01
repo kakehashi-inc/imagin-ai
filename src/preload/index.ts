@@ -20,6 +20,7 @@ const CH = {
     API_KEY_TEST: 'apiKey:test',
     GENERATION_EXECUTE: 'generation:execute',
     HISTORY_GET_ALL: 'history:getAll',
+    HISTORY_GET_PAGE: 'history:getPage',
     HISTORY_DELETE: 'history:delete',
     HISTORY_DELETE_ALL: 'history:deleteAll',
     HISTORY_EXPORT_ALL: 'history:exportAll',
@@ -99,6 +100,9 @@ const api: IpcApi = {
     async getAllHistory() {
         return ipcRenderer.invoke(CH.HISTORY_GET_ALL);
     },
+    async getHistoryPage(offset, limit) {
+        return ipcRenderer.invoke(CH.HISTORY_GET_PAGE, offset, limit);
+    },
     async deleteHistory(id) {
         return ipcRenderer.invoke(CH.HISTORY_DELETE, id);
     },
@@ -168,7 +172,8 @@ const api: IpcApi = {
         };
     },
     onGenerationProgress(callback) {
-        const handler = (_event: Electron.IpcRendererEvent, status: string) => callback(status);
+        const handler = (_event: Electron.IpcRendererEvent, progress: import('../shared/types').GenerationProgress) =>
+            callback(progress);
         ipcRenderer.on(CH.GENERATION_PROGRESS, handler);
         return () => {
             ipcRenderer.removeListener(CH.GENERATION_PROGRESS, handler);

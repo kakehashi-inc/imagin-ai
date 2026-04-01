@@ -47,10 +47,10 @@ yarn install
 yarn dev
 ```
 
-DevTools during development:
+DevTools:
 
-- DevTools opens automatically in detached mode
-- Toggle with F12 or Ctrl+Shift+I (Cmd+Option+I on macOS)
+- During development, DevTools opens automatically in detached mode
+- Toggle with F12 or Ctrl+Shift+I (Cmd+Option+I on macOS) in both development and production builds
 
 ### Build / Distribution
 

@@ -50,8 +50,17 @@ function writeMetadata(id: string, entry: HistoryEntry): void {
 
 // --- Public API ---
 
-// Get all history entries sorted by updatedAt descending
-export function getAllHistory(): HistoryEntry[] {
+// Cached sorted entries (invalidated on create/delete)
+let cachedEntries: HistoryEntry[] | null = null;
+
+function invalidateCache(): void {
+    cachedEntries = null;
+}
+
+// Load and sort all entries (uses cache if available)
+function loadAllEntries(): HistoryEntry[] {
+    if (cachedEntries) return cachedEntries;
+
     const imagesDir = getImagesDir();
     const entries: HistoryEntry[] = [];
 
@@ -68,12 +77,27 @@ export function getAllHistory(): HistoryEntry[] {
     }
 
     entries.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    cachedEntries = entries;
     return entries;
 }
 
-// Get total history count
+// Get all history entries sorted by updatedAt descending
+export function getAllHistory(): HistoryEntry[] {
+    return loadAllEntries();
+}
+
+// Get a page of history entries (offset-based pagination)
+export function getHistoryPage(offset: number, limit: number): { entries: HistoryEntry[]; total: number } {
+    const all = loadAllEntries();
+    return {
+        entries: all.slice(offset, offset + limit),
+        total: all.length,
+    };
+}
+
+// Get total history count (fast, uses cache)
 export function getHistoryCount(): number {
-    return getAllHistory().length;
+    return loadAllEntries().length;
 }
 
 // Create history entries from generation result (one entry per image)
@@ -81,8 +105,10 @@ export function createHistoryEntries(
     params: GenerationParams,
     modelDisplayName: string,
     imageBuffers: Buffer[],
-    _mimeType: string
+    _mimeType: string,
+    elapsedMs?: number
 ): HistoryEntry[] {
+    invalidateCache();
     const now = new Date().toISOString();
     const entries: HistoryEntry[] = [];
 
@@ -129,6 +155,7 @@ export function createHistoryEntries(
             imageWidth,
             imageHeight,
             fileSize: imageBuffers[i].length,
+            elapsedMs,
         };
 
         writeMetadata(id, entry);
@@ -142,8 +169,10 @@ export function createHistoryEntries(
 export function createVideoHistoryEntry(
     params: GenerationParams,
     modelDisplayName: string,
-    videoBuffer: Buffer
+    videoBuffer: Buffer,
+    elapsedMs?: number
 ): HistoryEntry {
+    invalidateCache();
     const now = new Date().toISOString();
     const id = uuidv4();
 
@@ -175,19 +204,22 @@ export function createVideoHistoryEntry(
         videoDuration: params.duration,
         videoResolution: params.resolution,
         seed: params.seed,
+        elapsedMs,
     };
 
     writeMetadata(id, entry);
     return entry;
 }
 
-// Create history entry from music generation result
+// Create history entry from audio generation result
 export function createAudioHistoryEntry(
     params: GenerationParams,
     modelDisplayName: string,
     audioBuffer: Buffer,
-    audioTexts?: string[]
+    audioTexts?: string[],
+    elapsedMs?: number
 ): HistoryEntry {
+    invalidateCache();
     const now = new Date().toISOString();
     const id = uuidv4();
 
@@ -213,6 +245,7 @@ export function createAudioHistoryEntry(
         fileSize: audioBuffer.length,
         mediaType: 'audio',
         audioTexts,
+        elapsedMs,
     };
 
     writeMetadata(id, entry);
@@ -289,6 +322,7 @@ export function getVideoFileUrl(videoPath: string): string {
 
 // Delete a single history entry
 export function deleteHistoryEntry(id: string): void {
+    invalidateCache();
     const pngPath = path.join(getImagesDir(), `${id}.png`);
     const mp4Path = path.join(getImagesDir(), `${id}.mp4`);
     const mp3Path = path.join(getImagesDir(), `${id}.mp3`);
@@ -306,6 +340,7 @@ export function deleteHistoryEntry(id: string): void {
 
 // Delete all history entries
 export function deleteAllHistory(): void {
+    invalidateCache();
     const imagesDir = getImagesDir();
     const thumbDir = getThumbDir();
 
@@ -350,6 +385,7 @@ export function exportAllHistory(outputPath: string, onProgress?: (percent: numb
 
 // Move history directory
 export function moveHistoryDir(newDir: string): void {
+    invalidateCache();
     const settings = loadSettings();
     const oldDir = settings.historyDir;
 

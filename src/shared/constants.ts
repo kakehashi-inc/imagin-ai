@@ -16,21 +16,24 @@ export function getAppRootDir(): string {
 }
 
 // --- History limits ---
-export const HISTORY_MAX_COUNT = 200;
+export const HISTORY_MAX_COUNT = 10000;
+
+// Number of history entries to load per page (infinite scroll)
+export const HISTORY_PAGE_SIZE = 50;
 
 // --- Generation count range ---
 export const GENERATION_COUNT_MIN = 1;
 export const GENERATION_COUNT_MAX = 4;
 
 // --- Default values ---
-export const DEFAULT_ASPECT_RATIO: AspectRatio = '1:1';
+export const DEFAULT_ASPECT_RATIO: AspectRatio = '16:9';
 export const DEFAULT_QUALITY: Quality = '1k';
 export const DEFAULT_NUMBER_OF_IMAGES = 1;
 export const DEFAULT_DURATION: VideoDuration = 4;
 export const DEFAULT_RESOLUTION: VideoResolution = '720p';
 
 // --- Cost reference date ---
-export const COST_REFERENCE_DATE = '2026.3.24';
+export const COST_REFERENCE_DATE = '2026.4.2';
 
 // --- Duration options ---
 export const DURATION_OPTIONS: { value: VideoDuration; labelKey: string }[] = [
@@ -86,13 +89,13 @@ export const DEFAULT_MODEL_ID = 'gemini-3.1-flash-image-preview';
 
 export const MODEL_DEFINITIONS: ModelDefinition[] = [
     // Nano Banana family (flash -> flash 2 -> pro)
-    // generateContent API: no safety filter, 1 image/req
-    // Negative prompt is embedded in the text prompt
+    // generateContent API: 1 image/req, negative prompt embedded in text prompt
     {
         id: 'gemini-2.5-flash-image',
         displayName: 'Nano Banana (gemini-2.5-flash-image)',
         provider: 'gemini',
         mediaType: 'image',
+        apiEndpoint: 'generateContent',
         supportedAspectRatios: [
             '1:1',
             '4:3',
@@ -112,14 +115,16 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         supportedQualities: [],
         supportsImageInput: true,
         supportsNegativePrompt: true,
+        apiNegativePrompt: false,
         maxImages: 1,
-        costLabel: '$0.04/image',
+        costLabel: ['$0.039/image'],
     },
     {
         id: 'gemini-3.1-flash-image-preview',
         displayName: 'Nano Banana 2 (gemini-3.1-flash-image-preview)',
         provider: 'gemini',
         mediaType: 'image',
+        apiEndpoint: 'generateContent',
         supportedAspectRatios: [
             '1:1',
             '4:3',
@@ -139,14 +144,16 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         supportedQualities: ['512px', '1k', '2k', '4k'],
         supportsImageInput: true,
         supportsNegativePrompt: true,
+        apiNegativePrompt: false,
         maxImages: 1,
-        costLabel: '$0.045~$0.151/image',
+        costLabel: ['512px: $0.045/image', '1K: $0.067/image', '2K: $0.101/image', '4K: $0.151/image'],
     },
     {
         id: 'gemini-3-pro-image-preview',
         displayName: 'Nano Banana Pro (gemini-3-pro-image-preview)',
         provider: 'gemini',
         mediaType: 'image',
+        apiEndpoint: 'generateContent',
         supportedAspectRatios: [
             '1:1',
             '4:3',
@@ -166,76 +173,104 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         supportedQualities: ['1k', '2k', '4k'],
         supportsImageInput: true,
         supportsNegativePrompt: true,
+        apiNegativePrompt: false,
         maxImages: 1,
-        costLabel: '$0.134~$0.240/image',
+        costLabel: ['1K/2K: $0.134/image', '4K: $0.24/image'],
     },
     // Imagen 4 family (fast -> standard -> ultra)
-    // predict API: text-to-image only, negativePrompt deprecated (embedded in prompt text)
+    // predict API: text-to-image only, negative prompt embedded in text prompt
+    // All Imagen models will shut down on 2026/6/24. Recommended migration: Nano Banana (gemini-2.5-flash-image)
     {
         id: 'imagen-4.0-fast-generate-001',
         displayName: 'Imagen 4 Fast (imagen-4.0-fast-generate-001)',
         provider: 'gemini',
         mediaType: 'image',
+        apiEndpoint: 'predict',
         supportedAspectRatios: ['1:1', '4:3', '16:9', '3:4', '9:16'],
         supportedQualities: [],
         supportsImageInput: false,
         supportsNegativePrompt: true,
+        apiNegativePrompt: false,
         maxImages: 4,
-        costLabel: '$0.02/image',
+        costLabel: ['$0.02/image'],
+        noteKey: 'model.note.imagenShutdown',
     },
     {
         id: 'imagen-4.0-generate-001',
         displayName: 'Imagen 4 (imagen-4.0-generate-001)',
         provider: 'gemini',
         mediaType: 'image',
+        apiEndpoint: 'predict',
         supportedAspectRatios: ['1:1', '4:3', '16:9', '3:4', '9:16'],
         supportedQualities: ['1k', '2k'],
         supportsImageInput: false,
         supportsNegativePrompt: true,
+        apiNegativePrompt: false,
         maxImages: 4,
-        costLabel: '$0.04/image',
+        costLabel: ['$0.04/image'],
+        noteKey: 'model.note.imagenShutdown',
     },
     {
         id: 'imagen-4.0-ultra-generate-001',
         displayName: 'Imagen 4 Ultra (imagen-4.0-ultra-generate-001)',
         provider: 'gemini',
         mediaType: 'image',
+        apiEndpoint: 'predict',
         supportedAspectRatios: ['1:1', '4:3', '16:9', '3:4', '9:16'],
         supportedQualities: ['1k', '2k'],
         supportsImageInput: false,
         supportsNegativePrompt: true,
+        apiNegativePrompt: false,
         maxImages: 4,
-        costLabel: '$0.06/image',
+        costLabel: ['$0.06/image'],
+        noteKey: 'model.note.imagenShutdown',
     },
-    // Veo 3.1 family (fast -> standard)
+    // Veo 3.1 family (lite -> fast -> standard)
     // predictLongRunning API: text-to-video, image-to-video, native audio generation
-    // Gemini API: 1 video per request, negativePrompt, personGeneration, seed supported
-    // Preview endpoints deprecated on 2026/4/2
+    {
+        id: 'veo-3.1-lite-generate-preview',
+        displayName: 'Veo 3.1 Lite (veo-3.1-lite-generate-preview)',
+        provider: 'gemini',
+        mediaType: 'video',
+        apiEndpoint: 'predictLongRunning',
+        supportedAspectRatios: ['16:9', '9:16'],
+        supportedDurations: [4, 6, 8],
+        supportedResolutions: ['720p', '1080p'],
+        supportsNegativePrompt: true,
+        apiNegativePrompt: false,
+        supportsImageInput: true,
+        supportsSeed: true,
+        costLabel: ['720p: $0.05/sec', '1080p: $0.08/sec'],
+    },
     {
         id: 'veo-3.1-fast-generate-preview',
         displayName: 'Veo 3.1 Fast (veo-3.1-fast-generate-preview)',
         provider: 'gemini',
         mediaType: 'video',
+        apiEndpoint: 'predictLongRunning',
         supportedAspectRatios: ['16:9', '9:16'],
         supportedDurations: [4, 6, 8],
         supportedResolutions: ['720p', '1080p', '4k'],
         supportsNegativePrompt: true,
+        apiNegativePrompt: true,
         supportsImageInput: true,
         supportsSeed: true,
-        costLabel: '$0.15/sec (4K: $0.35)',
+        costLabel: ['720p/1080p: $0.15/sec', '4K: $0.35/sec'],
     },
     {
         id: 'veo-3.1-generate-preview',
         displayName: 'Veo 3.1 (veo-3.1-generate-preview)',
         provider: 'gemini',
         mediaType: 'video',
+        apiEndpoint: 'predictLongRunning',
         supportedAspectRatios: ['16:9', '9:16'],
         supportedDurations: [4, 6, 8],
         supportedResolutions: ['720p', '1080p', '4k'],
         supportsNegativePrompt: true,
+        apiNegativePrompt: true,
         supportsImageInput: true,
         supportsSeed: true,
-        costLabel: '$0.40/sec (4K: $0.60)',
+        costLabel: ['720p/1080p: $0.40/sec', '4K: $0.60/sec'],
     },
     // Lyria 3 family (clip -> pro)
     // generateContent API: text-to-music, image-to-music, lyrics generation
@@ -245,10 +280,12 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         displayName: 'Lyria 3 Clip (lyria-3-clip-preview)',
         provider: 'gemini',
         mediaType: 'audio',
+        apiEndpoint: 'generateContentAudio',
         supportedAspectRatios: [],
         supportsImageInput: true,
         supportsNegativePrompt: false,
-        costLabel: '$0.04/song',
+        apiNegativePrompt: false,
+        costLabel: ['$0.04/song'],
         noteKey: 'model.note.lyriaClip',
     },
     {
@@ -256,10 +293,12 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         displayName: 'Lyria 3 Pro (lyria-3-pro-preview)',
         provider: 'gemini',
         mediaType: 'audio',
+        apiEndpoint: 'generateContentAudio',
         supportedAspectRatios: [],
         supportsImageInput: true,
         supportsNegativePrompt: false,
-        costLabel: '$0.08/song',
+        apiNegativePrompt: false,
+        costLabel: ['$0.08/song'],
         noteKey: 'model.note.lyriaPro',
     },
 ];
@@ -290,6 +329,7 @@ export const IPC_CHANNELS = {
     GENERATION_EXECUTE: 'generation:execute',
     // History
     HISTORY_GET_ALL: 'history:getAll',
+    HISTORY_GET_PAGE: 'history:getPage',
     HISTORY_DELETE: 'history:delete',
     HISTORY_DELETE_ALL: 'history:deleteAll',
     HISTORY_EXPORT_ALL: 'history:exportAll',

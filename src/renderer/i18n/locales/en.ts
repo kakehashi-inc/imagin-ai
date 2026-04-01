@@ -23,6 +23,7 @@ export default {
     'model.label': 'Model',
     'model.note.lyriaClip': 'Fixed 30-second clip',
     'model.note.lyriaPro': 'Up to 3 min (specify duration in prompt)',
+    'model.note.imagenShutdown': 'Shutdown: 2026/6/24',
 
     // Aspect ratio
     'aspectRatio.label': 'Aspect Ratio',
@@ -81,7 +82,8 @@ export default {
     // Prompt
     'prompt.label': 'Prompt',
     'prompt.placeholder': 'Describe the image you want to generate...',
-    'prompt.placeholderMusic': 'Describe the music you want to create (genre, mood, instruments, BPM, etc.). Include lyrics instructions to generate vocals.',
+    'prompt.placeholderMusic':
+        'Describe the music you want to create (genre, mood, instruments, BPM, etc.). Include lyrics instructions to generate vocals.',
     'prompt.required': 'Prompt is required',
     'prompt.charCount': '{{count}} characters',
 
@@ -106,6 +108,8 @@ export default {
         'History limit ({{limit}} entries) exceeded. Please clean up history before generating.',
     'generation.error': 'Generation failed: {{message}}',
     'generation.errorRetry': 'Retry',
+    'generation.errorDetails': 'Details',
+    'generation.errorHideDetails': 'Hide',
     'generation.networkError': 'A network error occurred. Please check your connection and try again.',
     'generation.diskSpaceWarning':
         'Low disk space on history drive. Please free up space or change the history save location.',
@@ -113,7 +117,7 @@ export default {
 
     // History
     'history.title': 'Generation History',
-    'history.empty': 'No history yet. Generate your first image!',
+    'history.empty': 'No entries found.',
     'history.searchPlaceholder': 'Search by prompt...',
     'history.deleteConfirm': 'Are you sure you want to delete this entry? This action cannot be undone.',
     'history.deleteAllConfirm': 'All history will be permanently deleted. This action cannot be undone. Are you sure?',
@@ -150,6 +154,9 @@ export default {
     'settings.apiKey.testing': 'Testing...',
     'settings.apiKey.valid': 'API key is valid.',
     'settings.apiKey.invalid': 'API key is invalid.',
+    'settings.apiKey.notSet': 'API key is not set.',
+    'settings.apiKey.testError': 'Failed to test the API key. Please try again.',
+    'settings.apiKey.encryptionUnavailable': 'Encryption is not available. Cannot store API keys securely.',
     'settings.apiKey.saved': 'API key saved.',
     'settings.historyDir': 'History Save Location',
     'settings.historyDir.change': 'Change',
@@ -157,29 +164,39 @@ export default {
     'settings.language.ja': 'Japanese',
     'settings.language.en': 'English',
 
-    // Main process - API
+    // API key status
     'api.keyNotSet': 'API key is not set.',
     'api.keyValid': 'API key is valid.',
     'api.keyInvalid': 'API key is invalid.',
     'api.encryptionUnavailable': 'Encryption is not available. Cannot store API keys securely.',
-    'api.error.quotaExceeded': 'API quota exceeded. Please wait and try again later, or check your billing settings.',
-    'api.error.invalidKey': 'Invalid API key. Please check your API key in Settings.',
-    'api.error.accessDenied': 'Access denied. Your API key does not have permission for this operation.',
-    'api.error.modelNotFound': 'The specified model was not found. It may have been removed or renamed.',
-    'api.error.serverError': 'An internal server error occurred. Please try again later.',
-    'api.error.serviceUnavailable': 'The service is temporarily unavailable. Please try again later.',
-    'api.error.invalidRequest': 'Invalid request: {{detail}}',
-    'api.error.invalidRequestGeneric': 'The request was invalid. Please review your parameters and try again.',
-    'api.error.paidPlanRequired': 'This model is only available on paid plans. Please upgrade your Google AI account.',
 
-    'api.error.billingRequired': 'Billing or quota issue. Please check your Google AI billing settings.',
-    'api.error.noImagesGenerated': 'No images were generated. Please try a different prompt.',
+    // API errors - mapped from gRPC status codes
+    'api.error.invalidArgument': 'The request is invalid. Please review your parameters.',
+    'api.error.failedPrecondition':
+        'This feature is not available in the current state. A paid plan or additional configuration may be required.',
+    'api.error.outOfRange': 'A parameter value is out of the valid range. Please review your settings.',
+    'api.error.unauthenticated': 'Invalid or missing API key. Please check your API key in Settings.',
+    'api.error.permissionDenied':
+        'Access denied. Your API key may lack permissions, or this model may not be available on your plan.',
+    'api.error.notFound': 'The specified model was not found. It may have been removed or renamed.',
+    'api.error.alreadyExists': 'A resource conflict occurred. Please try again.',
+    'api.error.resourceExhausted':
+        'API quota or rate limit exceeded. Please wait and try again later, or check your billing settings.',
+    'api.error.cancelled': 'The request was cancelled.',
+    'api.error.internal': 'An internal server error occurred. Please try again later.',
+    'api.error.unimplemented': 'This feature is not supported by the selected model.',
+    'api.error.unavailable': 'The service is temporarily unavailable due to high demand. Please try again later.',
+    'api.error.deadlineExceeded': 'The request timed out on the server. Please try again.',
+    'api.error.payloadTooLarge': 'The request data is too large. Please reduce the input size.',
+    'api.error.unknown': 'An unexpected error occurred. Please try again.',
+
+    // Application-level errors
+    'api.error.keyNotSet': 'API key is not set. Please configure it in Settings.',
+    'api.error.noImagesGenerated':
+        'No images were generated. The content may have been filtered. Please try a different prompt.',
     'api.error.noVideoGenerated': 'No video was generated. Please try a different prompt.',
     'api.error.noAudioGenerated': 'No audio was generated. Please try a different prompt.',
-    'api.error.videoTimeout': 'Video generation timed out. Please try again.',
     'api.error.noResponse': 'No response received from the API.',
-
-    // Main process - IPC
-    'ipc.historyLimitExceeded':
+    'api.error.historyLimitExceeded':
         'History limit ({{limit}} entries) exceeded. Please clean up history before generating.',
 };

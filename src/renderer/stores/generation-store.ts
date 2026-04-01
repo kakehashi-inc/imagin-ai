@@ -1,5 +1,13 @@
 import { create } from 'zustand';
-import type { AspectRatio, Quality, GenerationParams, VideoDuration, VideoResolution } from '../../shared/types';
+import type {
+    AspectRatio,
+    Quality,
+    GenerationParams,
+    GenerationProgress,
+    ApiErrorDetail,
+    VideoDuration,
+    VideoResolution,
+} from '../../shared/types';
 import {
     DEFAULT_ASPECT_RATIO,
     DEFAULT_QUALITY,
@@ -23,8 +31,8 @@ type GenerationState = {
     referenceImagePaths: string[];
     referenceImageThumbnails: Map<string, string>;
     isGenerating: boolean;
-    generationProgress: string | null;
-    error: string | null;
+    generationProgress: GenerationProgress | null;
+    error: ApiErrorDetail | null;
     // Actions
     setModel: (model: string) => void;
     setPrompt: (prompt: string) => void;
@@ -157,8 +165,8 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         // Subscribe to progress events for video generation
         let unsubProgress: (() => void) | null = null;
         if (isVideo) {
-            unsubProgress = window.imaginai.onGenerationProgress((status: string) => {
-                set({ generationProgress: status });
+            unsubProgress = window.imaginai.onGenerationProgress(progress => {
+                set({ generationProgress: progress });
             });
         }
 
@@ -186,10 +194,23 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
                 seed: seedValue,
             };
 
-            await window.imaginai.executeGeneration(params);
+            const result = await window.imaginai.executeGeneration(params);
+            if (!result.success) {
+                set({ error: result.error });
+                throw new Error('Generation failed');
+            }
         } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            set({ error: message });
+            // If error is not already set (structured error from API), set a generic one
+            if (!get().error) {
+                set({
+                    error: {
+                        httpStatus: 0,
+                        apiCode: null,
+                        apiStatus: null,
+                        apiMessage: err instanceof Error ? err.message : String(err),
+                    },
+                });
+            }
             throw err;
         } finally {
             unsubProgress?.();

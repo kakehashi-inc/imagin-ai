@@ -1,7 +1,13 @@
 import fs from 'fs';
 import https from 'https';
 import http from 'http';
-import type { GenerationParams, VideoDuration, VideoResolution } from '../../shared/types';
+import type {
+    GenerationParams,
+    ApiErrorDetail,
+    ApiEndpointType,
+    VideoDuration,
+    VideoResolution,
+} from '../../shared/types';
 import { MODEL_DEFINITIONS } from '../../shared/constants';
 import { getApiKey } from './api-key-service';
 
@@ -38,6 +44,32 @@ type ImagenResponse = {
     };
 };
 
+// Custom error class that carries structured API error information
+export class GeminiApiError extends Error {
+    constructor(public readonly detail: ApiErrorDetail) {
+        super(`HTTP ${detail.httpStatus}: ${detail.apiStatus ?? 'UNKNOWN'} - ${detail.apiMessage ?? ''}`);
+    }
+}
+
+// Parse a JSON response body to extract the Google API error structure
+function parseApiError(httpStatus: number, body: string): ApiErrorDetail {
+    try {
+        const parsed = JSON.parse(body);
+        const err = parsed?.error;
+        if (err && typeof err === 'object') {
+            return {
+                httpStatus,
+                apiCode: typeof err.code === 'number' ? err.code : null,
+                apiStatus: typeof err.status === 'string' ? err.status : null,
+                apiMessage: typeof err.message === 'string' ? err.message : null,
+            };
+        }
+    } catch {
+        // Not JSON
+    }
+    return { httpStatus, apiCode: null, apiStatus: null, apiMessage: body || null };
+}
+
 function httpsRequest(url: string, options: https.RequestOptions, body: string): Promise<string> {
     return new Promise((resolve, reject) => {
         const parsedUrl = new URL(url);
@@ -55,7 +87,7 @@ function httpsRequest(url: string, options: https.RequestOptions, body: string):
             });
             res.on('end', () => {
                 if (res.statusCode && res.statusCode >= 400) {
-                    reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+                    reject(new GeminiApiError(parseApiError(res.statusCode, data)));
                 } else {
                     resolve(data);
                 }
@@ -69,10 +101,10 @@ function httpsRequest(url: string, options: https.RequestOptions, body: string):
 }
 
 // Test API key validity
-export async function testApiKey(): Promise<{ success: boolean; message: string }> {
+export async function testApiKey(): Promise<import('../../shared/types').ApiTestResult> {
     const apiKey = getApiKey('gemini');
     if (!apiKey) {
-        return { success: false, message: 'api.keyNotSet' };
+        return { success: false, status: 'KEY_NOT_SET', rawMessage: null };
     }
 
     try {
@@ -80,28 +112,32 @@ export async function testApiKey(): Promise<{ success: boolean; message: string 
         const response = await httpsRequest(url, { method: 'GET' }, '');
         const parsed = JSON.parse(response);
         if (parsed.models && Array.isArray(parsed.models)) {
-            return { success: true, message: 'api.keyValid' };
+            return { success: true, status: 'KEY_VALID', rawMessage: null };
         }
-        return { success: false, message: 'api.keyInvalid' };
+        return { success: false, status: 'KEY_INVALID', rawMessage: null };
     } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { success: false, message };
+        if (err instanceof GeminiApiError) {
+            // 401/UNAUTHENTICATED means the key is invalid
+            if (err.detail.httpStatus === 401 || err.detail.apiStatus === 'UNAUTHENTICATED') {
+                return { success: false, status: 'KEY_INVALID', rawMessage: err.detail.apiMessage };
+            }
+            return { success: false, status: 'TEST_ERROR', rawMessage: err.detail.apiMessage };
+        }
+        const rawMessage = err instanceof Error ? err.message : String(err);
+        return { success: false, status: 'TEST_ERROR', rawMessage };
     }
 }
 
-// Check if a model is Imagen (non-Gemini generative model)
-function isImagenModel(modelId: string): boolean {
-    return modelId.startsWith('imagen');
+// Resolve API endpoint type from model definition
+function getApiEndpoint(modelId: string): ApiEndpointType {
+    const modelDef = MODEL_DEFINITIONS.find(m => m.id === modelId);
+    return modelDef?.apiEndpoint ?? 'generateContent';
 }
 
-// Check if a model is Veo (video generation model)
-function isVeoModel(modelId: string): boolean {
-    return modelId.startsWith('veo');
-}
-
-// Check if a model is Lyria (music generation model)
-function isLyriaModel(modelId: string): boolean {
-    return modelId.startsWith('lyria');
+// Check if model supports negativePrompt as an API parameter
+function hasApiNegativePrompt(modelId: string): boolean {
+    const modelDef = MODEL_DEFINITIONS.find(m => m.id === modelId);
+    return modelDef?.apiNegativePrompt ?? false;
 }
 
 // Long-Running Operation response
@@ -117,95 +153,24 @@ type LroResponse = {
     };
 };
 
-// Extract HTTP status code from error message (format: "HTTP 429: ...")
-function extractHttpStatus(error: Error): number | null {
-    const match = error.message.match(/^HTTP (\d+):/);
-    return match ? parseInt(match[1], 10) : null;
+// Convert an inline error object (from response body) into a GeminiApiError
+function throwApiBodyError(error: { code: number; message: string; status: string }): never {
+    throw new GeminiApiError({
+        httpStatus: error.code,
+        apiCode: error.code,
+        apiStatus: error.status,
+        apiMessage: error.message,
+    });
 }
 
-// Map API errors to i18n keys for renderer-side translation
-function toUserFriendlyError(err: unknown): Error {
-    const original = err instanceof Error ? err : new Error(String(err));
-    const status = err instanceof Error ? extractHttpStatus(original) : null;
-
-    const statusKeyMap: Record<number, string> = {
-        429: 'api.error.quotaExceeded',
-        401: 'api.error.invalidKey',
-        403: 'api.error.accessDenied',
-        404: 'api.error.modelNotFound',
-        500: 'api.error.serverError',
-        503: 'api.error.serviceUnavailable',
-    };
-
-    // For errors with HTTP status and JSON body, try to extract API message first
-    if (status) {
-        const bodyMatch = original.message.match(/^HTTP \d+: (.+)$/s);
-        if (bodyMatch) {
-            try {
-                const parsed = JSON.parse(bodyMatch[1]);
-                const apiMsg: string = parsed?.error?.message || '';
-                if (apiMsg) {
-                    const key = classifyApiMessage(apiMsg);
-                    if (key) {
-                        return new Error(key);
-                    }
-                }
-            } catch {
-                // Not JSON, continue to status-based handling
-            }
-        }
-    }
-
-    if (status && statusKeyMap[status]) {
-        return new Error(statusKeyMap[status]);
-    }
-
-    // For 400 errors without a matched classification, include the raw API detail
-    if (status === 400) {
-        const bodyMatch = original.message.match(/^HTTP 400: (.+)$/s);
-        if (bodyMatch) {
-            try {
-                const parsed = JSON.parse(bodyMatch[1]);
-                const apiMsg: string = parsed?.error?.message || '';
-                if (apiMsg) {
-                    return new Error(`api.error.invalidRequest::detail=${apiMsg}`);
-                }
-            } catch {
-                // Not JSON
-            }
-        }
-        return new Error('api.error.invalidRequestGeneric');
-    }
-
-    return original;
-}
-
-// Classify common API error messages into i18n keys
-function classifyApiMessage(apiMsg: string): string | null {
-    const lower = apiMsg.toLowerCase();
-
-    if (
-        lower.includes('only available on paid plans') ||
-        lower.includes('upgrade your account') ||
-        lower.includes('paid tier') ||
-        lower.includes('enable billing')
-    ) {
-        return 'api.error.paidPlanRequired';
-    }
-
-    if (lower.includes('quota') || lower.includes('rate limit') || lower.includes('resource exhausted')) {
-        return 'api.error.quotaExceeded';
-    }
-
-    if (lower.includes('billing')) {
-        return 'api.error.billingRequired';
-    }
-
-    if (lower.includes('permission') || lower.includes('not authorized') || lower.includes('forbidden')) {
-        return 'api.error.accessDenied';
-    }
-
-    return null;
+// Create a GeminiApiError for application-level errors (no HTTP response)
+function throwAppError(errorKey: string): never {
+    throw new GeminiApiError({
+        httpStatus: 0,
+        apiCode: null,
+        apiStatus: errorKey,
+        apiMessage: null,
+    });
 }
 
 // Generate images using Gemini API
@@ -214,23 +179,20 @@ export async function generateImages(
 ): Promise<{ buffers: Buffer[]; mimeType: string; audioTexts?: string[] }> {
     const apiKey = getApiKey('gemini');
     if (!apiKey) {
-        throw new Error('api.keyNotSet');
+        throwAppError('API_KEY_NOT_SET');
     }
 
-    try {
-        if (isLyriaModel(params.model)) {
+    const endpoint = getApiEndpoint(params.model);
+    switch (endpoint) {
+        case 'generateContentAudio':
             return await generateWithLyria(params, apiKey);
-        }
-        if (isVeoModel(params.model)) {
+        case 'predictLongRunning':
             return await generateWithVeo(params, apiKey);
-        }
-        if (isImagenModel(params.model)) {
+        case 'predict':
             return await generateWithImagen(params, apiKey);
-        }
-        return await generateWithGemini(params, apiKey);
-    } catch (err) {
-        console.error('API error (raw):', err instanceof Error ? err.message : err);
-        throw toUserFriendlyError(err);
+        case 'generateContent':
+        default:
+            return await generateWithGemini(params, apiKey);
     }
 }
 
@@ -241,9 +203,8 @@ async function generateWithImagen(
 ): Promise<{ buffers: Buffer[]; mimeType: string }> {
     const url = `${GEMINI_API_BASE}/v1beta/models/${params.model}:predict?key=${apiKey}`;
 
-    // Embed negative prompt into main prompt text (negativePrompt param is deprecated)
     let promptText = params.prompt;
-    if (params.negativePrompt) {
+    if (params.negativePrompt && !hasApiNegativePrompt(params.model)) {
         promptText += `\n\nDo not include: ${params.negativePrompt}`;
     }
 
@@ -279,11 +240,11 @@ async function generateWithImagen(
     const parsed = JSON.parse(response) as ImagenResponse;
 
     if (parsed.error) {
-        throw new Error(`HTTP ${parsed.error.code}: ${JSON.stringify({ error: parsed.error })}`);
+        throwApiBodyError(parsed.error);
     }
 
     if (!parsed.predictions || parsed.predictions.length === 0) {
-        throw new Error('api.error.noImagesGenerated');
+        throwAppError('NO_IMAGES_GENERATED');
     }
 
     const buffers = parsed.predictions.map(p => Buffer.from(p.bytesBase64Encoded, 'base64'));
@@ -326,7 +287,7 @@ async function generateWithGemini(
 
     // Add text prompt
     let promptText = params.prompt;
-    if (params.negativePrompt) {
+    if (params.negativePrompt && !hasApiNegativePrompt(params.model)) {
         promptText += `\n\nDo not include: ${params.negativePrompt}`;
     }
     parts.push({ text: promptText });
@@ -374,11 +335,11 @@ async function generateWithGemini(
         const parsed = JSON.parse(response) as GeminiResponse;
 
         if (parsed.error) {
-            throw new Error(`HTTP ${parsed.error.code}: ${JSON.stringify({ error: parsed.error })}`);
+            throwApiBodyError(parsed.error);
         }
 
         if (!parsed.candidates || parsed.candidates.length === 0) {
-            throw new Error('api.error.noResponse');
+            throwAppError('NO_RESPONSE');
         }
 
         for (const candidate of parsed.candidates) {
@@ -397,7 +358,7 @@ async function generateWithGemini(
     }
 
     if (allBuffers.length === 0) {
-        throw new Error('api.error.noImagesGenerated');
+        throwAppError('NO_IMAGES_GENERATED');
     }
 
     return { buffers: allBuffers, mimeType: resultMimeType };
@@ -416,7 +377,7 @@ function httpsGet(url: string): Promise<string> {
                 });
                 res.on('end', () => {
                     if (res.statusCode && res.statusCode >= 400) {
-                        reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+                        reject(new GeminiApiError(parseApiError(res.statusCode, data)));
                     } else {
                         resolve(data);
                     }
@@ -450,7 +411,14 @@ function downloadBuffer(url: string, apiKey?: string): Promise<Buffer> {
                 res.on('data', (chunk: Buffer) => chunks.push(chunk));
                 res.on('end', () => {
                     if (res.statusCode && res.statusCode >= 400) {
-                        reject(new Error(`HTTP ${res.statusCode}: download failed`));
+                        reject(
+                            new GeminiApiError({
+                                httpStatus: res.statusCode,
+                                apiCode: null,
+                                apiStatus: null,
+                                apiMessage: 'Download failed',
+                            })
+                        );
                     } else {
                         resolve(Buffer.concat(chunks));
                     }
@@ -461,14 +429,15 @@ function downloadBuffer(url: string, apiKey?: string): Promise<Buffer> {
     });
 }
 
-// Polling interval and timeout for Veo LRO
+// Polling interval for Veo LRO (no timeout — wait until done, per official SDK pattern)
 const VEO_POLL_INTERVAL_MS = 10000;
-const VEO_POLL_TIMEOUT_MS = 600000; // 10 minutes
 
 // Event emitter for generation progress (set by IPC layer)
-let progressCallback: ((status: string) => void) | null = null;
+let progressCallback: ((progress: import('../../shared/types').GenerationProgress) => void) | null = null;
 
-export function setGenerationProgressCallback(cb: ((status: string) => void) | null): void {
+export function setGenerationProgressCallback(
+    cb: ((progress: import('../../shared/types').GenerationProgress) => void) | null
+): void {
     progressCallback = cb;
 }
 
@@ -530,11 +499,11 @@ async function generateWithLyria(
     const parsed = JSON.parse(response) as GeminiResponse;
 
     if (parsed.error) {
-        throw new Error(`HTTP ${parsed.error.code}: ${JSON.stringify({ error: parsed.error })}`);
+        throwApiBodyError(parsed.error);
     }
 
     if (!parsed.candidates || parsed.candidates.length === 0) {
-        throw new Error('api.error.noResponse');
+        throwAppError('NO_RESPONSE');
     }
 
     // Extract audio buffers, lyrics, and description from response parts (order is not guaranteed).
@@ -557,7 +526,7 @@ async function generateWithLyria(
     }
 
     if (audioBuffers.length === 0) {
-        throw new Error('api.error.noAudioGenerated');
+        throwAppError('NO_AUDIO_GENERATED');
     }
 
     return {
@@ -578,8 +547,14 @@ async function generateWithVeo(
     const url = `${GEMINI_API_BASE}/v1beta/models/${params.model}:predictLongRunning?key=${apiKey}`;
 
     // Build request body
+    // Embed negative prompt into main prompt if API parameter not supported
+    let promptText = params.prompt;
+    if (params.negativePrompt && !hasApiNegativePrompt(params.model)) {
+        promptText += `\n\nDo not include: ${params.negativePrompt}`;
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const instance: any = { prompt: params.prompt };
+    const instance: any = { prompt: promptText };
 
     // Image-to-video: attach first reference image as the starting frame
     if (params.referenceImagePaths && params.referenceImagePaths.length > 0) {
@@ -606,8 +581,8 @@ async function generateWithVeo(
         resolution,
     };
 
-    // Negative prompt
-    if (params.negativePrompt) {
+    // Negative prompt (API parameter, only if supported by this model)
+    if (params.negativePrompt && hasApiNegativePrompt(params.model)) {
         parameters.negativePrompt = params.negativePrompt;
     }
 
@@ -635,11 +610,11 @@ async function generateWithVeo(
     const lro = JSON.parse(response) as LroResponse;
 
     if (lro.error) {
-        throw new Error(`HTTP ${lro.error.code}: ${JSON.stringify({ error: lro.error })}`);
+        throwApiBodyError(lro.error);
     }
 
     if (!lro.name) {
-        throw new Error('api.error.noResponse');
+        throwAppError('NO_RESPONSE');
     }
 
     // Poll for completion
@@ -651,25 +626,21 @@ async function generateWithVeo(
 
         const elapsed = Math.round((Date.now() - startTime) / 1000);
         if (progressCallback) {
-            progressCallback(`generating:${elapsed}`);
-        }
-
-        if (Date.now() - startTime > VEO_POLL_TIMEOUT_MS) {
-            throw new Error('api.error.videoTimeout');
+            progressCallback({ status: 'generating', elapsedSeconds: elapsed });
         }
 
         const pollResponse = await httpsGet(operationUrl);
         const pollResult = JSON.parse(pollResponse) as LroResponse;
 
         if (pollResult.error) {
-            throw new Error(`HTTP ${pollResult.error.code}: ${JSON.stringify({ error: pollResult.error })}`);
+            throwApiBodyError(pollResult.error);
         }
 
         if (pollResult.done) {
             // Extract video data from the completed operation
             const videoResult = pollResult.response;
             if (!videoResult) {
-                throw new Error('api.error.noVideoGenerated');
+                throwAppError('NO_VIDEO_GENERATED');
             }
 
             // Gemini API response: generateVideoResponse.generatedSamples[]
@@ -680,7 +651,7 @@ async function generateWithVeo(
                 videoResult.generatedVideos ||
                 [];
             if (generatedSamples.length === 0) {
-                throw new Error('api.error.noVideoGenerated');
+                throwAppError('NO_VIDEO_GENERATED');
             }
 
             // Extract video buffer
@@ -696,7 +667,7 @@ async function generateWithVeo(
             }
 
             if (allBuffers.length === 0) {
-                throw new Error('api.error.noVideoGenerated');
+                throwAppError('NO_VIDEO_GENERATED');
             }
 
             return { buffers: allBuffers, mimeType: 'video/mp4' };

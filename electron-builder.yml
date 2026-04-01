@@ -17,11 +17,22 @@ releaseInfo:
   releaseNotes: |
     ## New Features
 
-    -
+    - History limit increased from 200 to 10,000 entries with infinite scroll
+    - New model: Veo 3.1 Lite (low-cost video generation)
+    - Generation time is now recorded and displayed in history entries
+    - Per-resolution pricing is now shown for Nano Banana 2 and Nano Banana Pro
+    - Default aspect ratio changed to 16:9
+    - Error messages now show a "Details" link to view the full API response
+    - History search box now has a clear button
+    - DevTools can be opened with F12 in production builds
+    - Imagen 4 shutdown notice (2026/6/24) displayed in model selector
+    - Model pricing updated to latest official rates (2026/4/2)
 
     ## Bug Fixes
 
-    -
+    - Fixed error messages showing untranslated text
+    - Fixed history panel freezing when loading many thumbnails
+    - Fixed Veo video generation being interrupted before completion
 
 files:
   - dist/**/*

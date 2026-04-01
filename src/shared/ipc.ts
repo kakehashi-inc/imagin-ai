@@ -5,6 +5,7 @@ import type {
     AppSettings,
     ApiTestResult,
     GenerationParams,
+    GenerationResult,
     HistoryEntry,
 } from './types';
 
@@ -29,14 +30,15 @@ export type IpcApi = {
 
     // API Key
     getApiKey(provider: string): Promise<string>;
-    saveApiKey(provider: string, key: string): Promise<void>;
+    saveApiKey(provider: string, key: string): Promise<{ success: boolean }>;
     testApiKey(provider: string): Promise<ApiTestResult>;
 
     // Generation
-    executeGeneration(params: GenerationParams): Promise<HistoryEntry[]>;
+    executeGeneration(params: GenerationParams): Promise<GenerationResult>;
 
     // History
     getAllHistory(): Promise<HistoryEntry[]>;
+    getHistoryPage(offset: number, limit: number): Promise<{ entries: HistoryEntry[]; total: number }>;
     deleteHistory(id: string): Promise<void>;
     deleteAllHistory(): Promise<void>;
     exportAllHistory(): Promise<{ success: boolean; path?: string }>;
@@ -69,7 +71,7 @@ export type IpcApi = {
 
     // Event listeners
     onExportProgress(callback: (percent: number) => void): () => void;
-    onGenerationProgress(callback: (status: string) => void): () => void;
+    onGenerationProgress(callback: (progress: import('./types').GenerationProgress) => void): () => void;
 };
 
 declare global {

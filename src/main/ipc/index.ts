@@ -4,9 +4,10 @@ import fs from 'fs';
 import { IPC_CHANNELS, MODEL_DEFINITIONS, HISTORY_MAX_COUNT } from '../../shared/constants';
 import { loadSettings, mergeSettings, ensureHistoryDir } from '../services/settings-service';
 import { getApiKey, saveApiKey } from '../services/api-key-service';
-import { testApiKey, generateImages, setGenerationProgressCallback } from '../services/gemini-service';
+import { testApiKey, generateImages, setGenerationProgressCallback, GeminiApiError } from '../services/gemini-service';
 import {
     getAllHistory,
+    getHistoryPage,
     getHistoryCount,
     deleteHistoryEntry,
     deleteAllHistory,
@@ -58,7 +59,7 @@ export function registerIpcHandlers() {
     });
 
     ipcMain.handle(IPC_CHANNELS.API_KEY_SAVE, async (_e, provider: string, key: string) => {
-        saveApiKey(provider, key);
+        return saveApiKey(provider, key);
     });
 
     ipcMain.handle(IPC_CHANNELS.API_KEY_TEST, async () => {
@@ -66,59 +67,92 @@ export function registerIpcHandlers() {
     });
 
     // --- Generation ---
-    ipcMain.handle(IPC_CHANNELS.GENERATION_EXECUTE, async (_e, params: GenerationParams) => {
-        // Check history limit
-        const count = getHistoryCount();
-        if (count >= HISTORY_MAX_COUNT) {
-            throw new Error(`ipc.historyLimitExceeded::limit=${HISTORY_MAX_COUNT}`);
-        }
+    ipcMain.handle(
+        IPC_CHANNELS.GENERATION_EXECUTE,
+        async (_e, params: GenerationParams): Promise<import('../../shared/types').GenerationResult> => {
+            // Check history limit
+            const count = getHistoryCount();
+            if (count >= HISTORY_MAX_COUNT) {
+                return {
+                    success: false,
+                    error: {
+                        httpStatus: 0,
+                        apiCode: null,
+                        apiStatus: 'HISTORY_LIMIT_EXCEEDED',
+                        apiMessage: String(HISTORY_MAX_COUNT),
+                    },
+                };
+            }
 
-        // Find model definition
-        const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
-        const modelDisplayName = modelDef?.displayName || params.model;
-        const isVideo = modelDef?.mediaType === 'video';
-        const isAudio = modelDef?.mediaType === 'audio';
+            // Find model definition
+            const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
+            const modelDisplayName = modelDef?.displayName || params.model;
+            const isVideo = modelDef?.mediaType === 'video';
+            const isAudio = modelDef?.mediaType === 'audio';
 
-        // Set up progress callback for video generation
-        const win = BrowserWindow.getFocusedWindow();
-        if (isVideo && win) {
-            setGenerationProgressCallback((status: string) => {
-                if (!win.isDestroyed()) {
-                    win.webContents.send(IPC_CHANNELS.GENERATION_PROGRESS, status);
+            // Set up progress callback for video generation
+            const win = BrowserWindow.getFocusedWindow();
+            if (isVideo && win) {
+                setGenerationProgressCallback(progress => {
+                    if (!win.isDestroyed()) {
+                        win.webContents.send(IPC_CHANNELS.GENERATION_PROGRESS, progress);
+                    }
+                });
+            }
+
+            try {
+                // Generate images, video, or audio (measure elapsed time)
+                const startTime = Date.now();
+                const result = await generateImages(params);
+                const elapsedMs = Date.now() - startTime;
+
+                let entries;
+                if (isAudio) {
+                    entries = result.buffers.map(buf =>
+                        createAudioHistoryEntry(params, modelDisplayName, buf, result.audioTexts, elapsedMs)
+                    );
+                } else if (isVideo) {
+                    entries = result.buffers.map(buf =>
+                        createVideoHistoryEntry(params, modelDisplayName, buf, elapsedMs)
+                    );
+                } else {
+                    entries = createHistoryEntries(
+                        params,
+                        modelDisplayName,
+                        result.buffers,
+                        result.mimeType,
+                        elapsedMs
+                    );
                 }
-            });
-        }
-
-        try {
-            // Generate images, video, or audio
-            const result = await generateImages(params);
-
-            if (isAudio) {
-                // Save each audio to history
-                const entries = result.buffers.map(buf =>
-                    createAudioHistoryEntry(params, modelDisplayName, buf, result.audioTexts)
-                );
-                return entries;
+                return { success: true, entries };
+            } catch (err) {
+                console.error('Generation error:', err instanceof Error ? err.message : err);
+                if (err instanceof GeminiApiError) {
+                    return { success: false, error: err.detail };
+                }
+                // Unexpected error (network failure, etc.)
+                return {
+                    success: false,
+                    error: {
+                        httpStatus: 0,
+                        apiCode: null,
+                        apiStatus: null,
+                        apiMessage: err instanceof Error ? err.message : String(err),
+                    },
+                };
+            } finally {
+                setGenerationProgressCallback(null);
             }
-
-            if (isVideo) {
-                // Save each video to history (sampleCount 1-4)
-                const entries = result.buffers.map(buf => createVideoHistoryEntry(params, modelDisplayName, buf));
-                return entries;
-            }
-
-            // Save images to history
-            const entries = createHistoryEntries(params, modelDisplayName, result.buffers, result.mimeType);
-            return entries;
-        } finally {
-            // Clear progress callback
-            setGenerationProgressCallback(null);
         }
-    });
+    );
 
     // --- History ---
     ipcMain.handle(IPC_CHANNELS.HISTORY_GET_ALL, async () => {
         return getAllHistory();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.HISTORY_GET_PAGE, async (_e, offset: number, limit: number) => {
+        return getHistoryPage(offset, limit);
     });
 
     ipcMain.handle(IPC_CHANNELS.HISTORY_GET_COUNT, async () => {

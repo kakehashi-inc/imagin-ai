@@ -93,10 +93,23 @@ export default function ParameterPanel() {
                     ))}
                 </Select>
             </FormControl>
-            {currentModel?.costLabel && (
-                <Typography variant='caption' color='text.secondary' sx={{ mt: -1, ml: 0.5 }}>
-                    {currentModel.costLabel} ({COST_REFERENCE_DATE})
-                </Typography>
+            {currentModel?.costLabel && currentModel.costLabel.length > 0 && (
+                currentModel.costLabel.length === 1 ? (
+                    <Typography variant='caption' color='text.secondary' sx={{ mt: -1, ml: 0.5 }}>
+                        {currentModel.costLabel[0]} ({COST_REFERENCE_DATE})
+                    </Typography>
+                ) : (
+                    <Box sx={{ mt: -1, ml: 0.5 }}>
+                        {currentModel.costLabel.map((line, i) => (
+                            <Typography key={i} variant='caption' color='text.secondary' display='block' sx={{ lineHeight: 1.4 }}>
+                                {line}
+                            </Typography>
+                        ))}
+                        <Typography variant='caption' color='text.secondary' display='block' sx={{ lineHeight: 1.4 }}>
+                            ({COST_REFERENCE_DATE})
+                        </Typography>
+                    </Box>
+                )
             )}
             {currentModel?.noteKey && (
                 <Typography variant='caption' color='text.secondary' sx={{ mt: -1, ml: 0.5, whiteSpace: 'pre-line' }}>

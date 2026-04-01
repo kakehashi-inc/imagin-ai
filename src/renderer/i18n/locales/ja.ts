@@ -23,6 +23,7 @@ export default {
     'model.label': 'モデル',
     'model.note.lyriaClip': '30秒固定',
     'model.note.lyriaPro': 'プロンプトで3分までの長さを指示可能',
+    'model.note.imagenShutdown': 'サポート終了: 2026/6/24',
 
     // Aspect ratio
     'aspectRatio.label': 'アスペクト比',
@@ -81,7 +82,8 @@ export default {
     // Prompt
     'prompt.label': 'プロンプト',
     'prompt.placeholder': '生成したい画像を説明してください...',
-    'prompt.placeholderMusic': '作成したい音楽を説明してください（ジャンル、雰囲気、楽器、BPMなど）。歌詞についての指示を含めると歌詞付きで生成されます。',
+    'prompt.placeholderMusic':
+        '作成したい音楽を説明してください（ジャンル、雰囲気、楽器、BPMなど）。歌詞についての指示を含めると歌詞付きで生成されます。',
     'prompt.required': 'プロンプトは必須です',
     'prompt.charCount': '{{count}}文字',
 
@@ -105,6 +107,8 @@ export default {
     'generation.historyLimitExceeded': '履歴が上限({{limit}}件)を超えています。履歴を整理してください。',
     'generation.error': '生成に失敗しました: {{message}}',
     'generation.errorRetry': 'リトライ',
+    'generation.errorDetails': '詳細',
+    'generation.errorHideDetails': '閉じる',
     'generation.networkError': 'ネットワークエラーが発生しました。接続を確認してもう一度お試しください。',
     'generation.diskSpaceWarning':
         '履歴保存先のディスク容量が不足しています。空き容量を確保するか、保存先を変更してください。',
@@ -112,7 +116,7 @@ export default {
 
     // History
     'history.title': '生成履歴',
-    'history.empty': '履歴がありません。最初の画像を生成しましょう！',
+    'history.empty': '該当する履歴がありません。',
     'history.searchPlaceholder': 'プロンプトで検索...',
     'history.deleteConfirm': 'この履歴を削除しますか？この操作は元に戻せません。',
     'history.deleteAllConfirm': 'すべての履歴が完全に削除されます。この操作は元に戻せません。よろしいですか？',
@@ -149,6 +153,9 @@ export default {
     'settings.apiKey.testing': 'テスト中...',
     'settings.apiKey.valid': 'APIキーは有効です。',
     'settings.apiKey.invalid': 'APIキーが無効です。',
+    'settings.apiKey.notSet': 'APIキーが設定されていません。',
+    'settings.apiKey.testError': 'APIキーのテストに失敗しました。もう一度お試しください。',
+    'settings.apiKey.encryptionUnavailable': '暗号化が利用できません。APIキーを安全に保存できません。',
     'settings.apiKey.saved': 'APIキーを保存しました。',
     'settings.historyDir': '履歴保存先',
     'settings.historyDir.change': '変更',
@@ -156,29 +163,38 @@ export default {
     'settings.language.ja': '日本語',
     'settings.language.en': '英語',
 
-    // Main process - API
+    // APIキーステータス
     'api.keyNotSet': 'APIキーが設定されていません。',
     'api.keyValid': 'APIキーは有効です。',
     'api.keyInvalid': 'APIキーが無効です。',
     'api.encryptionUnavailable': '暗号化が利用できません。APIキーを安全に保存できません。',
-    'api.error.quotaExceeded': 'APIのクォータに達しました。しばらく待ってから再試行するか、課金設定をご確認ください。',
-    'api.error.invalidKey': 'APIキーが無効です。設定画面でAPIキーを確認してください。',
-    'api.error.accessDenied': 'アクセスが拒否されました。APIキーにこの操作の権限がありません。',
-    'api.error.modelNotFound': '指定されたモデルが見つかりません。削除または名前が変更された可能性があります。',
-    'api.error.serverError': 'サーバー内部エラーが発生しました。しばらくしてから再試行してください。',
-    'api.error.serviceUnavailable': 'サービスが一時的に利用できません。しばらくしてから再試行してください。',
-    'api.error.invalidRequest': '無効なリクエスト: {{detail}}',
-    'api.error.invalidRequestGeneric': 'リクエストが無効です。パラメータを確認して再試行してください。',
-    'api.error.paidPlanRequired':
-        'このモデルは有料プランでのみ利用可能です。Google AIアカウントをアップグレードしてください。',
 
-    'api.error.billingRequired': '課金またはクォータの問題です。Google AIの課金設定を確認してください。',
-    'api.error.noImagesGenerated': '画像が生成されませんでした。別のプロンプトをお試しください。',
+    // APIエラー - gRPCステータスコード別
+    'api.error.invalidArgument': 'リクエストが無効です。パラメータを確認してください。',
+    'api.error.failedPrecondition':
+        'この機能は現在の状態では利用できません。有料プランへのアップグレードまたは追加設定が必要な場合があります。',
+    'api.error.outOfRange': 'パラメータの値が有効範囲外です。設定を確認してください。',
+    'api.error.unauthenticated': 'APIキーが無効または未設定です。設定画面でAPIキーを確認してください。',
+    'api.error.permissionDenied':
+        'アクセスが拒否されました。APIキーの権限が不足しているか、このモデルがご利用のプランでは利用できない可能性があります。',
+    'api.error.notFound': '指定されたモデルが見つかりません。削除または名前が変更された可能性があります。',
+    'api.error.alreadyExists': 'リソースの競合が発生しました。もう一度お試しください。',
+    'api.error.resourceExhausted':
+        'APIのクォータまたはレート制限に達しました。しばらく待ってから再試行するか、課金設定をご確認ください。',
+    'api.error.cancelled': 'リクエストがキャンセルされました。',
+    'api.error.internal': 'サーバー内部エラーが発生しました。しばらくしてから再試行してください。',
+    'api.error.unimplemented': 'この機能は選択されたモデルではサポートされていません。',
+    'api.error.unavailable': 'サービスが一時的に利用できません（高負荷のため）。しばらくしてから再試行してください。',
+    'api.error.deadlineExceeded': 'サーバー側でリクエストがタイムアウトしました。もう一度お試しください。',
+    'api.error.payloadTooLarge': 'リクエストデータが大きすぎます。入力サイズを小さくしてください。',
+    'api.error.unknown': '予期しないエラーが発生しました。もう一度お試しください。',
+
+    // アプリケーションレベルのエラー
+    'api.error.keyNotSet': 'APIキーが設定されていません。設定画面で設定してください。',
+    'api.error.noImagesGenerated':
+        '画像が生成されませんでした。コンテンツがフィルタリングされた可能性があります。別のプロンプトをお試しください。',
     'api.error.noVideoGenerated': '動画が生成されませんでした。別のプロンプトをお試しください。',
     'api.error.noAudioGenerated': '音楽が生成されませんでした。別のプロンプトをお試しください。',
-    'api.error.videoTimeout': '動画生成がタイムアウトしました。もう一度お試しください。',
     'api.error.noResponse': 'APIからの応答がありませんでした。',
-
-    // Main process - IPC
-    'ipc.historyLimitExceeded': '履歴が上限({{limit}}件)を超えています。履歴を整理してから生成してください。',
+    'api.error.historyLimitExceeded': '履歴が上限({{limit}}件)を超えています。履歴を整理してから生成してください。',
 };

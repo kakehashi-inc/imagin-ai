@@ -47,10 +47,10 @@ yarn install
 yarn dev
 ```
 
-開発時のDevTools:
+DevTools:
 
-- DevTools はデタッチ表示で自動的に開きます
-- F12 または Ctrl+Shift+I（macOSは Cmd+Option+I）でトグル可能
+- 開発時は DevTools がデタッチ表示で自動的に開きます
+- F12 または Ctrl+Shift+I（macOSは Cmd+Option+I）で開発・製品ビルドの両方でトグル可能
 
 ### ビルド/配布
 

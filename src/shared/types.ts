@@ -27,11 +27,15 @@ export type VideoDuration = 4 | 6 | 8;
 export type VideoResolution = '720p' | '1080p' | '4k';
 
 // --- Model definition ---
+// API endpoint type for generation
+export type ApiEndpointType = 'generateContent' | 'predict' | 'predictLongRunning' | 'generateContentAudio';
+
 export type ModelDefinition = {
     id: string;
     displayName: string;
     provider: ApiProvider;
     mediaType: MediaType;
+    apiEndpoint: ApiEndpointType;
     supportedAspectRatios: string[];
     // Image model properties
     supportedQualities?: string[];
@@ -41,9 +45,11 @@ export type ModelDefinition = {
     supportedDurations?: VideoDuration[];
     supportedResolutions?: VideoResolution[];
     supportsSeed?: boolean;
-    // Common
+    // Negative prompt
     supportsNegativePrompt?: boolean;
-    costLabel?: string;
+    apiNegativePrompt?: boolean;
+    // Cost & notes
+    costLabel?: string[];
     noteKey?: string;
 };
 
@@ -101,6 +107,7 @@ export type HistoryEntry = {
     videoResolution?: VideoResolution;
     seed?: number;
     audioTexts?: string[];
+    elapsedMs?: number;
 };
 
 // --- Settings ---
@@ -111,7 +118,27 @@ export type AppSettings = {
 };
 
 // --- API test result ---
+export type ApiKeyTestStatus = 'KEY_NOT_SET' | 'KEY_VALID' | 'KEY_INVALID' | 'TEST_ERROR';
+
 export type ApiTestResult = {
     success: boolean;
-    message: string;
+    status: ApiKeyTestStatus;
+    rawMessage: string | null;
 };
+
+// --- Generation progress ---
+export type GenerationProgress = {
+    status: 'generating';
+    elapsedSeconds: number;
+};
+
+// --- Structured API error ---
+export type ApiErrorDetail = {
+    httpStatus: number;
+    apiCode: number | null;
+    apiStatus: string | null;
+    apiMessage: string | null;
+};
+
+// --- Generation result (success or structured error) ---
+export type GenerationResult = { success: true; entries: HistoryEntry[] } | { success: false; error: ApiErrorDetail };

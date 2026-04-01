@@ -20,7 +20,7 @@ import {
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../stores/app-store';
-import type { AppTheme, AppLanguage } from '../../shared/types';
+import type { AppTheme, AppLanguage, ApiKeyTestStatus } from '../../shared/types';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
@@ -30,15 +30,28 @@ type Props = {
     onClose: () => void;
 };
 
+// Map API key test status to i18n key
+const testStatusI18nMap: Record<ApiKeyTestStatus, string> = {
+    KEY_NOT_SET: 'settings.apiKey.notSet',
+    KEY_VALID: 'settings.apiKey.valid',
+    KEY_INVALID: 'settings.apiKey.invalid',
+    TEST_ERROR: 'settings.apiKey.testError',
+};
+
+type ApiKeyStatusState = {
+    type: 'success' | 'error';
+    message: string;
+    rawMessage: string | null;
+};
+
 export default function SettingsPage({ onClose }: Props) {
     const { t, i18n } = useTranslation();
     const { settings, setTheme, setLanguage, loadSettings } = useAppStore();
 
     const [apiKey, setApiKey] = React.useState('');
     const [showApiKey, setShowApiKey] = React.useState(false);
-    const [apiKeyStatus, setApiKeyStatus] = React.useState<{ type: 'success' | 'error'; message: string } | null>(
-        null
-    );
+    const [apiKeyStatus, setApiKeyStatus] = React.useState<ApiKeyStatusState | null>(null);
+    const [showApiKeyDetails, setShowApiKeyDetails] = React.useState(false);
     const [isTesting, setIsTesting] = React.useState(false);
     const [historyDir, setHistoryDir] = React.useState('');
     const [moveDialog, setMoveDialog] = React.useState<{ open: boolean; newDir: string }>({
@@ -62,28 +75,34 @@ export default function SettingsPage({ onClose }: Props) {
     };
 
     const handleSaveApiKey = async () => {
-        await window.imaginai.saveApiKey('gemini', apiKey);
-        setApiKeyStatus({ type: 'success', message: t('settings.apiKey.saved') });
+        const result = await window.imaginai.saveApiKey('gemini', apiKey);
+        if (result.success) {
+            setApiKeyStatus({ type: 'success', message: t('settings.apiKey.saved'), rawMessage: null });
+        } else {
+            setApiKeyStatus({ type: 'error', message: t('settings.apiKey.encryptionUnavailable'), rawMessage: null });
+        }
         setTimeout(() => setApiKeyStatus(null), 3000);
     };
 
     const handleTestApiKey = async () => {
         setIsTesting(true);
         setApiKeyStatus(null);
+        setShowApiKeyDetails(false);
         try {
             // Save first, then test
             await window.imaginai.saveApiKey('gemini', apiKey);
             const result = await window.imaginai.testApiKey('gemini');
+            const i18nKey = testStatusI18nMap[result.status];
             setApiKeyStatus({
                 type: result.success ? 'success' : 'error',
-                message: result.success
-                    ? t('settings.apiKey.valid')
-                    : t(result.message, { defaultValue: result.message }),
+                message: t(i18nKey),
+                rawMessage: result.rawMessage,
             });
         } catch (err) {
             setApiKeyStatus({
                 type: 'error',
-                message: err instanceof Error ? err.message : t('settings.apiKey.invalid'),
+                message: t('settings.apiKey.testError'),
+                rawMessage: err instanceof Error ? err.message : String(err),
             });
         } finally {
             setIsTesting(false);
@@ -225,8 +244,53 @@ export default function SettingsPage({ onClose }: Props) {
                             </Button>
                         </Box>
                         {apiKeyStatus && (
-                            <Alert severity={apiKeyStatus.type} sx={{ mt: 1 }} variant='outlined'>
-                                {apiKeyStatus.message}
+                            <Alert
+                                severity={apiKeyStatus.type}
+                                sx={{ mt: 1 }}
+                                variant='outlined'
+                                onClose={() => {
+                                    setApiKeyStatus(null);
+                                    setShowApiKeyDetails(false);
+                                }}
+                            >
+                                <Box>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <span>{apiKeyStatus.message}</span>
+                                        {apiKeyStatus.rawMessage && (
+                                            <Link
+                                                component='button'
+                                                variant='body2'
+                                                color={apiKeyStatus.type === 'error' ? 'error' : 'success'}
+                                                underline='hover'
+                                                onClick={() => setShowApiKeyDetails(prev => !prev)}
+                                                sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+                                            >
+                                                {showApiKeyDetails
+                                                    ? t('generation.errorHideDetails')
+                                                    : t('generation.errorDetails')}
+                                            </Link>
+                                        )}
+                                    </Box>
+                                    {showApiKeyDetails && apiKeyStatus.rawMessage && (
+                                        <Typography
+                                            variant='caption'
+                                            component='pre'
+                                            sx={{
+                                                mt: 1,
+                                                p: 1,
+                                                bgcolor: 'action.hover',
+                                                borderRadius: 1,
+                                                whiteSpace: 'pre-wrap',
+                                                wordBreak: 'break-all',
+                                                fontFamily: 'monospace',
+                                                maxHeight: 200,
+                                                overflow: 'auto',
+                                            }}
+                                        >
+                                            {apiKeyStatus.rawMessage}
+                                        </Typography>
+                                    )}
+                                </Box>
                             </Alert>
                         )}
                     </Box>

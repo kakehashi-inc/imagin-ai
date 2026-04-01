@@ -14,6 +14,7 @@ import {
     Button,
     InputAdornment,
     LinearProgress,
+    CircularProgress,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useHistoryStore } from '../stores/history-store';
@@ -45,6 +46,27 @@ function formatFileSize(bytes: number): string {
     return `${bytes} B`;
 }
 
+function formatDecimal(value: number): string {
+    return String(Math.round(value * 100) / 100);
+}
+
+function formatElapsedTime(ms: number): string {
+    const totalSeconds = ms / 1000;
+
+    if (totalSeconds < 60) {
+        return `${formatDecimal(totalSeconds)}s`;
+    }
+    if (totalSeconds < 3600) {
+        const m = Math.floor(totalSeconds / 60);
+        const s = totalSeconds % 60;
+        return `${m}m${formatDecimal(s)}s`;
+    }
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    return `${h}h${m}m${formatDecimal(s)}s`;
+}
+
 export default function HistoryPanel() {
     const { t } = useTranslation();
     const {
@@ -56,6 +78,9 @@ export default function HistoryPanel() {
         exportAll,
         getFilteredEntries,
         loadThumbnail,
+        loadMore,
+        hasMore,
+        isLoading,
     } = useHistoryStore();
     const { model, addReferenceImages, restoreParams } = useGenerationStore();
 
@@ -83,6 +108,42 @@ export default function HistoryPanel() {
     }, []);
 
     const filteredEntries = getFilteredEntries();
+
+    // Lazy load thumbnails for visible entries
+    const loadingRef = React.useRef(new Set<string>());
+    React.useEffect(() => {
+        for (const entry of filteredEntries) {
+            const thumbPath = entry.generatedImagePaths[0];
+            if (thumbPath && !thumbnails.has(thumbPath) && !loadingRef.current.has(thumbPath)) {
+                loadingRef.current.add(thumbPath);
+                loadThumbnail(thumbPath).finally(() => {
+                    loadingRef.current.delete(thumbPath);
+                });
+            }
+        }
+    }, [filteredEntries, thumbnails, loadThumbnail]);
+
+    // Infinite scroll: IntersectionObserver on sentinel element
+    const sentinelRef = React.useRef<HTMLDivElement | null>(null);
+    const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
+
+    React.useEffect(() => {
+        const sentinel = sentinelRef.current;
+        const container = scrollContainerRef.current;
+        if (!sentinel || !container) return;
+
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries[0].isIntersecting && hasMore && !isLoading && !searchQuery.trim()) {
+                    loadMore();
+                }
+            },
+            { root: container, rootMargin: '200px' }
+        );
+
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, [hasMore, isLoading, loadMore, searchQuery]);
 
     // Resize handler
     const handleResizeStart = (e: React.MouseEvent) => {
@@ -246,6 +307,7 @@ export default function HistoryPanel() {
                 </IconButton>
                 <TextField
                     size='small'
+                    type='search'
                     placeholder={t('history.searchPlaceholder')}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
@@ -264,6 +326,7 @@ export default function HistoryPanel() {
 
             {/* Thumbnail grid */}
             <Box
+                ref={scrollContainerRef}
                 sx={{
                     height: panelHeight,
                     overflowY: 'auto',
@@ -272,7 +335,7 @@ export default function HistoryPanel() {
                     pb: 2,
                 }}
             >
-                {filteredEntries.length === 0 ? (
+                {filteredEntries.length === 0 && !isLoading ? (
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                         <Typography variant='body2' color='text.secondary'>
                             {t('history.empty')}
@@ -283,11 +346,6 @@ export default function HistoryPanel() {
                         {filteredEntries.map(entry => {
                             const thumbPath = entry.generatedImagePaths[0];
                             const thumbUrl = thumbPath ? thumbnails.get(thumbPath) : undefined;
-
-                            // Lazy load thumbnail
-                            if (thumbPath && !thumbnails.has(thumbPath)) {
-                                loadThumbnail(thumbPath);
-                            }
 
                             return (
                                 <Box
@@ -394,12 +452,29 @@ export default function HistoryPanel() {
                                                 <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>
                                                     {new Date(entry.updatedAt).toLocaleTimeString()}
                                                 </Typography>
+                                                {entry.elapsedMs != null && (
+                                                    <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>
+                                                        ({formatElapsedTime(entry.elapsedMs)})
+                                                    </Typography>
+                                                )}
                                             </Box>
                                         </Box>
                                     </Box>
                                 </Box>
                             );
                         })}
+
+                        {/* Sentinel for infinite scroll (hidden, triggers loadMore) */}
+                        {!searchQuery.trim() && (
+                            <Box ref={sentinelRef} sx={{ width: '100%', height: 1, flexShrink: 0 }} />
+                        )}
+
+                        {/* Loading indicator */}
+                        {isLoading && (
+                            <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', py: 2 }}>
+                                <CircularProgress size={24} />
+                            </Box>
+                        )}
                     </Box>
                 )}
             </Box>

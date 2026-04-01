@@ -25,7 +25,7 @@ function loadEncryptedKeys(): Record<string, string> {
     return {};
 }
 
-function saveEncryptedKeys(keys: Record<string, string>): void {
+function saveEncryptedKeys(keys: Record<string, string>): boolean {
     const filePath = getKeysFilePath();
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
@@ -34,10 +34,10 @@ function saveEncryptedKeys(keys: Record<string, string>): void {
     if (safeStorage.isEncryptionAvailable()) {
         const encrypted = safeStorage.encryptString(JSON.stringify(keys));
         fs.writeFileSync(filePath, encrypted);
-    } else {
-        console.warn('Encryption not available, storing keys in plain text is not supported.');
-        throw new Error('api.encryptionUnavailable');
+        return true;
     }
+    console.warn('Encryption not available, storing keys in plain text is not supported.');
+    return false;
 }
 
 export function getApiKey(provider: string): string {
@@ -45,12 +45,13 @@ export function getApiKey(provider: string): string {
     return keys[provider] || '';
 }
 
-export function saveApiKey(provider: string, key: string): void {
+export function saveApiKey(provider: string, key: string): { success: boolean } {
     const keys = loadEncryptedKeys();
     if (key) {
         keys[provider] = key;
     } else {
         delete keys[provider];
     }
-    saveEncryptedKeys(keys);
+    const saved = saveEncryptedKeys(keys);
+    return { success: saved };
 }

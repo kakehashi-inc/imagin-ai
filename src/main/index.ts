@@ -23,6 +23,18 @@ function createWindow() {
     // Set main window for console bridge
     setMainWindow(mainWindow);
 
+    // DevTools keyboard toggle (F12 / Ctrl+Shift+I / Cmd+Option+I)
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+        const isToggleCombo =
+            (input.key?.toLowerCase?.() === 'i' && (input.control || input.meta) && input.shift) || input.key === 'F12';
+        if (isToggleCombo) {
+            event.preventDefault();
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.toggleDevTools();
+            }
+        }
+    });
+
     if (isDev) {
         mainWindow.loadURL('http://localhost:3001');
         try {
@@ -30,17 +42,6 @@ function createWindow() {
         } catch {
             // Ignore DevTools open failure
         }
-        mainWindow.webContents.on('before-input-event', (event, input) => {
-            const isToggleCombo =
-                (input.key?.toLowerCase?.() === 'i' && (input.control || input.meta) && input.shift) ||
-                input.key === 'F12';
-            if (isToggleCombo) {
-                event.preventDefault();
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.toggleDevTools();
-                }
-            }
-        });
     } else {
         mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
     }
