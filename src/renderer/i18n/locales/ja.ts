@@ -149,6 +149,8 @@ export default {
     'settings.apiKey.hintPrefix': 'APIキーは ',
     'settings.apiKey.hintPrefixLink': 'Google AI Studio',
     'settings.apiKey.hintPrefixSuffix': ' から取得できます。',
+    'settings.apiKey.hintTierRequirement':
+        'APIキーの請求階層がTier 1以上になっている必要があります。',
     'settings.apiKey.placeholder': 'APIキーを入力してください',
     'settings.apiKey.test': '接続テスト',
     'settings.apiKey.testing': 'テスト中...',

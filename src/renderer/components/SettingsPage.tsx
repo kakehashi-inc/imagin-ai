@@ -204,6 +204,8 @@ export default function SettingsPage({ onClose }: Props) {
                                 {t('settings.apiKey.hintPrefixLink')}
                             </Link>
                             {t('settings.apiKey.hintPrefixSuffix')}
+                            <br />
+                            {t('settings.apiKey.hintTierRequirement')}
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 1 }}>
                             <TextField

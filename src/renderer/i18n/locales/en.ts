@@ -150,6 +150,8 @@ export default {
     'settings.apiKey.hintPrefix': 'You can get an API key from ',
     'settings.apiKey.hintPrefixLink': 'Google AI Studio',
     'settings.apiKey.hintPrefixSuffix': '.',
+    'settings.apiKey.hintTierRequirement':
+        'Your API key must be on billing tier 1 or higher.',
     'settings.apiKey.placeholder': 'Enter your API key',
     'settings.apiKey.test': 'Test Connection',
     'settings.apiKey.testing': 'Testing...',
