@@ -4,6 +4,8 @@ import type {
     AppTheme,
     AppSettings,
     ApiTestResult,
+    ApiKeysData,
+    ActiveKeyInfo,
     GenerationParams,
     GenerationResult,
     HistoryEntry,
@@ -28,10 +30,12 @@ export type IpcApi = {
     getHistoryDir(): Promise<string>;
     changeHistoryDir(newDir: string, moveExisting: boolean): Promise<{ success: boolean; historyDir: string }>;
 
-    // API Key
-    getApiKey(provider: string): Promise<string>;
-    saveApiKey(provider: string, key: string): Promise<{ success: boolean }>;
-    testApiKey(provider: string): Promise<ApiTestResult>;
+    // API Keys (multi-key storage)
+    getApiKeysData(): Promise<ApiKeysData>;
+    saveApiKeysData(data: Partial<ApiKeysData>): Promise<{ success: boolean; data: ApiKeysData }>;
+    setActiveApiKeyId(id: string): Promise<{ success: boolean; data: ApiKeysData }>;
+    getActiveKeyInfo(): Promise<ActiveKeyInfo>;
+    testApiKey(rawKey?: string): Promise<ApiTestResult>;
 
     // Generation
     executeGeneration(params: GenerationParams): Promise<GenerationResult>;

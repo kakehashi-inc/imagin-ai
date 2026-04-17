@@ -50,6 +50,7 @@ export type ModelDefinition = {
     apiNegativePrompt?: boolean;
     // Cost & notes
     costLabel?: string[];
+    freeTierAvailable?: boolean;
     noteKey?: string;
 };
 
@@ -115,6 +116,42 @@ export type AppSettings = {
     language: AppLanguage;
     theme: AppTheme;
     historyDir: string;
+};
+
+// --- API Key storage ---
+// Active key identifier: 'default' | 'freeTier' | `custom:${index}` (index 0..API_KEY_CUSTOM_MAX-1)
+export type ApiKeyActiveId = string;
+
+export type ApiKeyCustomEntry = {
+    title: string;
+    key: string;
+    isFreeTier: boolean;
+};
+
+export type ApiKeysData = {
+    defaultKey: string;
+    defaultIsFreeTier: boolean;
+    freeTierKey: string;
+    customs: ApiKeyCustomEntry[];
+    activeId: ApiKeyActiveId;
+};
+
+export type ApiKeyOptionKind = 'default' | 'freeTier' | 'custom';
+
+export type ApiKeyOption = {
+    id: ApiKeyActiveId;
+    kind: ApiKeyOptionKind;
+    title: string;
+    hasKey: boolean;
+    isFreeTier: boolean;
+};
+
+export type ActiveKeyInfo = {
+    id: ApiKeyActiveId;
+    kind: ApiKeyOptionKind;
+    title: string;
+    isFreeTier: boolean;
+    hasKey: boolean;
 };
 
 // --- API test result ---

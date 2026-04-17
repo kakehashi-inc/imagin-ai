@@ -19,11 +19,41 @@ export default {
     'common.settings': 'Settings',
     'common.back': 'Back',
 
+    // Notices dialog
+    'notices.button.tooltip': 'Usage notes',
+    'notices.dialog.title': 'Usage Notes',
+    'notices.dialog.close': 'Close',
+    'notices.googleAiStudio.title': 'Google AI Studio',
+    'notices.googleAiStudio.precautions.title': 'Free tier and commercial use',
+    'notices.googleAiStudio.precautions.items': [
+        "Input data and generated results may be used to improve Google's models and may be reviewed by humans.",
+        'Usage data is processed in a non-personally-identifiable form, but avoid entering confidential or highly sensitive data.',
+        'Providing AI-generated content to users while claiming it was "created by a human" is prohibited.',
+        'When publishing an app in the European Economic Area (EEA), Switzerland, or the United Kingdom, the Paid Tier is required.',
+        'You must clearly disclose that generated content is AI-produced so that users do not misidentify it.',
+        'You must not intentionally remove or tamper with digital watermarks (such as SynthID) embedded in AI-generated content.',
+    ],
+    'notices.googleAiStudio.recommendations.title': 'Recommendations',
+    'notices.googleAiStudio.recommendations.items': [
+        'When handling customer data or privacy-sensitive information, subscribe to the Paid Tier (data is not used for training).',
+        'Use the free tier for prototyping and processing of public information, and switch to the Paid Tier for production releases.',
+        'To avoid disputes with users, include a disclaimer stating that the content is AI-generated and that accuracy is not guaranteed.',
+    ],
+
+    // Title bar
+    'titleBar.apiKey.default': 'Default',
+    'titleBar.apiKey.freeTier': 'Free tier',
+    'titleBar.apiKey.untitled': '(untitled)',
+    'titleBar.apiKey.freeTierBadge': 'Free',
+    'titleBar.apiKey.noKey': '(empty)',
+
     // Model selection
     'model.label': 'Model',
     'model.note.lyriaClip': 'Fixed 30-second clip',
     'model.note.lyriaPro': 'Up to 3 min (specify duration in prompt)',
     'model.note.imagenShutdown': 'Shutdown: 2026/6/24',
+    'model.note.nanoBananaShutdown': 'Shutdown: 2026/10/2',
+    'model.freeTierUnavailable': 'Not available on free tier',
 
     // Aspect ratio
     'aspectRatio.label': 'Aspect Ratio',
@@ -114,6 +144,8 @@ export default {
     'generation.diskSpaceWarning':
         'Low disk space on history drive. Please free up space or change the history save location.',
     'generation.success': 'Image generated successfully!',
+    'generation.freeTierBlocked':
+        'The selected model is not available on the free tier. Switch to a non-free-tier API key or choose a different model.',
 
     // History
     'history.title': 'Generation History',
@@ -146,13 +178,27 @@ export default {
     'settings.theme.dark': 'Dark',
     'settings.theme.system': 'System',
     'settings.apiKey': 'API Key',
-    'settings.apiKey.label': 'Gemini API Key',
+    'settings.apiKey.label': 'Gemini API Keys',
     'settings.apiKey.hintPrefix': 'You can get an API key from ',
     'settings.apiKey.hintPrefixLink': 'Google AI Studio',
     'settings.apiKey.hintPrefixSuffix': '.',
     'settings.apiKey.hintTierRequirement':
-        'Your API key must be on billing tier 1 or higher.',
+        'Default / custom (non-free-tier) keys must be on billing tier 1 or higher. Free-tier keys may only be used with models that offer free tier access.',
     'settings.apiKey.placeholder': 'Enter your API key',
+    'settings.apiKey.default.title': 'Default key',
+    'settings.apiKey.default.label': 'API key',
+    'settings.apiKey.freeTier.title': 'Free-tier key',
+    'settings.apiKey.freeTier.label': 'API key (free tier)',
+    'settings.apiKey.customs.title': 'Custom keys ({{count}} / {{max}})',
+    'settings.apiKey.customs.add': 'Add',
+    'settings.apiKey.customs.titleLabel': 'Title',
+    'settings.apiKey.customs.remove': 'Remove',
+    'settings.apiKey.customs.isFreeTier': 'Treat as free-tier key',
+    'settings.apiKey.customs.titleRequired': 'Title is required.',
+    'settings.apiKey.customs.keyRequired': 'API key is required.',
+    'settings.apiKey.customs.validationError': 'Custom keys require both a title and an API key.',
+    'settings.apiKey.isFreeTierShort': 'Free tier',
+    'settings.apiKey.saveAll': 'Save API keys',
     'settings.apiKey.test': 'Test Connection',
     'settings.apiKey.testing': 'Testing...',
     'settings.apiKey.valid': 'API key is valid.',

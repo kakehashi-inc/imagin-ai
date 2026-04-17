@@ -2,6 +2,7 @@ import React from 'react';
 import { Alert, Box, Typography, TextField, Button, IconButton, Tooltip } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useGenerationStore } from '../stores/generation-store';
+import { useAppStore } from '../stores/app-store';
 import { MODEL_DEFINITIONS } from '../../shared/constants';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import CloseIcon from '@mui/icons-material/Close';
@@ -28,10 +29,15 @@ export default function PromptPanel() {
     const promptRef = React.useRef<HTMLTextAreaElement>(null);
     const [hasApiKey, setHasApiKey] = React.useState(true);
 
+    const activeKeyInfo = useAppStore(s => s.activeKeyInfo);
+
     React.useEffect(() => {
         promptRef.current?.focus();
-        window.imaginai.getApiKey('gemini').then(key => setHasApiKey(!!key));
     }, []);
+
+    React.useEffect(() => {
+        if (activeKeyInfo) setHasApiKey(activeKeyInfo.hasKey);
+    }, [activeKeyInfo]);
 
     const handleSelectFiles = async () => {
         const paths = await window.imaginai.selectImages();

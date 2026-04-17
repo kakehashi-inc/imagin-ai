@@ -1,9 +1,10 @@
 import { create } from 'zustand';
-import type { AppInfo, AppLanguage, AppTheme, AppSettings } from '../../shared/types';
+import type { ActiveKeyInfo, AppInfo, AppLanguage, AppTheme, AppSettings } from '../../shared/types';
 
 type AppState = {
     info: AppInfo | undefined;
     settings: AppSettings | undefined;
+    activeKeyInfo: ActiveKeyInfo | undefined;
     initialized: boolean;
     // Actions
     initialize: () => Promise<void>;
@@ -11,17 +12,21 @@ type AppState = {
     setLanguage: (language: AppLanguage) => Promise<void>;
     loadSettings: () => Promise<void>;
     updateSettings: (settings: Partial<AppSettings>) => Promise<void>;
+    refreshActiveKeyInfo: () => Promise<void>;
+    setActiveApiKey: (id: string) => Promise<void>;
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
     info: undefined,
     settings: undefined,
+    activeKeyInfo: undefined,
     initialized: false,
 
     initialize: async () => {
         const info = await window.imaginai.getAppInfo();
         const settings = await window.imaginai.getSettings();
-        set({ info, settings, initialized: true });
+        const activeKeyInfo = await window.imaginai.getActiveKeyInfo();
+        set({ info, settings, activeKeyInfo, initialized: true });
     },
 
     setTheme: async (theme: AppTheme) => {
@@ -50,5 +55,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     updateSettings: async (partial: Partial<AppSettings>) => {
         const settings = await window.imaginai.saveSettings(partial);
         set({ settings });
+    },
+
+    refreshActiveKeyInfo: async () => {
+        const activeKeyInfo = await window.imaginai.getActiveKeyInfo();
+        set({ activeKeyInfo });
+    },
+
+    setActiveApiKey: async (id: string) => {
+        await window.imaginai.setActiveApiKeyId(id);
+        const activeKeyInfo = await window.imaginai.getActiveKeyInfo();
+        set({ activeKeyInfo });
     },
 }));

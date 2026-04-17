@@ -3,6 +3,7 @@ import { Box, Button, CircularProgress, Alert, Link, Typography } from '@mui/mat
 import { useTranslation } from 'react-i18next';
 import { useGenerationStore } from '../stores/generation-store';
 import { useHistoryStore } from '../stores/history-store';
+import { useAppStore } from '../stores/app-store';
 import { HISTORY_MAX_COUNT, MODEL_DEFINITIONS } from '../../shared/constants';
 import type { ApiErrorDetail } from '../../shared/types';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
@@ -92,9 +93,11 @@ function buildDetailText(error: ApiErrorDetail): string {
 export default function GenerateButton() {
     const { t } = useTranslation();
     const { prompt, model, isGenerating, generationProgress, error, generate, clearError } = useGenerationStore();
+    const activeKeyInfo = useAppStore(s => s.activeKeyInfo);
     const currentModel = MODEL_DEFINITIONS.find(m => m.id === model);
     const isVideoModel = currentModel?.mediaType === 'video';
     const isAudioModel = currentModel?.mediaType === 'audio';
+    const freeTierBlocked = !!activeKeyInfo?.isFreeTier && currentModel?.freeTierAvailable === false;
     const { loadHistory, isOverLimit } = useHistoryStore();
     const overLimit = isOverLimit();
     const [diskWarning, setDiskWarning] = React.useState(false);
@@ -133,7 +136,7 @@ export default function GenerateButton() {
     };
 
     const networkError = error ? isNetworkError(error) : false;
-    const isDisabled = isGenerating || !prompt.trim() || overLimit;
+    const isDisabled = isGenerating || !prompt.trim() || overLimit || freeTierBlocked;
     const detailText = error ? buildDetailText(error) : '';
     const hasDetails = detailText.length > 0;
 
@@ -148,6 +151,12 @@ export default function GenerateButton() {
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {freeTierBlocked && (
+                <Alert severity='warning' variant='outlined'>
+                    {t('generation.freeTierBlocked')}
+                </Alert>
+            )}
+
             {overLimit && (
                 <Alert severity='warning' variant='outlined'>
                     {t('generation.historyLimitExceeded', { limit: HISTORY_MAX_COUNT })}

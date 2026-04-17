@@ -9,10 +9,12 @@ import {
     TextField,
     Typography,
     Tooltip,
+    Chip,
 } from '@mui/material';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useGenerationStore } from '../stores/generation-store';
+import { useAppStore } from '../stores/app-store';
 import {
     MODEL_DEFINITIONS,
     ASPECT_RATIO_OPTIONS,
@@ -44,6 +46,8 @@ export default function ParameterPanel() {
         setResolution,
         setSeed,
     } = useGenerationStore();
+    const activeKeyInfo = useAppStore(s => s.activeKeyInfo);
+    const isFreeTierKey = Boolean(activeKeyInfo?.isFreeTier);
 
     const currentModel = MODEL_DEFINITIONS.find(m => m.id === model);
     const isVideoModel = currentModel?.mediaType === 'video';
@@ -85,31 +89,76 @@ export default function ParameterPanel() {
             {/* Model */}
             <FormControl size='small' fullWidth>
                 <InputLabel>{t('model.label')}</InputLabel>
-                <Select value={model} label={t('model.label')} onChange={e => setModel(e.target.value)}>
-                    {MODEL_DEFINITIONS.map(m => (
-                        <MenuItem key={m.id} value={m.id}>
-                            {m.displayName}
-                        </MenuItem>
-                    ))}
+                <Select
+                    value={model}
+                    label={t('model.label')}
+                    onChange={e => setModel(e.target.value)}
+                    renderValue={value => {
+                        const m = MODEL_DEFINITIONS.find(x => x.id === value);
+                        const unavailable = isFreeTierKey && m?.freeTierAvailable === false;
+                        return (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                <Typography component='span' sx={{ fontSize: 'inherit' }}>
+                                    {m?.displayName ?? value}
+                                </Typography>
+                                {unavailable && (
+                                    <Chip
+                                        size='small'
+                                        color='warning'
+                                        variant='outlined'
+                                        label={t('model.freeTierUnavailable')}
+                                        sx={{ height: 18, fontSize: '0.65rem' }}
+                                    />
+                                )}
+                            </Box>
+                        );
+                    }}
+                >
+                    {MODEL_DEFINITIONS.map(m => {
+                        const unavailable = isFreeTierKey && m.freeTierAvailable === false;
+                        return (
+                            <MenuItem key={m.id} value={m.id}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                    <Typography component='span' sx={{ flexGrow: 1 }}>
+                                        {m.displayName}
+                                    </Typography>
+                                    {unavailable && (
+                                        <Chip
+                                            size='small'
+                                            color='warning'
+                                            variant='outlined'
+                                            label={t('model.freeTierUnavailable')}
+                                            sx={{ height: 18, fontSize: '0.65rem' }}
+                                        />
+                                    )}
+                                </Box>
+                            </MenuItem>
+                        );
+                    })}
                 </Select>
             </FormControl>
             {currentModel?.costLabel && currentModel.costLabel.length > 0 && (
-                currentModel.costLabel.length === 1 ? (
-                    <Typography variant='caption' color='text.secondary' sx={{ mt: -1, ml: 0.5 }}>
-                        {currentModel.costLabel[0]} ({COST_REFERENCE_DATE})
-                    </Typography>
-                ) : (
-                    <Box sx={{ mt: -1, ml: 0.5 }}>
-                        {currentModel.costLabel.map((line, i) => (
-                            <Typography key={i} variant='caption' color='text.secondary' display='block' sx={{ lineHeight: 1.4 }}>
-                                {line}
-                            </Typography>
-                        ))}
-                        <Typography variant='caption' color='text.secondary' display='block' sx={{ lineHeight: 1.4 }}>
-                            ({COST_REFERENCE_DATE})
+                <Box sx={{ mt: -1, ml: 0.5 }}>
+                    {currentModel.costLabel.map((line, i) => (
+                        <Typography
+                            key={i}
+                            variant='caption'
+                            color='text.secondary'
+                            display='block'
+                            sx={{ lineHeight: 1.4 }}
+                        >
+                            {line}
                         </Typography>
-                    </Box>
-                )
+                    ))}
+                    <Typography
+                        variant='caption'
+                        color='text.secondary'
+                        display='block'
+                        sx={{ lineHeight: 1.4 }}
+                    >
+                        ({COST_REFERENCE_DATE})
+                    </Typography>
+                </Box>
             )}
             {currentModel?.noteKey && (
                 <Typography variant='caption' color='text.secondary' sx={{ mt: -1, ml: 0.5, whiteSpace: 'pre-line' }}>

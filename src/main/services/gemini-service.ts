@@ -9,7 +9,7 @@ import type {
     VideoResolution,
 } from '../../shared/types';
 import { MODEL_DEFINITIONS } from '../../shared/constants';
-import { getApiKey } from './api-key-service';
+import { getActiveApiKey } from './api-key-service';
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com';
 
@@ -100,9 +100,9 @@ function httpsRequest(url: string, options: https.RequestOptions, body: string):
     });
 }
 
-// Test API key validity
-export async function testApiKey(): Promise<import('../../shared/types').ApiTestResult> {
-    const apiKey = getApiKey('gemini');
+// Test API key validity. If `rawKey` is provided, that key is tested directly; otherwise the currently active key is used.
+export async function testApiKey(rawKey?: string): Promise<import('../../shared/types').ApiTestResult> {
+    const apiKey = rawKey !== undefined ? rawKey : getActiveApiKey();
     if (!apiKey) {
         return { success: false, status: 'KEY_NOT_SET', rawMessage: null };
     }
@@ -177,7 +177,7 @@ function throwAppError(errorKey: string): never {
 export async function generateImages(
     params: GenerationParams
 ): Promise<{ buffers: Buffer[]; mimeType: string; audioTexts?: string[] }> {
-    const apiKey = getApiKey('gemini');
+    const apiKey = getActiveApiKey();
     if (!apiKey) {
         throwAppError('API_KEY_NOT_SET');
     }

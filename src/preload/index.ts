@@ -15,8 +15,10 @@ const CH = {
     SETTINGS_SAVE: 'settings:save',
     SETTINGS_GET_HISTORY_DIR: 'settings:getHistoryDir',
     SETTINGS_CHANGE_HISTORY_DIR: 'settings:changeHistoryDir',
-    API_KEY_GET: 'apiKey:get',
-    API_KEY_SAVE: 'apiKey:save',
+    API_KEYS_GET_DATA: 'apiKey:getData',
+    API_KEYS_SAVE_DATA: 'apiKey:saveData',
+    API_KEYS_SET_ACTIVE: 'apiKey:setActive',
+    API_KEYS_GET_ACTIVE_INFO: 'apiKey:getActiveInfo',
     API_KEY_TEST: 'apiKey:test',
     GENERATION_EXECUTE: 'generation:execute',
     HISTORY_GET_ALL: 'history:getAll',
@@ -80,15 +82,21 @@ const api: IpcApi = {
         return ipcRenderer.invoke(CH.SETTINGS_CHANGE_HISTORY_DIR, newDir, moveExisting);
     },
 
-    // API Key
-    async getApiKey(provider) {
-        return ipcRenderer.invoke(CH.API_KEY_GET, provider);
+    // API Keys (multi-key)
+    async getApiKeysData() {
+        return ipcRenderer.invoke(CH.API_KEYS_GET_DATA);
     },
-    async saveApiKey(provider, key) {
-        return ipcRenderer.invoke(CH.API_KEY_SAVE, provider, key);
+    async saveApiKeysData(data) {
+        return ipcRenderer.invoke(CH.API_KEYS_SAVE_DATA, data);
     },
-    async testApiKey(provider) {
-        return ipcRenderer.invoke(CH.API_KEY_TEST, provider);
+    async setActiveApiKeyId(id) {
+        return ipcRenderer.invoke(CH.API_KEYS_SET_ACTIVE, id);
+    },
+    async getActiveKeyInfo() {
+        return ipcRenderer.invoke(CH.API_KEYS_GET_ACTIVE_INFO);
+    },
+    async testApiKey(rawKey) {
+        return ipcRenderer.invoke(CH.API_KEY_TEST, rawKey);
     },
 
     // Generation

@@ -15,6 +15,12 @@ export function getAppRootDir(): string {
     return path.join(getHomeDir(), APP_DIR_NAME);
 }
 
+// --- API key storage ---
+export const API_KEY_CUSTOM_MAX = 5;
+export const API_KEY_ID_DEFAULT = 'default';
+export const API_KEY_ID_FREE_TIER = 'freeTier';
+export const API_KEY_ID_CUSTOM_PREFIX = 'custom:';
+
 // --- History limits ---
 export const HISTORY_MAX_COUNT = 10000;
 
@@ -33,7 +39,7 @@ export const DEFAULT_DURATION: VideoDuration = 4;
 export const DEFAULT_RESOLUTION: VideoResolution = '720p';
 
 // --- Cost reference date ---
-export const COST_REFERENCE_DATE = '2026.4.2';
+export const COST_REFERENCE_DATE = '2026.4.17';
 
 // --- Duration options ---
 export const DURATION_OPTIONS: { value: VideoDuration; labelKey: string }[] = [
@@ -118,6 +124,8 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         apiNegativePrompt: false,
         maxImages: 1,
         costLabel: ['$0.039/image'],
+        freeTierAvailable: false,
+        noteKey: 'model.note.nanoBananaShutdown',
     },
     {
         id: 'gemini-3.1-flash-image-preview',
@@ -147,6 +155,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         apiNegativePrompt: false,
         maxImages: 1,
         costLabel: ['512px: $0.045/image', '1K: $0.067/image', '2K: $0.101/image', '4K: $0.151/image'],
+        freeTierAvailable: false,
     },
     {
         id: 'gemini-3-pro-image-preview',
@@ -176,10 +185,11 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         apiNegativePrompt: false,
         maxImages: 1,
         costLabel: ['1K/2K: $0.134/image', '4K: $0.24/image'],
+        freeTierAvailable: false,
     },
     // Imagen 4 family (fast -> standard -> ultra)
     // predict API: text-to-image only, negative prompt embedded in text prompt
-    // All Imagen models will shut down on 2026/6/24. Recommended migration: Nano Banana (gemini-2.5-flash-image)
+    // All Imagen 4 models will shut down on 2026/6/24. Recommended migration: Nano Banana 2 (gemini-3.1-flash-image-preview)
     {
         id: 'imagen-4.0-fast-generate-001',
         displayName: 'Imagen 4 Fast (imagen-4.0-fast-generate-001)',
@@ -193,6 +203,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         apiNegativePrompt: false,
         maxImages: 4,
         costLabel: ['$0.02/image'],
+        freeTierAvailable: false,
         noteKey: 'model.note.imagenShutdown',
     },
     {
@@ -208,6 +219,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         apiNegativePrompt: false,
         maxImages: 4,
         costLabel: ['$0.04/image'],
+        freeTierAvailable: false,
         noteKey: 'model.note.imagenShutdown',
     },
     {
@@ -223,6 +235,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         apiNegativePrompt: false,
         maxImages: 4,
         costLabel: ['$0.06/image'],
+        freeTierAvailable: false,
         noteKey: 'model.note.imagenShutdown',
     },
     // Veo 3.1 family (lite -> fast -> standard)
@@ -241,6 +254,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         supportsImageInput: true,
         supportsSeed: true,
         costLabel: ['720p: $0.05/sec', '1080p: $0.08/sec'],
+        freeTierAvailable: false,
     },
     {
         id: 'veo-3.1-fast-generate-preview',
@@ -255,7 +269,8 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         apiNegativePrompt: true,
         supportsImageInput: true,
         supportsSeed: true,
-        costLabel: ['720p/1080p: $0.15/sec', '4K: $0.35/sec'],
+        costLabel: ['720p: $0.10/sec', '1080p: $0.12/sec', '4K: $0.30/sec'],
+        freeTierAvailable: false,
     },
     {
         id: 'veo-3.1-generate-preview',
@@ -271,6 +286,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         supportsImageInput: true,
         supportsSeed: true,
         costLabel: ['720p/1080p: $0.40/sec', '4K: $0.60/sec'],
+        freeTierAvailable: false,
     },
     // Lyria 3 family (clip -> pro)
     // generateContent API: text-to-music, image-to-music, lyrics generation
@@ -286,6 +302,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         supportsNegativePrompt: false,
         apiNegativePrompt: false,
         costLabel: ['$0.04/song'],
+        freeTierAvailable: false,
         noteKey: 'model.note.lyriaClip',
     },
     {
@@ -299,6 +316,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         supportsNegativePrompt: false,
         apiNegativePrompt: false,
         costLabel: ['$0.08/song'],
+        freeTierAvailable: false,
         noteKey: 'model.note.lyriaPro',
     },
 ];
@@ -322,8 +340,10 @@ export const IPC_CHANNELS = {
     SETTINGS_GET_HISTORY_DIR: 'settings:getHistoryDir',
     SETTINGS_CHANGE_HISTORY_DIR: 'settings:changeHistoryDir',
     // API Key
-    API_KEY_GET: 'apiKey:get',
-    API_KEY_SAVE: 'apiKey:save',
+    API_KEYS_GET_DATA: 'apiKey:getData',
+    API_KEYS_SAVE_DATA: 'apiKey:saveData',
+    API_KEYS_SET_ACTIVE: 'apiKey:setActive',
+    API_KEYS_GET_ACTIVE_INFO: 'apiKey:getActiveInfo',
     API_KEY_TEST: 'apiKey:test',
     // Generation
     GENERATION_EXECUTE: 'generation:execute',

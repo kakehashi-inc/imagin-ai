@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { IPC_CHANNELS, MODEL_DEFINITIONS, HISTORY_MAX_COUNT } from '../../shared/constants';
 import { loadSettings, mergeSettings, ensureHistoryDir } from '../services/settings-service';
-import { getApiKey, saveApiKey } from '../services/api-key-service';
+import { getApiKeysData, saveApiKeysData, setActiveApiKeyId, getActiveKeyInfo } from '../services/api-key-service';
 import { testApiKey, generateImages, setGenerationProgressCallback, GeminiApiError } from '../services/gemini-service';
 import {
     getAllHistory,
@@ -53,17 +53,25 @@ export function registerIpcHandlers() {
         }
     });
 
-    // --- API Key ---
-    ipcMain.handle(IPC_CHANNELS.API_KEY_GET, async (_e, provider: string) => {
-        return getApiKey(provider);
+    // --- API Keys ---
+    ipcMain.handle(IPC_CHANNELS.API_KEYS_GET_DATA, async () => {
+        return getApiKeysData();
     });
 
-    ipcMain.handle(IPC_CHANNELS.API_KEY_SAVE, async (_e, provider: string, key: string) => {
-        return saveApiKey(provider, key);
+    ipcMain.handle(IPC_CHANNELS.API_KEYS_SAVE_DATA, async (_e, data: Parameters<typeof saveApiKeysData>[0]) => {
+        return saveApiKeysData(data);
     });
 
-    ipcMain.handle(IPC_CHANNELS.API_KEY_TEST, async () => {
-        return testApiKey();
+    ipcMain.handle(IPC_CHANNELS.API_KEYS_SET_ACTIVE, async (_e, id: string) => {
+        return setActiveApiKeyId(id);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.API_KEYS_GET_ACTIVE_INFO, async () => {
+        return getActiveKeyInfo();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.API_KEY_TEST, async (_e, rawKey?: string) => {
+        return testApiKey(rawKey);
     });
 
     // --- Generation ---

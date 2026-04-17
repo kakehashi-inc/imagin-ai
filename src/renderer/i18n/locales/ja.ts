@@ -19,11 +19,41 @@ export default {
     'common.settings': '設定',
     'common.back': '戻る',
 
+    // 注意事項ダイアログ
+    'notices.button.tooltip': '利用上の注意',
+    'notices.dialog.title': '利用上の注意',
+    'notices.dialog.close': '閉じる',
+    'notices.googleAiStudio.title': 'Google AI Studio',
+    'notices.googleAiStudio.precautions.title': '無料枠および商用利用時の注意点',
+    'notices.googleAiStudio.precautions.items': [
+        '入力データと生成結果はGoogleのモデル改善や人間によるレビューに利用される可能性がある。',
+        '利用データは個人を特定できない形で処理されるが、機密情報や秘匿性の高いデータの入力は避ける。',
+        'AIが生成した内容を「人間が作成した」と偽って利用者に提供することは禁止されている。',
+        '欧州経済領域（EEA）、スイス、英国でアプリを公開する場合は支払い枠（Paid Tier）の使用が義務付けられている。',
+        '生成したコンテンツがAIによるものであることを、利用者が誤認しないよう適切に開示する必要がある。',
+        'AI生成物に含まれる電子透かし（SynthID等）を意図的に削除したり改ざんしたりしてはならない。',
+    ],
+    'notices.googleAiStudio.recommendations.title': '推奨事項',
+    'notices.googleAiStudio.recommendations.items': [
+        '顧客データやプライバシーに関わる情報を扱う場合は、データが学習に使用されない支払い枠を契約する。',
+        'プロトタイプ開発や公開情報の処理には無料枠を使い、本番リリース時に支払い枠へ切り替えて運用する。',
+        '利用者とのトラブルを防ぐため、サービス内に「AI生成物であり正確性を保証しない」旨の免責事項を明記する。',
+    ],
+
+    // タイトルバー
+    'titleBar.apiKey.default': 'デフォルト',
+    'titleBar.apiKey.freeTier': '無料枠',
+    'titleBar.apiKey.untitled': '（タイトルなし）',
+    'titleBar.apiKey.freeTierBadge': '無料',
+    'titleBar.apiKey.noKey': '（未設定）',
+
     // Model selection
     'model.label': 'モデル',
     'model.note.lyriaClip': '30秒固定',
     'model.note.lyriaPro': 'プロンプトで3分までの長さを指示可能',
     'model.note.imagenShutdown': 'サポート終了: 2026/6/24',
+    'model.note.nanoBananaShutdown': 'サポート終了: 2026/10/2',
+    'model.freeTierUnavailable': '無料枠では利用不可',
 
     // Aspect ratio
     'aspectRatio.label': 'アスペクト比',
@@ -113,6 +143,8 @@ export default {
     'generation.diskSpaceWarning':
         '履歴保存先のディスク容量が不足しています。空き容量を確保するか、保存先を変更してください。',
     'generation.success': '画像を生成しました！',
+    'generation.freeTierBlocked':
+        '選択中のモデルは無料枠では利用できません。無料枠キー以外に切り替えるか、別のモデルを選択してください。',
 
     // History
     'history.title': '生成履歴',
@@ -150,8 +182,22 @@ export default {
     'settings.apiKey.hintPrefixLink': 'Google AI Studio',
     'settings.apiKey.hintPrefixSuffix': ' から取得できます。',
     'settings.apiKey.hintTierRequirement':
-        'APIキーの請求階層がTier 1以上になっている必要があります。',
+        'デフォルトキー・カスタムキー（非無料枠）は請求階層がTier 1以上である必要があります。無料枠キーは、無料利用枠が用意されているモデルのみ利用可能です。',
     'settings.apiKey.placeholder': 'APIキーを入力してください',
+    'settings.apiKey.default.title': 'デフォルトキー',
+    'settings.apiKey.default.label': 'APIキー',
+    'settings.apiKey.freeTier.title': '無料枠キー',
+    'settings.apiKey.freeTier.label': 'APIキー（無料枠）',
+    'settings.apiKey.customs.title': 'カスタムキー ({{count}} / {{max}})',
+    'settings.apiKey.customs.add': '追加',
+    'settings.apiKey.customs.titleLabel': 'タイトル',
+    'settings.apiKey.customs.remove': '削除',
+    'settings.apiKey.customs.isFreeTier': '無料枠キーとして扱う',
+    'settings.apiKey.customs.titleRequired': 'タイトルは必須です。',
+    'settings.apiKey.customs.keyRequired': 'APIキーは必須です。',
+    'settings.apiKey.customs.validationError': 'カスタムキーはタイトルとAPIキーの両方が必須です。',
+    'settings.apiKey.isFreeTierShort': '無料枠',
+    'settings.apiKey.saveAll': 'APIキーを保存',
     'settings.apiKey.test': '接続テスト',
     'settings.apiKey.testing': 'テスト中...',
     'settings.apiKey.valid': 'APIキーは有効です。',
