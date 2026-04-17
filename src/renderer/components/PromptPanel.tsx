@@ -1,11 +1,27 @@
 import React from 'react';
-import { Alert, Box, Typography, TextField, Button, IconButton, Tooltip } from '@mui/material';
+import {
+    Alert,
+    Box,
+    Typography,
+    TextField,
+    Button,
+    IconButton,
+    Tooltip,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
+} from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useGenerationStore } from '../stores/generation-store';
 import { useAppStore } from '../stores/app-store';
-import { MODEL_DEFINITIONS } from '../../shared/constants';
+import {
+    MODEL_DEFINITIONS,
+    TTS_STYLE_CUSTOM_ID,
+} from '../../shared/constants';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import CloseIcon from '@mui/icons-material/Close';
+import AudioTagsDialog from './AudioTagsDialog';
 
 export default function PromptPanel() {
     const { t } = useTranslation();
@@ -15,19 +31,26 @@ export default function PromptPanel() {
         negativePrompt,
         referenceImagePaths,
         referenceImageThumbnails,
+        styleSelection,
+        styleInstruction,
         setPrompt,
         setNegativePrompt,
         addReferenceImages,
         removeReferenceImage,
+        setStyleSelection,
+        setStyleInstruction,
     } = useGenerationStore();
 
     const currentModel = MODEL_DEFINITIONS.find(m => m.id === model);
     const supportsImageInput = currentModel?.supportsImageInput ?? false;
     const supportsNegativePrompt = currentModel?.supportsNegativePrompt ?? false;
     const isAudioModel = currentModel?.mediaType === 'audio';
+    const isTtsModel = currentModel?.apiEndpoint === 'generateContentTTS';
+    const supportsAudioTags = currentModel?.supportsAudioTags ?? false;
 
     const promptRef = React.useRef<HTMLTextAreaElement>(null);
     const [hasApiKey, setHasApiKey] = React.useState(true);
+    const [audioTagsOpen, setAudioTagsOpen] = React.useState(false);
 
     const activeKeyInfo = useAppStore(s => s.activeKeyInfo);
 
@@ -71,10 +94,59 @@ export default function PromptPanel() {
                 </Alert>
             )}
 
+            {/* TTS-only: Style preset + Style instruction (above the prompt) */}
+            {isTtsModel && (
+                <>
+                    <FormControl size='small' fullWidth>
+                        <InputLabel>{t('tts.style.label')}</InputLabel>
+                        <Select
+                            value={styleSelection}
+                            label={t('tts.style.label')}
+                            onChange={e => setStyleSelection(e.target.value)}
+                        >
+                            {(
+                                t('tts.style.presets', { returnObjects: true }) as {
+                                    name: string;
+                                    effect: string;
+                                    instruction: string;
+                                }[]
+                            ).map(p => (
+                                <MenuItem key={p.instruction} value={p.instruction}>
+                                    {`${p.name} : ${p.effect}`}
+                                </MenuItem>
+                            ))}
+                            <MenuItem value={TTS_STYLE_CUSTOM_ID}>{t('tts.style.custom')}</MenuItem>
+                        </Select>
+                    </FormControl>
+                    <TextField
+                        size='small'
+                        fullWidth
+                        multiline
+                        minRows={2}
+                        maxRows={4}
+                        label={t('tts.style.instructionLabel')}
+                        value={styleInstruction}
+                        onChange={e => setStyleInstruction(e.target.value)}
+                    />
+                </>
+            )}
+
             {/* Prompt label */}
-            <Typography variant='body2' fontWeight={500}>
-                {t('prompt.label')}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant='body2' fontWeight={500}>
+                    {t(isTtsModel ? 'prompt.labelTts' : 'prompt.label')}
+                </Typography>
+                {supportsAudioTags && (
+                    <Button
+                        size='small'
+                        variant='outlined'
+                        onClick={() => setAudioTagsOpen(true)}
+                        sx={{ py: 0, px: 1, minHeight: 22, fontSize: '0.75rem', lineHeight: 1.4 }}
+                    >
+                        {t('audioTags.button.label')}
+                    </Button>
+                )}
+            </Box>
 
             {/* Reference image attachment block */}
             {supportsImageInput && referenceImagePaths.length > 0 && (
@@ -140,7 +212,13 @@ export default function PromptPanel() {
                     maxRows={8}
                     fullWidth
                     size='small'
-                    placeholder={t(isAudioModel ? 'prompt.placeholderMusic' : 'prompt.placeholder')}
+                    placeholder={t(
+                        isTtsModel
+                            ? 'prompt.placeholderTts'
+                            : isAudioModel
+                              ? 'prompt.placeholderMusic'
+                              : 'prompt.placeholder'
+                    )}
                     value={prompt}
                     onChange={e => setPrompt(e.target.value)}
                 />
@@ -180,6 +258,10 @@ export default function PromptPanel() {
                         onChange={e => setNegativePrompt(e.target.value)}
                     />
                 </>
+            )}
+
+            {supportsAudioTags && (
+                <AudioTagsDialog open={audioTagsOpen} onClose={() => setAudioTagsOpen(false)} />
             )}
         </Box>
     );

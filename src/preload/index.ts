@@ -162,8 +162,8 @@ const api: IpcApi = {
     },
 
     // Audio player window
-    async openAudioPlayer(audioPath, title, audioTexts) {
-        return ipcRenderer.invoke(CH.AUDIO_PLAYER_OPEN, audioPath, title, audioTexts);
+    async openAudioPlayer(audioPath, title, sections) {
+        return ipcRenderer.invoke(CH.AUDIO_PLAYER_OPEN, audioPath, title, sections);
     },
 
     // Save audio as

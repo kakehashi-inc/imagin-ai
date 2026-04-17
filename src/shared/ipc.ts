@@ -67,8 +67,8 @@ export type IpcApi = {
     // Save video as
     saveVideoAs(videoPath: string): Promise<{ success: boolean; path?: string }>;
 
-    // Audio player window
-    openAudioPlayer(audioPath: string, title: string, audioTexts?: string[]): Promise<void>;
+    // Audio player window (sections: ordered groups with optional heading labels)
+    openAudioPlayer(audioPath: string, title: string, sections?: { label?: string; items: string[] }[]): Promise<void>;
 
     // Save audio as
     saveAudioAs(audioPath: string): Promise<{ success: boolean; path?: string }>;

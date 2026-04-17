@@ -9,6 +9,7 @@ import type { ApiErrorDetail } from '../../shared/types';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import VideocamIcon from '@mui/icons-material/Videocam';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
+import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
 
 // Map structured API error to an i18n key using httpStatus and apiStatus (code/status based, no message parsing)
 function errorToI18nKey(error: ApiErrorDetail): string {
@@ -97,6 +98,7 @@ export default function GenerateButton() {
     const currentModel = MODEL_DEFINITIONS.find(m => m.id === model);
     const isVideoModel = currentModel?.mediaType === 'video';
     const isAudioModel = currentModel?.mediaType === 'audio';
+    const isVoiceModel = currentModel?.mediaType === 'voice';
     const freeTierBlocked = !!activeKeyInfo?.isFreeTier && currentModel?.freeTierAvailable === false;
     const { loadHistory, isOverLimit } = useHistoryStore();
     const overLimit = isOverLimit();
@@ -239,6 +241,8 @@ export default function GenerateButton() {
                 startIcon={
                     isGenerating ? (
                         <CircularProgress size={20} color='inherit' />
+                    ) : isVoiceModel ? (
+                        <RecordVoiceOverIcon />
                     ) : isAudioModel ? (
                         <MusicNoteIcon />
                     ) : isVideoModel ? (
@@ -256,14 +260,18 @@ export default function GenerateButton() {
                           })
                         : isVideoModel
                           ? t('generation.generatingVideo')
-                          : isAudioModel
-                            ? t('generation.generatingMusic')
-                            : t('generation.generating')
-                    : isAudioModel
-                      ? t('common.generateMusic')
-                      : isVideoModel
-                        ? t('common.generateVideo')
-                        : t('common.generate')}
+                          : isVoiceModel
+                            ? t('generation.generatingSpeech')
+                            : isAudioModel
+                              ? t('generation.generatingMusic')
+                              : t('generation.generating')
+                    : isVoiceModel
+                      ? t('common.generateSpeech')
+                      : isAudioModel
+                        ? t('common.generateMusic')
+                        : isVideoModel
+                          ? t('common.generateVideo')
+                          : t('common.generate')}
             </Button>
         </Box>
     );

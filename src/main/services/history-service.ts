@@ -3,7 +3,7 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import archiver from 'archiver';
 import type { HistoryEntry, GenerationParams } from '../../shared/types';
-import { THUMBNAIL_SIZE, THUMBNAIL_DIR_NAME, HISTORY_IMAGES_DIR } from '../../shared/constants';
+import { THUMBNAIL_SIZE, THUMBNAIL_DIR_NAME, HISTORY_IMAGES_DIR, MODEL_DEFINITIONS } from '../../shared/constants';
 import { loadSettings, ensureHistoryDir } from './settings-service';
 import { extractVideoThumbnail } from './ffmpeg-service';
 
@@ -243,9 +243,11 @@ export function createAudioHistoryEntry(
         referenceImagePaths: params.referenceImagePaths,
         generatedImagePaths: [audioPath],
         fileSize: audioBuffer.length,
-        mediaType: 'audio',
+        mediaType: MODEL_DEFINITIONS.find(m => m.id === params.model)?.mediaType === 'voice' ? 'voice' : 'audio',
         audioTexts,
         elapsedMs,
+        styleInstruction: params.styleInstruction,
+        voice: params.voice,
     };
 
     writeMetadata(id, entry);

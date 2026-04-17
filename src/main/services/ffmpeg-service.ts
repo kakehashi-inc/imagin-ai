@@ -1,4 +1,4 @@
-import { execFileSync } from 'child_process';
+import { execFileSync, spawnSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 
@@ -76,4 +76,70 @@ export function extractVideoThumbnail(videoPath: string, outputPath: string, max
 // Check if ffmpeg is available
 export function isFfmpegAvailable(): boolean {
     return getFfmpegPath() !== null;
+}
+
+// Encode raw PCM buffer to MP3 using ffmpeg (libmp3lame). Returns null on failure.
+export function encodePcmToMp3(
+    pcm: Buffer,
+    sampleRate: number,
+    channels: number,
+    bitsPerSample: number
+): Buffer | null {
+    const ffmpeg = getFfmpegPath();
+    if (!ffmpeg) {
+        console.warn('ffmpeg not available, cannot encode PCM to MP3');
+        return null;
+    }
+
+    const formatMap: Record<number, string> = { 8: 'u8', 16: 's16le', 24: 's24le', 32: 's32le' };
+    const pcmFormat = formatMap[bitsPerSample] ?? 's16le';
+
+    try {
+        // Output: MP3 CBR 160 kbps, 48 kHz, mono (speech-oriented preset)
+        const result = spawnSync(
+            ffmpeg,
+            [
+                '-hide_banner',
+                '-loglevel',
+                'error',
+                // Input (raw PCM from Gemini TTS)
+                '-f',
+                pcmFormat,
+                '-ar',
+                String(sampleRate),
+                '-ac',
+                String(channels),
+                '-i',
+                'pipe:0',
+                // Output (MP3)
+                '-codec:a',
+                'libmp3lame',
+                '-b:a',
+                '160k',
+                '-ar',
+                '48000',
+                '-ac',
+                '1',
+                '-f',
+                'mp3',
+                'pipe:1',
+            ],
+            {
+                input: pcm,
+                maxBuffer: 256 * 1024 * 1024,
+                timeout: 60000,
+            }
+        );
+
+        if (result.status !== 0) {
+            const stderr = result.stderr?.toString() ?? '';
+            console.error(`ffmpeg PCM->MP3 encoding failed (status=${result.status}): ${stderr}`);
+            return null;
+        }
+
+        return result.stdout;
+    } catch (err) {
+        console.error('Failed to encode PCM to MP3:', err);
+        return null;
+    }
 }

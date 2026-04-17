@@ -20,6 +20,7 @@ export default {
     'common.back': 'Back',
 
     // Notices dialog
+    'notices.button.label': 'Usage notes',
     'notices.button.tooltip': 'Usage notes',
     'notices.dialog.title': 'Usage Notes',
     'notices.dialog.close': 'Close',
@@ -54,6 +55,116 @@ export default {
     'model.note.imagenShutdown': 'Shutdown: 2026/6/24',
     'model.note.nanoBananaShutdown': 'Shutdown: 2026/10/2',
     'model.freeTierUnavailable': 'Not available on free tier',
+    'model.freeTier.ttsFlash':
+        'Free tier:\n3 RPM / 10K TPM\nUp to 3 requests/min, ~6 minutes of audio per minute total',
+
+    // TTS style / voice
+    'tts.style.label': 'Style',
+    'tts.style.instructionLabel': 'Style instruction (English)',
+    'tts.style.custom': 'Custom',
+    'tts.style.presets': [
+        {
+            name: 'Enthusiastic',
+            effect: 'Crisp high-pitched, energetic delivery',
+            instruction: 'Enthusiastic, upbeat, and energetic',
+        },
+        {
+            name: 'Calm & professional',
+            effect: 'Lower tone, stable and persuasive',
+            instruction: 'Calm, professional, and authoritative',
+        },
+        {
+            name: 'Apologetic',
+            effect: 'Reserved and polite, sounding sincerely sorry',
+            instruction: 'Apologetic, sincere, and humble',
+        },
+        {
+            name: 'Soft whisper',
+            effect: 'Airy, gentle voice like sharing a secret',
+            instruction: 'Soft, gentle, and whispering tone',
+        },
+        {
+            name: 'Urgent',
+            effect: 'Very fast, breathless, high tension',
+            instruction: 'Urgent, breathless, and rapid-fire',
+        },
+        {
+            name: 'Cold & flat',
+            effect: 'Completely emotionless, mechanical tone',
+            instruction: 'Cold, flat, and emotionless',
+        },
+        { name: 'Sarcastic', effect: 'Distinctive mocking intonation', instruction: 'Sarcastic and slightly arrogant' },
+        {
+            name: 'Storytelling',
+            effect: 'Strong dynamic inflection matching scenes',
+            instruction: 'Dramatic, expressive, and storytelling',
+        },
+        { name: 'Sleepy', effect: 'Extremely slow, soothing voice', instruction: 'Sleepy, soothing, and very gentle' },
+    ],
+    'tts.voice.label': 'Voice',
+    'tts.voice.presets': [
+        { name: 'Aoede', gender: 'Female', characteristic: 'Fresh, neutral' },
+        { name: 'Charon', gender: 'Male', characteristic: 'Sincere, informative' },
+        { name: 'Kore', gender: 'Female', characteristic: 'Strong, decisive' },
+        { name: 'Puck', gender: 'Male', characteristic: 'Bright, cheerful' },
+        { name: 'Fenrir', gender: 'Male', characteristic: 'Excited, powerful' },
+        { name: 'Zephyr', gender: 'Female', characteristic: 'Bright, lively' },
+        { name: 'Leda', gender: 'Female', characteristic: 'Youthful, light' },
+        { name: 'Orus', gender: 'Male', characteristic: 'Solid, dependable' },
+        { name: 'Callirrhoe', gender: 'Female', characteristic: 'Casual, relaxed' },
+        { name: 'Autonoe', gender: 'Female', characteristic: 'Bright, spirited' },
+        { name: 'Enceladus', gender: 'Male', characteristic: 'Whispery, breathy' },
+        { name: 'Iapetus', gender: 'Male', characteristic: 'Clear, crisp' },
+        { name: 'Umbriel', gender: 'Male', characteristic: 'Relaxed, natural' },
+        { name: 'Erinome', gender: 'Female', characteristic: 'Clear, quiet' },
+        { name: 'Despina', gender: 'Female', characteristic: 'Smooth, fluent' },
+        { name: 'Algieba', gender: 'Male', characteristic: 'Smooth, composed' },
+        { name: 'Algenib', gender: 'Male', characteristic: 'Mature, slightly husky' },
+        { name: 'Rasalgethi', gender: 'Male', characteristic: 'Intelligent, composed' },
+        { name: 'Laomedeia', gender: 'Female', characteristic: 'Positive, active' },
+        { name: 'Achernar', gender: 'Female', characteristic: 'Soft, gentle' },
+        { name: 'Alnilam', gender: 'Male', characteristic: 'Resolute, strong' },
+        { name: 'Schedar', gender: 'Male', characteristic: 'Calm, flat' },
+        { name: 'Gacrux', gender: 'Female', characteristic: 'Mature, deep' },
+        { name: 'Pulcherrima', gender: 'Female', characteristic: 'Clear, articulate' },
+        { name: 'Achird', gender: 'Male', characteristic: 'Friendly, approachable' },
+        { name: 'Zubenelgenubi', gender: 'Male', characteristic: 'Casual, everyday' },
+        { name: 'Vindemiatrix', gender: 'Female', characteristic: 'Gentle, kind' },
+        { name: 'Sadachbia', gender: 'Male', characteristic: 'Vivid, lively' },
+        { name: 'Sadaltager', gender: 'Male', characteristic: 'Knowledgeable, composed' },
+        { name: 'Sulafat', gender: 'Female', characteristic: 'Warm, embracing' },
+    ],
+
+    // Audio Tags dialog
+    'audioTags.button.label': 'Audio Tags reference',
+    'audioTags.button.tooltip': 'Show the Audio Tags reference',
+
+    // Audio player window
+    'audioPlayer.section.spokenText': 'Read-aloud text',
+    'audioPlayer.section.apiText': 'Text returned by the API',
+    'audioTags.dialog.title': 'Audio Tags reference',
+    'audioTags.dialog.close': 'Close',
+    'audioTags.dialog.description':
+        'Tags embedded in the prompt that control speech delivery. Supported only by Gemini 3.1 Flash TTS.',
+    'audioTags.section.expressions.title': 'Expressions',
+    'audioTags.section.expressions.items': [
+        { tag: '[laughing]', desc: 'Inserts natural laughter or blends laughter into the tone.' },
+        { tag: '[sigh]', desc: 'Inserts a deep sigh that expresses disappointment or relief.' },
+        { tag: '[uhm]', desc: 'Inserts a natural filler word (e.g., "um", "uh").' },
+        { tag: '[whispering]', desc: 'Switches to a whispered voice with reduced volume and more breath.' },
+        { tag: '[shouting]', desc: 'Switches to a louder, shouting-like delivery.' },
+    ],
+    'audioTags.section.prosody.title': 'Prosody',
+    'audioTags.section.prosody.items': [
+        { tag: '[extremely fast] / [extremely slow]', desc: 'Speaks the marked segment very quickly or very slowly.' },
+        { tag: '[pitch:high] / [pitch:low]', desc: 'Temporarily raises or lowers the pitch of the voice.' },
+    ],
+    'audioTags.section.pause.title': 'Pause',
+    'audioTags.section.pause.items': [
+        { tag: '[short pause]', desc: 'Inserts a natural ~0.2-0.5 sec pause.' },
+        { tag: '[medium pause]', desc: 'Inserts a clear ~1 sec pause as a sentence break.' },
+        { tag: '[long pause]', desc: 'Inserts a 2+ sec dramatic pause before scene changes or key moments.' },
+    ],
 
     // Aspect ratio
     'aspectRatio.label': 'Aspect Ratio',
@@ -111,9 +222,11 @@ export default {
 
     // Prompt
     'prompt.label': 'Prompt',
+    'prompt.labelTts': 'Text to read aloud',
     'prompt.placeholder': 'Describe the image you want to generate...',
     'prompt.placeholderMusic':
         'Describe the music you want to create (genre, mood, instruments, BPM, etc.). Include lyrics instructions to generate vocals.',
+    'prompt.placeholderTts': 'Enter the text you want read aloud.',
     'prompt.required': 'Prompt is required',
     'prompt.charCount': '{{count}} characters',
 
@@ -129,9 +242,11 @@ export default {
     // Generation
     'common.generateVideo': 'Generate Video',
     'common.generateMusic': 'Generate Music',
+    'common.generateSpeech': 'Generate Speech',
     'generation.generating': 'Generating...',
     'generation.generatingVideo': 'Generating video...',
     'generation.generatingMusic': 'Generating music...',
+    'generation.generatingSpeech': 'Generating speech...',
     'generation.generatingVideoProgress': 'Generating video... ({{elapsed}}s)',
     'generation.videoDurationConstraint': '1080p/4K resolution requires a duration of 8 seconds.',
     'generation.historyLimitExceeded':

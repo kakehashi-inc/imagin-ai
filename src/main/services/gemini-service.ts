@@ -10,6 +10,7 @@ import type {
 } from '../../shared/types';
 import { MODEL_DEFINITIONS } from '../../shared/constants';
 import { getActiveApiKey } from './api-key-service';
+import { encodePcmToMp3 } from './ffmpeg-service';
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com';
 
@@ -186,6 +187,8 @@ export async function generateImages(
     switch (endpoint) {
         case 'generateContentAudio':
             return await generateWithLyria(params, apiKey);
+        case 'generateContentTTS':
+            return await generateWithGeminiTts(params, apiKey);
         case 'predictLongRunning':
             return await generateWithVeo(params, apiKey);
         case 'predict':
@@ -518,6 +521,96 @@ async function generateWithLyria(
                 if (part.inlineData?.data && part.inlineData.mimeType?.startsWith('audio/')) {
                     audioBuffers.push(Buffer.from(part.inlineData.data, 'base64'));
                     resultMimeType = part.inlineData.mimeType;
+                } else if (part.text) {
+                    textParts.push(part.text);
+                }
+            }
+        }
+    }
+
+    if (audioBuffers.length === 0) {
+        throwAppError('NO_AUDIO_GENERATED');
+    }
+
+    return {
+        buffers: audioBuffers,
+        mimeType: resultMimeType,
+        audioTexts: textParts.length > 0 ? textParts : undefined,
+    };
+}
+
+// Parse PCM audio mimeType (e.g., "audio/L16;codec=pcm;rate=24000") into parameters.
+function parsePcmMimeType(mimeType: string): { sampleRate: number; channels: number; bitsPerSample: number } {
+    const lower = mimeType.toLowerCase();
+    const bitsMatch = lower.match(/l(\d+)/);
+    const bitsPerSample = bitsMatch ? parseInt(bitsMatch[1], 10) : 16;
+    const rateMatch = lower.match(/rate=(\d+)/);
+    const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
+    const channelsMatch = lower.match(/channels=(\d+)/);
+    const channels = channelsMatch ? parseInt(channelsMatch[1], 10) : 1;
+    return { sampleRate, channels, bitsPerSample };
+}
+
+// Generate speech with Gemini TTS models (generateContent + speechConfig)
+async function generateWithGeminiTts(
+    params: GenerationParams,
+    apiKey: string
+): Promise<{ buffers: Buffer[]; mimeType: string; audioTexts?: string[] }> {
+    const url = `${GEMINI_API_BASE}/v1beta/models/${params.model}:generateContent?key=${apiKey}`;
+
+    const userText = params.prompt ?? '';
+    const style = (params.styleInstruction ?? '').trim();
+    const text = style.length > 0 ? `Style: ${style}, Text: ${userText}` : userText;
+    const voiceName = params.voice && params.voice.length > 0 ? params.voice : 'Kore';
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const requestBody: any = {
+        contents: [{ parts: [{ text }] }],
+        generationConfig: {
+            responseModalities: ['AUDIO'],
+            speechConfig: {
+                voiceConfig: {
+                    prebuiltVoiceConfig: { voiceName },
+                },
+            },
+        },
+    };
+
+    const body = JSON.stringify(requestBody);
+    const response = await httpsRequest(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } }, body);
+
+    const parsed = JSON.parse(response) as GeminiResponse;
+    if (parsed.error) {
+        throwApiBodyError(parsed.error);
+    }
+    if (!parsed.candidates || parsed.candidates.length === 0) {
+        throwAppError('NO_RESPONSE');
+    }
+
+    const audioBuffers: Buffer[] = [];
+    let resultMimeType = 'audio/mpeg';
+    const textParts: string[] = [];
+
+    for (const candidate of parsed.candidates) {
+        if (candidate.content?.parts) {
+            for (const part of candidate.content.parts) {
+                if (part.inlineData?.data && part.inlineData.mimeType?.startsWith('audio/')) {
+                    const raw = Buffer.from(part.inlineData.data, 'base64');
+                    const mime = part.inlineData.mimeType.toLowerCase();
+                    // Gemini TTS returns raw PCM (e.g., audio/L16;codec=pcm;rate=24000).
+                    // Encode it to MP3 via bundled ffmpeg (stdin/stdout pipe, no intermediate files).
+                    if (mime.includes('l16') || mime.includes('pcm')) {
+                        const { sampleRate, channels, bitsPerSample } = parsePcmMimeType(mime);
+                        const mp3 = encodePcmToMp3(raw, sampleRate, channels, bitsPerSample);
+                        if (!mp3) {
+                            throwAppError('NO_AUDIO_GENERATED');
+                        }
+                        audioBuffers.push(mp3);
+                        resultMimeType = 'audio/mpeg';
+                    } else {
+                        audioBuffers.push(raw);
+                        resultMimeType = part.inlineData.mimeType;
+                    }
                 } else if (part.text) {
                     textParts.push(part.text);
                 }

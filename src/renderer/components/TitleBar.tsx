@@ -1,4 +1,4 @@
-import { Box, Typography, IconButton, Select, MenuItem, Chip, Tooltip } from '@mui/material';
+import { Box, Typography, Button, IconButton, Select, MenuItem, Chip } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState, useCallback } from 'react';
 import { useAppStore } from '../stores/app-store';
@@ -6,7 +6,6 @@ import MinimizeIcon from '@mui/icons-material/Minimize';
 import CropSquareIcon from '@mui/icons-material/CropSquare';
 import CloseIcon from '@mui/icons-material/Close';
 import SettingsIcon from '@mui/icons-material/Settings';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import NoticesDialog from './NoticesDialog';
 import type { ApiKeyOption } from '../../shared/types';
 import {
@@ -109,15 +108,21 @@ export default function TitleBar({ onOpenSettings }: Props) {
                     WebkitAppRegion: 'no-drag',
                 }}
             >
-                <Tooltip title={t('notices.button.tooltip')}>
-                    <IconButton
-                        size='small'
-                        onClick={() => setNoticesOpen(true)}
-                        sx={{ color: 'text.primary' }}
-                    >
-                        <InfoOutlinedIcon fontSize='small' />
-                    </IconButton>
-                </Tooltip>
+                <Button
+                    size='small'
+                    variant='outlined'
+                    onClick={() => setNoticesOpen(true)}
+                    sx={{
+                        py: 0,
+                        px: 1,
+                        minHeight: 30,
+                        fontSize: '0.75rem',
+                        lineHeight: 1.4,
+                        whiteSpace: 'nowrap',
+                    }}
+                >
+                    {t('notices.button.label')}
+                </Button>
                 <Select
                     size='small'
                     value={activeKeyInfo?.id ?? API_KEY_ID_DEFAULT}

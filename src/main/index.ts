@@ -55,6 +55,14 @@ function createWindow() {
     });
 
     mainWindow.on('ready-to-show', () => mainWindow?.show());
+    // Close all modeless viewer/player windows before the main window itself closes
+    mainWindow.on('close', () => {
+        for (const win of BrowserWindow.getAllWindows()) {
+            if (win !== mainWindow && !win.isDestroyed()) {
+                win.destroy();
+            }
+        }
+    });
     mainWindow.on('closed', () => {
         setMainWindow(null);
         mainWindow = null;

@@ -20,7 +20,11 @@ export type AppInfo = {
 export type ApiProvider = 'gemini';
 
 // --- Media type ---
-export type MediaType = 'image' | 'video' | 'audio';
+// image: Imagen / Nano Banana
+// video: Veo
+// audio: Lyria (music)
+// voice: Gemini TTS (speech)
+export type MediaType = 'image' | 'video' | 'audio' | 'voice';
 
 // --- Video generation parameters ---
 export type VideoDuration = 4 | 6 | 8;
@@ -28,7 +32,12 @@ export type VideoResolution = '720p' | '1080p' | '4k';
 
 // --- Model definition ---
 // API endpoint type for generation
-export type ApiEndpointType = 'generateContent' | 'predict' | 'predictLongRunning' | 'generateContentAudio';
+export type ApiEndpointType =
+    | 'generateContent'
+    | 'predict'
+    | 'predictLongRunning'
+    | 'generateContentAudio'
+    | 'generateContentTTS';
 
 export type ModelDefinition = {
     id: string;
@@ -51,7 +60,11 @@ export type ModelDefinition = {
     // Cost & notes
     costLabel?: string[];
     freeTierAvailable?: boolean;
+    // i18n key for the free-tier info block (may contain multiple lines separated by \n).
+    freeTierNoteKey?: string;
     noteKey?: string;
+    // TTS-specific
+    supportsAudioTags?: boolean;
 };
 
 // --- Generation parameters ---
@@ -84,6 +97,9 @@ export type GenerationParams = {
     duration?: VideoDuration;
     resolution?: VideoResolution;
     seed?: number;
+    // TTS-specific
+    styleInstruction?: string;
+    voice?: string;
 };
 
 // --- History entry ---
@@ -109,6 +125,9 @@ export type HistoryEntry = {
     seed?: number;
     audioTexts?: string[];
     elapsedMs?: number;
+    // TTS-specific
+    styleInstruction?: string;
+    voice?: string;
 };
 
 // --- Settings ---

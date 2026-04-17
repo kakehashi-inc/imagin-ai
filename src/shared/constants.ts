@@ -319,7 +319,66 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         freeTierAvailable: false,
         noteKey: 'model.note.lyriaPro',
     },
+    // Gemini TTS family (text-to-speech)
+    // generateContent API with speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName
+    // Output: MP3 audio. Per-request max text length: 4000 bytes.
+    // Sorted by cost: 2.5 Flash (cheapest) -> 2.5 Pro -> 3.1 Flash (latest, Audio Tags).
+    {
+        id: 'gemini-2.5-flash-preview-tts',
+        displayName: 'Gemini 2.5 Flash TTS (gemini-2.5-flash-preview-tts)',
+        provider: 'gemini',
+        mediaType: 'voice',
+        apiEndpoint: 'generateContentTTS',
+        supportedAspectRatios: [],
+        supportsImageInput: false,
+        supportsNegativePrompt: false,
+        apiNegativePrompt: false,
+        costLabel: ['Input: $0.50 / 1M tok', 'Output: $10.00 / 1M tok'],
+        freeTierAvailable: true,
+        freeTierNoteKey: 'model.freeTier.ttsFlash',
+    },
+    {
+        id: 'gemini-2.5-pro-preview-tts',
+        displayName: 'Gemini 2.5 Pro TTS (gemini-2.5-pro-preview-tts)',
+        provider: 'gemini',
+        mediaType: 'voice',
+        apiEndpoint: 'generateContentTTS',
+        supportedAspectRatios: [],
+        supportsImageInput: false,
+        supportsNegativePrompt: false,
+        apiNegativePrompt: false,
+        costLabel: ['Input: $1.00 / 1M tok', 'Output: $20.00 / 1M tok'],
+        freeTierAvailable: false,
+    },
+    {
+        id: 'gemini-3.1-flash-tts-preview',
+        displayName: 'Gemini 3.1 Flash TTS (gemini-3.1-flash-tts-preview)',
+        provider: 'gemini',
+        mediaType: 'voice',
+        apiEndpoint: 'generateContentTTS',
+        supportedAspectRatios: [],
+        supportsImageInput: false,
+        supportsNegativePrompt: false,
+        apiNegativePrompt: false,
+        costLabel: ['Input: $1.00 / 1M tok', 'Output: $20.00 / 1M tok'],
+        freeTierAvailable: true,
+        freeTierNoteKey: 'model.freeTier.ttsFlash',
+        supportsAudioTags: true,
+    },
 ];
+
+// --- TTS presets ---
+// The list of style presets (with localized name/effect + English instruction) and voice
+// presets (with localized characteristic) lives in the i18n locale files under
+// `tts.style.presets` and `tts.voice.presets` as arrays. These constants only declare
+// the custom-selection sentinel and default values.
+export const TTS_STYLE_CUSTOM_ID = 'custom';
+// Defaults chosen to be the most broadly appropriate for Japanese users:
+// - Style: calm/professional tone suits business, announcements, and general reading.
+// - Voice: Despina (female, smooth and fluent) is a versatile female voice that works for
+//   general-purpose Japanese narration across content types.
+export const TTS_DEFAULT_STYLE = 'Calm, professional, and authoritative';
+export const TTS_DEFAULT_VOICE = 'Despina';
 
 // --- IPC Channel definitions ---
 export const IPC_CHANNELS = {

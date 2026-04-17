@@ -38,6 +38,7 @@ export default function ParameterPanel() {
         duration,
         resolution,
         seed,
+        voice,
         setModel,
         setAspectRatio,
         setQuality,
@@ -45,18 +46,20 @@ export default function ParameterPanel() {
         setDuration,
         setResolution,
         setSeed,
+        setVoice,
     } = useGenerationStore();
     const activeKeyInfo = useAppStore(s => s.activeKeyInfo);
     const isFreeTierKey = Boolean(activeKeyInfo?.isFreeTier);
 
     const currentModel = MODEL_DEFINITIONS.find(m => m.id === model);
     const isVideoModel = currentModel?.mediaType === 'video';
-    const isAudioModel = currentModel?.mediaType === 'audio';
+    const isAudioLikeModel = currentModel?.mediaType === 'audio' || currentModel?.mediaType === 'voice';
+    const isTtsModel = currentModel?.apiEndpoint === 'generateContentTTS';
     const maxImages = currentModel?.maxImages ?? 1;
-    const showAspectRatio = !isAudioModel && (currentModel?.supportedAspectRatios?.length ?? 0) > 0;
-    const showNumberOfImages = !isAudioModel && maxImages > 1;
+    const showAspectRatio = !isAudioLikeModel && (currentModel?.supportedAspectRatios?.length ?? 0) > 0;
+    const showNumberOfImages = !isAudioLikeModel && maxImages > 1;
     const showQuality =
-        !isVideoModel && !isAudioModel && (!currentModel || (currentModel.supportedQualities?.length ?? 0) > 0);
+        !isVideoModel && !isAudioLikeModel && (!currentModel || (currentModel.supportedQualities?.length ?? 0) > 0);
     const showDuration = isVideoModel && (currentModel?.supportedDurations?.length ?? 0) > 0;
     const showResolution = isVideoModel && (currentModel?.supportedResolutions?.length ?? 0) > 0;
     const showSeed = isVideoModel && currentModel?.supportsSeed;
@@ -137,28 +140,42 @@ export default function ParameterPanel() {
                     })}
                 </Select>
             </FormControl>
-            {currentModel?.costLabel && currentModel.costLabel.length > 0 && (
+            {isFreeTierKey && currentModel?.freeTierAvailable === true && currentModel.freeTierNoteKey ? (
                 <Box sx={{ mt: -1, ml: 0.5 }}>
-                    {currentModel.costLabel.map((line, i) => (
+                    <Typography
+                        variant='caption'
+                        color='text.secondary'
+                        display='block'
+                        sx={{ lineHeight: 1.4, whiteSpace: 'pre-line' }}
+                    >
+                        {t(currentModel.freeTierNoteKey)}
+                    </Typography>
+                </Box>
+            ) : (
+                currentModel?.costLabel &&
+                currentModel.costLabel.length > 0 && (
+                    <Box sx={{ mt: -1, ml: 0.5 }}>
+                        {currentModel.costLabel.map((line, i) => (
+                            <Typography
+                                key={i}
+                                variant='caption'
+                                color='text.secondary'
+                                display='block'
+                                sx={{ lineHeight: 1.4 }}
+                            >
+                                {line}
+                            </Typography>
+                        ))}
                         <Typography
-                            key={i}
                             variant='caption'
                             color='text.secondary'
                             display='block'
                             sx={{ lineHeight: 1.4 }}
                         >
-                            {line}
+                            ({COST_REFERENCE_DATE})
                         </Typography>
-                    ))}
-                    <Typography
-                        variant='caption'
-                        color='text.secondary'
-                        display='block'
-                        sx={{ lineHeight: 1.4 }}
-                    >
-                        ({COST_REFERENCE_DATE})
-                    </Typography>
-                </Box>
+                    </Box>
+                )
             )}
             {currentModel?.noteKey && (
                 <Typography variant='caption' color='text.secondary' sx={{ mt: -1, ml: 0.5, whiteSpace: 'pre-line' }}>
@@ -281,6 +298,30 @@ export default function ParameterPanel() {
                     }}
                     inputProps={{ inputMode: 'numeric' }}
                 />
+            )}
+
+            {/* Voice - shown only for TTS models */}
+            {isTtsModel && (
+                <FormControl size='small' fullWidth>
+                    <InputLabel>{t('tts.voice.label')}</InputLabel>
+                    <Select
+                        value={voice}
+                        label={t('tts.voice.label')}
+                        onChange={e => setVoice(e.target.value)}
+                    >
+                        {(
+                            t('tts.voice.presets', { returnObjects: true }) as {
+                                name: string;
+                                gender: string;
+                                characteristic: string;
+                            }[]
+                        ).map(v => (
+                            <MenuItem key={v.name} value={v.name}>
+                                {`${v.name} (${v.gender}) : ${v.characteristic}`}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
             )}
         </Box>
     );

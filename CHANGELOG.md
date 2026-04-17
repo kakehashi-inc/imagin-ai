@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v0.5.0] - 2026-04-17
+
 ### Added
 
 - Free-tier availability is surfaced in the model selector: when a free-tier API key is active, models that are not usable on the free tier are shown as disabled with a warning chip. Reference pricing is always displayed regardless of the active key type.
@@ -15,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - API key switcher in the title bar; the active key is used for generation, and whether pricing or free-tier info is shown for each model follows the active key's type.
 - Free-tier toggle for the default API key (off by default; existing data migrates as unchecked).
 - Usage notes button in the title bar that opens a dialog with Google AI Studio usage precautions and recommendations.
+- Text-to-speech (TTS) support via three Gemini TTS models: Gemini 3.1 Flash TTS Preview, Gemini 2.5 Pro Preview TTS, and Gemini 2.5 Flash Preview TTS.
+- Style preset selector (9 presets + Custom) with an auto-filled style instruction textarea; manual edits switch the selector to Custom.
+- Voice preset selector (30 built-in voices) for TTS generation.
+- Audio Tags reference dialog (? button in the Text-to-speak label, Gemini 3.1 Flash TTS only).
 
 ### Changed
 

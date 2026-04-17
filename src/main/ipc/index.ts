@@ -96,7 +96,7 @@ export function registerIpcHandlers() {
             const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
             const modelDisplayName = modelDef?.displayName || params.model;
             const isVideo = modelDef?.mediaType === 'video';
-            const isAudio = modelDef?.mediaType === 'audio';
+            const isAudioLike = modelDef?.mediaType === 'audio' || modelDef?.mediaType === 'voice';
 
             // Set up progress callback for video generation
             const win = BrowserWindow.getFocusedWindow();
@@ -115,7 +115,7 @@ export function registerIpcHandlers() {
                 const elapsedMs = Date.now() - startTime;
 
                 let entries;
-                if (isAudio) {
+                if (isAudioLike) {
                     entries = result.buffers.map(buf =>
                         createAudioHistoryEntry(params, modelDisplayName, buf, result.audioTexts, elapsedMs)
                     );
@@ -293,8 +293,8 @@ export function registerIpcHandlers() {
     // --- Audio Player Window ---
     ipcMain.handle(
         IPC_CHANNELS.AUDIO_PLAYER_OPEN,
-        async (_e, audioPath: string, title: string, audioTexts?: string[]) => {
-            openAudioPlayerWindow(audioPath, title, audioTexts);
+        async (_e, audioPath: string, title: string, sections?: { label?: string; items: string[] }[]) => {
+            openAudioPlayerWindow(audioPath, title, sections);
         }
     );
 
@@ -423,8 +423,9 @@ function openVideoViewerWindow(videoPath: string, title: string) {
     viewerWindow.loadURL(`data:text/html,${encodeURIComponent(html)}`);
 }
 
-function openAudioPlayerWindow(audioPath: string, title: string, audioTexts?: string[]) {
-    const hasText = audioTexts && audioTexts.length > 0;
+function openAudioPlayerWindow(audioPath: string, title: string, sections?: { label?: string; items: string[] }[]) {
+    const validSections = (sections ?? []).filter(s => s && s.items && s.items.length > 0);
+    const hasText = validSections.length > 0;
     const viewerWindow = new BrowserWindow({
         width: 480,
         height: hasText ? 520 : 200,
@@ -439,22 +440,33 @@ function openAudioPlayerWindow(audioPath: string, title: string, audioTexts?: st
     const isDark = nativeTheme.shouldUseDarkColors;
     const bg = isDark ? '#1a1a1a' : '#f5f5f5';
     const fg = isDark ? '#e0e0e0' : '#333333';
+    const fgMuted = isDark ? '#888' : '#666';
     const border = isDark ? '#333333' : '#dddddd';
+    const groupBg = isDark ? '#222' : '#fff';
 
     const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const preStyle = `white-space:pre-wrap;word-wrap:break-word;font-family:'Segoe UI',sans-serif;font-size:14px;line-height:1.6;margin:0;padding:12px`;
 
     let textHtml = '';
     if (hasText) {
-        textHtml = audioTexts
-            .map((text, i) => {
-                const sep = i > 0 ? `<hr style="border:none;border-top:1px solid ${border};margin:8px 12px">` : '';
-                return `${sep}<pre style="${preStyle};color:${fg}">${escapeHtml(text)}</pre>`;
+        textHtml = validSections
+            .map(section => {
+                const labelHtml = section.label
+                    ? `<div style="padding:8px 12px 4px;font-size:11px;font-weight:600;letter-spacing:0.04em;color:${fgMuted};text-transform:uppercase;border-bottom:1px solid ${border}">${escapeHtml(section.label)}</div>`
+                    : '';
+                const itemsHtml = section.items
+                    .map((text, i) => {
+                        const sep =
+                            i > 0 ? `<hr style="border:none;border-top:1px dashed ${border};margin:4px 12px">` : '';
+                        return `${sep}<pre style="${preStyle};color:${fg}">${escapeHtml(text)}</pre>`;
+                    })
+                    .join('');
+                return `<section style="background:${groupBg};border:1px solid ${border};border-radius:6px;margin:8px 8px 0;overflow:hidden">${labelHtml}${itemsHtml}</section>`;
             })
             .join('');
     }
 
-    const bodyHtml = hasText ? `<div style="flex:1;overflow:auto">${textHtml}</div>` : '';
+    const bodyHtml = hasText ? `<div style="flex:1;overflow:auto;padding-bottom:8px">${textHtml}</div>` : '';
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><style>*{margin:0;box-sizing:border-box}html,body{width:100%;height:100%;background:${bg};display:flex;flex-direction:column}audio{width:100%;flex-shrink:0}</style><audio src="${fileUrl}" controls autoplay></audio>${bodyHtml}</body></html>`;
     viewerWindow.loadURL(`data:text/html;charset=utf-8;base64,${Buffer.from(html, 'utf-8').toString('base64')}`);
 }

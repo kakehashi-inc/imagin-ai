@@ -20,6 +20,7 @@ export default {
     'common.back': '戻る',
 
     // 注意事項ダイアログ
+    'notices.button.label': '利用上の注意',
     'notices.button.tooltip': '利用上の注意',
     'notices.dialog.title': '利用上の注意',
     'notices.dialog.close': '閉じる',
@@ -54,6 +55,123 @@ export default {
     'model.note.imagenShutdown': 'サポート終了: 2026/6/24',
     'model.note.nanoBananaShutdown': 'サポート終了: 2026/10/2',
     'model.freeTierUnavailable': '無料枠では利用不可',
+    'model.freeTier.ttsFlash': '無料枠:\n3 RPM / 10K TPM\n1分あたり最大3リクエスト、合計で約6分程度の音声生成が目安',
+
+    // TTS スタイル / ボイス
+    'tts.style.label': 'スタイル',
+    'tts.style.instructionLabel': 'スタイル内容（英語で記述）',
+    'tts.style.custom': 'カスタム',
+    'tts.style.presets': [
+        {
+            name: '明るく元気に',
+            effect: 'ハキハキとした高いトーンで活発に',
+            instruction: 'Enthusiastic, upbeat, and energetic',
+        },
+        {
+            name: '落ち着いた信頼感',
+            effect: '低めのトーンで説得力のある安定した発声',
+            instruction: 'Calm, professional, and authoritative',
+        },
+        {
+            name: '謝罪・誠実',
+            effect: '申し訳なさを感じさせる控えめで丁寧なトーン',
+            instruction: 'Apologetic, sincere, and humble',
+        },
+        {
+            name: '優しくささやく',
+            effect: '内緒話のような空気を含んだ柔らかな声',
+            instruction: 'Soft, gentle, and whispering tone',
+        },
+        {
+            name: '緊急・切迫',
+            effect: '非常に早口で緊迫感のある話し方',
+            instruction: 'Urgent, breathless, and rapid-fire',
+        },
+        {
+            name: '冷徹・淡々と',
+            effect: '感情を完全に排除した機械的なトーン',
+            instruction: 'Cold, flat, and emotionless',
+        },
+        {
+            name: '皮肉・冷笑',
+            effect: '相手を小馬鹿にするような独特な抑揚',
+            instruction: 'Sarcastic and slightly arrogant',
+        },
+        {
+            name: '物語の朗読',
+            effect: '場面展開に合わせて抑揚が大きく動く',
+            instruction: 'Dramatic, expressive, and storytelling',
+        },
+        {
+            name: 'おやすみ前',
+            effect: '極めてゆっくりとした安らぎを与える声',
+            instruction: 'Sleepy, soothing, and very gentle',
+        },
+    ],
+    'tts.voice.label': 'ボイス',
+    'tts.voice.presets': [
+        { name: 'Aoede', gender: '女性', characteristic: 'さわやか、中性的' },
+        { name: 'Charon', gender: '男性', characteristic: '誠実、情報伝達的' },
+        { name: 'Kore', gender: '女性', characteristic: '芯が強い、きっぱり' },
+        { name: 'Puck', gender: '男性', characteristic: '明るい、陽気' },
+        { name: 'Fenrir', gender: '男性', characteristic: '興奮気味、力強い' },
+        { name: 'Zephyr', gender: '女性', characteristic: '明るい、快活' },
+        { name: 'Leda', gender: '女性', characteristic: '若々しい、軽やか' },
+        { name: 'Orus', gender: '男性', characteristic: '芯がある、しっかり' },
+        { name: 'Callirrhoe', gender: '女性', characteristic: '気さく、リラックス' },
+        { name: 'Autonoe', gender: '女性', characteristic: '明るい、はつらつ' },
+        { name: 'Enceladus', gender: '男性', characteristic: 'ささやき、息漏れ' },
+        { name: 'Iapetus', gender: '男性', characteristic: 'クリア、明快' },
+        { name: 'Umbriel', gender: '男性', characteristic: 'リラックス、自然体' },
+        { name: 'Erinome', gender: '女性', characteristic: 'クリア、静か' },
+        { name: 'Despina', gender: '女性', characteristic: 'スムーズ、流暢' },
+        { name: 'Algieba', gender: '男性', characteristic: 'スムーズ、落ち着き' },
+        { name: 'Algenib', gender: '男性', characteristic: '渋い、少しハスキー' },
+        { name: 'Rasalgethi', gender: '男性', characteristic: '知性的、落ち着き' },
+        { name: 'Laomedeia', gender: '女性', characteristic: '前向き、活発' },
+        { name: 'Achernar', gender: '女性', characteristic: '柔らかい、優しい' },
+        { name: 'Alnilam', gender: '男性', characteristic: '毅然とした、強い' },
+        { name: 'Schedar', gender: '男性', characteristic: '落ち着いた、フラット' },
+        { name: 'Gacrux', gender: '女性', characteristic: '成熟した、深い' },
+        { name: 'Pulcherrima', gender: '女性', characteristic: 'はっきりした、明瞭' },
+        { name: 'Achird', gender: '男性', characteristic: 'フレンドリー、親しみ' },
+        { name: 'Zubenelgenubi', gender: '男性', characteristic: 'カジュアル、日常的' },
+        { name: 'Vindemiatrix', gender: '女性', characteristic: '穏やか、優しい' },
+        { name: 'Sadachbia', gender: '男性', characteristic: '生き生きした、活気' },
+        { name: 'Sadaltager', gender: '男性', characteristic: '博識、落ち着き' },
+        { name: 'Sulafat', gender: '女性', characteristic: '温かい、包容力' },
+    ],
+
+    // Audio Tags ダイアログ
+    'audioTags.button.label': 'Audio Tags の使い方',
+    'audioTags.button.tooltip': 'Audio Tags の詳細を表示',
+
+    // オーディオプレイヤー
+    'audioPlayer.section.spokenText': '読み上げテキスト',
+    'audioPlayer.section.apiText': 'APIから返されたテキスト',
+    'audioTags.dialog.title': 'Audio Tags 詳細解説',
+    'audioTags.dialog.close': '閉じる',
+    'audioTags.dialog.description':
+        'Gemini 3.1 Flash TTS でのみ利用可能な、プロンプト内に埋め込んで発声を制御するタグです。',
+    'audioTags.section.expressions.title': '感情・表現タグ (Expressions)',
+    'audioTags.section.expressions.items': [
+        { tag: '[laughing]', desc: '自然な笑い声を挿入、または笑いを含んだトーンに変えます。' },
+        { tag: '[sigh]', desc: '失望や安堵を示す、深いため息（排気音）を挿入します。' },
+        { tag: '[uhm]', desc: '「ええと」「あのー」といった自然な言い淀み（フィラー）を挿入します。' },
+        { tag: '[whispering]', desc: '音量を下げ、息漏れを増やした「ささやき声」に切り替えます。' },
+        { tag: '[shouting]', desc: '声量を上げ、張りのある「叫び声」に近い発声にします。' },
+    ],
+    'audioTags.section.prosody.title': '話速・ピッチ制御タグ (Prosody)',
+    'audioTags.section.prosody.items': [
+        { tag: '[extremely fast] / [extremely slow]', desc: '指定した箇所のスピードを極端に速く、または遅くします。' },
+        { tag: '[pitch:high] / [pitch:low]', desc: '声のトーンを一時的に高く、または低く調整します。' },
+    ],
+    'audioTags.section.pause.title': '間 (Pause) タグ',
+    'audioTags.section.pause.items': [
+        { tag: '[short pause]', desc: '約 0.2〜0.5 秒の自然な句切りを入れます。' },
+        { tag: '[medium pause]', desc: '文の区切りとして明確な約 1 秒の間を置きます。' },
+        { tag: '[long pause]', desc: '場面転換や重要な発言の前に、約 2 秒以上の長い溜めを作ります。' },
+    ],
 
     // Aspect ratio
     'aspectRatio.label': 'アスペクト比',
@@ -111,9 +229,11 @@ export default {
 
     // Prompt
     'prompt.label': 'プロンプト',
+    'prompt.labelTts': '読み上げテキスト',
     'prompt.placeholder': '生成したい画像を説明してください...',
     'prompt.placeholderMusic':
         '作成したい音楽を説明してください（ジャンル、雰囲気、楽器、BPMなど）。歌詞についての指示を含めると歌詞付きで生成されます。',
+    'prompt.placeholderTts': '読み上げたいテキストを入力してください。',
     'prompt.required': 'プロンプトは必須です',
     'prompt.charCount': '{{count}}文字',
 
@@ -129,9 +249,11 @@ export default {
     // Generation
     'common.generateVideo': '動画を生成',
     'common.generateMusic': '音楽を生成',
+    'common.generateSpeech': '読み上げを生成',
     'generation.generating': '生成中...',
     'generation.generatingVideo': '動画を生成中...',
     'generation.generatingMusic': '音楽を生成中...',
+    'generation.generatingSpeech': '読み上げを生成中...',
     'generation.generatingVideoProgress': '動画を生成中... ({{elapsed}}秒)',
     'generation.videoDurationConstraint': '1080p/4K解像度では長さは8秒のみ指定できます。',
     'generation.historyLimitExceeded': '履歴が上限({{limit}}件)を超えています。履歴を整理してください。',

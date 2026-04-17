@@ -16,7 +16,18 @@ import {
     DEFAULT_DURATION,
     DEFAULT_RESOLUTION,
     MODEL_DEFINITIONS,
+    TTS_STYLE_CUSTOM_ID,
+    TTS_DEFAULT_STYLE,
+    TTS_DEFAULT_VOICE,
 } from '../../shared/constants';
+import i18n from '../i18n/config';
+
+type TtsStylePreset = { name: string; effect: string; instruction: string };
+
+function getStyleInstructions(): string[] {
+    const presets = i18n.t('tts.style.presets', { returnObjects: true }) as TtsStylePreset[];
+    return Array.isArray(presets) ? presets.map(p => p.instruction) : [];
+}
 
 type GenerationState = {
     model: string;
@@ -30,6 +41,10 @@ type GenerationState = {
     seed: string;
     referenceImagePaths: string[];
     referenceImageThumbnails: Map<string, string>;
+    // TTS-specific
+    styleSelection: string; // preset id or TTS_STYLE_CUSTOM_ID
+    styleInstruction: string;
+    voice: string;
     isGenerating: boolean;
     generationProgress: GenerationProgress | null;
     error: ApiErrorDetail | null;
@@ -47,10 +62,17 @@ type GenerationState = {
     removeReferenceImage: (path: string) => void;
     clearReferenceImages: () => void;
     setReferenceImageThumbnail: (path: string, dataUrl: string) => void;
+    setStyleSelection: (id: string) => void;
+    setStyleInstruction: (instruction: string) => void;
+    setVoice: (voice: string) => void;
     restoreParams: (params: Partial<GenerationParams>) => void;
     generate: () => Promise<void>;
     clearError: () => void;
 };
+
+function initialStyleInstruction(): string {
+    return TTS_DEFAULT_STYLE;
+}
 
 const defaultModel = MODEL_DEFINITIONS.find(m => m.id === DEFAULT_MODEL_ID)?.id || MODEL_DEFINITIONS[0]?.id || '';
 
@@ -66,6 +88,9 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     seed: '',
     referenceImagePaths: [],
     referenceImageThumbnails: new Map(),
+    styleSelection: TTS_DEFAULT_STYLE,
+    styleInstruction: initialStyleInstruction(),
+    voice: TTS_DEFAULT_VOICE,
     isGenerating: false,
     generationProgress: null,
     error: null,
@@ -139,7 +164,29 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         set({ referenceImageThumbnails: newThumbnails });
     },
 
+    setStyleSelection: (id: string) => {
+        if (id === TTS_STYLE_CUSTOM_ID) {
+            set({ styleSelection: TTS_STYLE_CUSTOM_ID });
+            return;
+        }
+        if (getStyleInstructions().includes(id)) {
+            set({ styleSelection: id, styleInstruction: id });
+        }
+    },
+
+    setStyleInstruction: (instruction: string) => {
+        const isPreset = getStyleInstructions().includes(instruction);
+        set({
+            styleInstruction: instruction,
+            styleSelection: isPreset ? instruction : TTS_STYLE_CUSTOM_ID,
+        });
+    },
+
+    setVoice: (voice: string) => set({ voice }),
+
     restoreParams: (params: Partial<GenerationParams>) => {
+        const nextStyleInstruction =
+            params.styleInstruction !== undefined ? params.styleInstruction : get().styleInstruction;
         set({
             model: params.model ?? get().model,
             prompt: params.prompt ?? get().prompt,
@@ -152,6 +199,11 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
             seed: params.seed != null ? String(params.seed) : '',
             referenceImagePaths: [],
             referenceImageThumbnails: new Map(),
+            styleInstruction: nextStyleInstruction,
+            styleSelection: getStyleInstructions().includes(nextStyleInstruction)
+                ? nextStyleInstruction
+                : TTS_STYLE_CUSTOM_ID,
+            voice: params.voice ?? get().voice,
         });
     },
 
@@ -159,6 +211,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         const state = get();
         const modelDef = MODEL_DEFINITIONS.find(m => m.id === state.model);
         const isVideo = modelDef?.mediaType === 'video';
+        const isTts = modelDef?.apiEndpoint === 'generateContentTTS';
 
         set({ isGenerating: true, error: null, generationProgress: null });
 
@@ -192,6 +245,8 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
                 duration: isVideo ? state.duration : undefined,
                 resolution: isVideo ? state.resolution : undefined,
                 seed: seedValue,
+                styleInstruction: isTts ? state.styleInstruction : undefined,
+                voice: isTts ? state.voice : undefined,
             };
 
             const result = await window.imaginai.executeGeneration(params);
