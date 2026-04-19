@@ -42,10 +42,11 @@ export default function PromptPanel() {
     } = useGenerationStore();
 
     const currentModel = MODEL_DEFINITIONS.find(m => m.id === model);
-    const supportsImageInput = currentModel?.supportsImageInput ?? false;
+    const supportsImageInput = (currentModel?.maxReferenceImages ?? 0) > 0;
     const supportsNegativePrompt = currentModel?.supportsNegativePrompt ?? false;
-    const isAudioModel = currentModel?.mediaType === 'audio';
-    const isTtsModel = currentModel?.apiEndpoint === 'generateContentTTS';
+    const isMusicModel = currentModel?.mediaType === 'music';
+    const isVoiceModel = currentModel?.mediaType === 'voice';
+    const isVideoModel = currentModel?.mediaType === 'video';
     const supportsAudioTags = currentModel?.supportsAudioTags ?? false;
 
     const promptRef = React.useRef<HTMLTextAreaElement>(null);
@@ -95,7 +96,7 @@ export default function PromptPanel() {
             )}
 
             {/* TTS-only: Style preset + Style instruction (above the prompt) */}
-            {isTtsModel && (
+            {isVoiceModel && (
                 <>
                     <FormControl size='small' fullWidth>
                         <InputLabel>{t('tts.style.label')}</InputLabel>
@@ -134,7 +135,7 @@ export default function PromptPanel() {
             {/* Prompt label */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Typography variant='body2' fontWeight={500}>
-                    {t(isTtsModel ? 'prompt.labelTts' : 'prompt.label')}
+                    {t(isVoiceModel ? 'prompt.labelTts' : 'prompt.label')}
                 </Typography>
                 {supportsAudioTags && (
                     <Button
@@ -154,6 +155,7 @@ export default function PromptPanel() {
                     sx={{
                         display: 'flex',
                         flexWrap: 'wrap',
+                        alignItems: 'center',
                         gap: 1,
                         p: 1,
                         borderRadius: 1,
@@ -200,6 +202,11 @@ export default function PromptPanel() {
                             </IconButton>
                         </Box>
                     ))}
+                    {isVideoModel && (
+                        <Typography variant='caption' color='text.secondary' sx={{ ml: 0.5 }}>
+                            {t('prompt.startingFrame')}
+                        </Typography>
+                    )}
                 </Box>
             )}
 
@@ -213,9 +220,9 @@ export default function PromptPanel() {
                     fullWidth
                     size='small'
                     placeholder={t(
-                        isTtsModel
+                        isVoiceModel
                             ? 'prompt.placeholderTts'
-                            : isAudioModel
+                            : isMusicModel
                               ? 'prompt.placeholderMusic'
                               : 'prompt.placeholder'
                     )}

@@ -96,7 +96,10 @@ export function registerIpcHandlers() {
             const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
             const modelDisplayName = modelDef?.displayName || params.model;
             const isVideo = modelDef?.mediaType === 'video';
-            const isAudioLike = modelDef?.mediaType === 'audio' || modelDef?.mediaType === 'voice';
+            // Both music (Lyria) and voice (TTS) produce audio files; the same history-entry
+            // creator handles both. Keep the dispatch decision local to avoid overloading a
+            // single "audio-like" abstraction in shared code.
+            const producesAudioFile = modelDef?.mediaType === 'music' || modelDef?.mediaType === 'voice';
 
             // Set up progress callback for video generation
             const win = BrowserWindow.getFocusedWindow();
@@ -115,9 +118,16 @@ export function registerIpcHandlers() {
                 const elapsedMs = Date.now() - startTime;
 
                 let entries;
-                if (isAudioLike) {
+                if (producesAudioFile) {
                     entries = result.buffers.map(buf =>
-                        createAudioHistoryEntry(params, modelDisplayName, buf, result.audioTexts, elapsedMs)
+                        createAudioHistoryEntry(
+                            params,
+                            modelDisplayName,
+                            buf,
+                            result.mimeType,
+                            result.audioTexts,
+                            elapsedMs
+                        )
                     );
                 } else if (isVideo) {
                     entries = result.buffers.map(buf =>

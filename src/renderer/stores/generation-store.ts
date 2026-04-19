@@ -102,9 +102,9 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
             return;
         }
         const state = get();
-        const aspectRatio = modelDef.supportedAspectRatios.includes(state.aspectRatio)
+        const aspectRatio = modelDef.supportedAspectRatios?.includes(state.aspectRatio)
             ? state.aspectRatio
-            : (modelDef.supportedAspectRatios[0] as AspectRatio) || DEFAULT_ASPECT_RATIO;
+            : (modelDef.supportedAspectRatios?.[0] as AspectRatio) || DEFAULT_ASPECT_RATIO;
         const quality = modelDef.supportedQualities?.includes(state.quality)
             ? state.quality
             : (modelDef.supportedQualities?.[0] as Quality) || DEFAULT_QUALITY;
@@ -131,11 +131,29 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     setSeed: (seed: string) => set({ seed }),
     addReferenceImages: (paths: string[]) => {
         const state = get();
+        const modelDef = MODEL_DEFINITIONS.find(m => m.id === state.model);
+        const maxRefs = modelDef?.maxReferenceImages ?? 0;
+        if (maxRefs <= 0) return;
+        // Single-slot models (e.g., Veo's starting frame): the latest attachment
+        // overwrites the prior one; multi-slot models append uniquely.
+        if (maxRefs === 1) {
+            const next = paths[paths.length - 1];
+            if (!next) return;
+            set({ referenceImagePaths: [next], referenceImageThumbnails: new Map() });
+            window.imaginai.getThumbnail(next).then(dataUrl => {
+                if (dataUrl) {
+                    get().setReferenceImageThumbnail(next, dataUrl);
+                }
+            });
+            return;
+        }
         const existing = new Set(state.referenceImagePaths);
         const newPaths = paths.filter(p => !existing.has(p));
-        if (newPaths.length > 0) {
-            set({ referenceImagePaths: [...state.referenceImagePaths, ...newPaths] });
-            for (const p of newPaths) {
+        const remainingSlots = Math.max(0, maxRefs - state.referenceImagePaths.length);
+        const accepted = newPaths.slice(0, remainingSlots);
+        if (accepted.length > 0) {
+            set({ referenceImagePaths: [...state.referenceImagePaths, ...accepted] });
+            for (const p of accepted) {
                 window.imaginai.getThumbnail(p).then(dataUrl => {
                     if (dataUrl) {
                         get().setReferenceImageThumbnail(p, dataUrl);
@@ -211,7 +229,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         const state = get();
         const modelDef = MODEL_DEFINITIONS.find(m => m.id === state.model);
         const isVideo = modelDef?.mediaType === 'video';
-        const isTts = modelDef?.apiEndpoint === 'generateContentTTS';
+        const isVoice = modelDef?.mediaType === 'voice';
 
         set({ isGenerating: true, error: null, generationProgress: null });
 
@@ -245,8 +263,8 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
                 duration: isVideo ? state.duration : undefined,
                 resolution: isVideo ? state.resolution : undefined,
                 seed: seedValue,
-                styleInstruction: isTts ? state.styleInstruction : undefined,
-                voice: isTts ? state.voice : undefined,
+                styleInstruction: isVoice ? state.styleInstruction : undefined,
+                voice: isVoice ? state.voice : undefined,
             };
 
             const result = await window.imaginai.executeGeneration(params);

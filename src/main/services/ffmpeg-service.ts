@@ -78,17 +78,20 @@ export function isFfmpegAvailable(): boolean {
     return getFfmpegPath() !== null;
 }
 
-// Encode raw PCM buffer to MP3 using ffmpeg (libmp3lame). Returns null on failure.
+// Result of an in-memory PCM->MP3 encode attempt.
+// Carries the failure reason so the caller can log/surface it, instead of being lost as `null`.
+export type EncodePcmResult = { ok: true; data: Buffer } | { ok: false; reason: string };
+
+// Encode raw PCM buffer to MP3 using ffmpeg (libmp3lame).
 export function encodePcmToMp3(
     pcm: Buffer,
     sampleRate: number,
     channels: number,
     bitsPerSample: number
-): Buffer | null {
+): EncodePcmResult {
     const ffmpeg = getFfmpegPath();
     if (!ffmpeg) {
-        console.warn('ffmpeg not available, cannot encode PCM to MP3');
-        return null;
+        return { ok: false, reason: 'ffmpeg binary not available' };
     }
 
     const formatMap: Record<number, string> = { 8: 'u8', 16: 's16le', 24: 's24le', 32: 's32le' };
@@ -131,15 +134,47 @@ export function encodePcmToMp3(
             }
         );
 
-        if (result.status !== 0) {
-            const stderr = result.stderr?.toString() ?? '';
-            console.error(`ffmpeg PCM->MP3 encoding failed (status=${result.status}): ${stderr}`);
-            return null;
+        if (result.error) {
+            return { ok: false, reason: `ffmpeg spawn error: ${result.error.message}` };
         }
-
-        return result.stdout;
+        if (result.status !== 0) {
+            const stderr = result.stderr?.toString().trim() ?? '';
+            return {
+                ok: false,
+                reason: `ffmpeg exited with status ${result.status}${stderr ? `: ${stderr}` : ''}`,
+            };
+        }
+        if (!result.stdout || result.stdout.length === 0) {
+            return { ok: false, reason: 'ffmpeg produced empty output' };
+        }
+        return { ok: true, data: result.stdout };
     } catch (err) {
-        console.error('Failed to encode PCM to MP3:', err);
-        return null;
+        return { ok: false, reason: err instanceof Error ? err.message : String(err) };
     }
+}
+
+// Wrap raw PCM in a minimal WAV (RIFF) container. Pure JS, no external dependencies,
+// so this serves as a guaranteed-playable fallback when MP3 encoding fails.
+// Returns a Buffer containing a 44-byte WAV header followed by the original PCM.
+export function wrapPcmAsWav(pcm: Buffer, sampleRate: number, channels: number, bitsPerSample: number): Buffer {
+    const byteRate = (sampleRate * channels * bitsPerSample) / 8;
+    const blockAlign = (channels * bitsPerSample) / 8;
+    const dataSize = pcm.length;
+    const header = Buffer.alloc(44);
+
+    header.write('RIFF', 0, 'ascii');
+    header.writeUInt32LE(36 + dataSize, 4); // ChunkSize
+    header.write('WAVE', 8, 'ascii');
+    header.write('fmt ', 12, 'ascii');
+    header.writeUInt32LE(16, 16); // Subchunk1Size (PCM)
+    header.writeUInt16LE(1, 20); // AudioFormat (1 = PCM)
+    header.writeUInt16LE(channels, 22);
+    header.writeUInt32LE(sampleRate, 24);
+    header.writeUInt32LE(byteRate, 28);
+    header.writeUInt16LE(blockAlign, 32);
+    header.writeUInt16LE(bitsPerSample, 34);
+    header.write('data', 36, 'ascii');
+    header.writeUInt32LE(dataSize, 40);
+
+    return Buffer.concat([header, pcm]);
 }

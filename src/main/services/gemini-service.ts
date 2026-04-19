@@ -1,18 +1,18 @@
 import fs from 'fs';
 import https from 'https';
 import http from 'http';
-import type {
-    GenerationParams,
-    ApiErrorDetail,
-    ApiEndpointType,
-    VideoDuration,
-    VideoResolution,
-} from '../../shared/types';
-import { MODEL_DEFINITIONS } from '../../shared/constants';
+import type { GenerationParams, ApiErrorDetail, VideoDuration, VideoResolution } from '../../shared/types';
+import { MODEL_DEFINITIONS, REFERENCE_IMAGE_MAX_LONG_EDGE, REFERENCE_IMAGE_JPEG_QUALITY } from '../../shared/constants';
 import { getActiveApiKey } from './api-key-service';
-import { encodePcmToMp3 } from './ffmpeg-service';
+import { encodePcmToMp3, wrapPcmAsWav } from './ffmpeg-service';
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com';
+
+type SafetyRating = {
+    category?: string;
+    probability?: string;
+    blocked?: boolean;
+};
 
 type GeminiResponse = {
     candidates?: Array<{
@@ -25,7 +25,15 @@ type GeminiResponse = {
                 text?: string;
             }>;
         };
+        finishReason?: string;
+        finishMessage?: string;
+        safetyRatings?: SafetyRating[];
     }>;
+    promptFeedback?: {
+        blockReason?: string;
+        blockReasonMessage?: string;
+        safetyRatings?: SafetyRating[];
+    };
     error?: {
         code: number;
         message: string;
@@ -37,6 +45,8 @@ type ImagenResponse = {
     predictions?: Array<{
         bytesBase64Encoded: string;
         mimeType: string;
+        // Imagen may include filter reason instead of bytes when blocked
+        raiFilteredReason?: string;
     }>;
     error?: {
         code: number;
@@ -129,12 +139,6 @@ export async function testApiKey(rawKey?: string): Promise<import('../../shared/
     }
 }
 
-// Resolve API endpoint type from model definition
-function getApiEndpoint(modelId: string): ApiEndpointType {
-    const modelDef = MODEL_DEFINITIONS.find(m => m.id === modelId);
-    return modelDef?.apiEndpoint ?? 'generateContent';
-}
-
 // Check if model supports negativePrompt as an API parameter
 function hasApiNegativePrompt(modelId: string): boolean {
     const modelDef = MODEL_DEFINITIONS.find(m => m.id === modelId);
@@ -154,6 +158,58 @@ type LroResponse = {
     };
 };
 
+// Format diagnostic info from a Gemini response into a human-readable string
+// for the error details panel. Returns empty string when no diagnostics found.
+function formatGeminiDiagnostics(parsed: GeminiResponse): string {
+    const lines: string[] = [];
+    if (parsed.promptFeedback?.blockReason) {
+        const reason = parsed.promptFeedback.blockReason;
+        const msg = parsed.promptFeedback.blockReasonMessage;
+        lines.push(msg ? `promptFeedback.blockReason: ${reason} (${msg})` : `promptFeedback.blockReason: ${reason}`);
+    }
+    if (parsed.promptFeedback?.safetyRatings) {
+        const blocked = parsed.promptFeedback.safetyRatings.filter(r => r.blocked);
+        if (blocked.length > 0) {
+            lines.push(
+                `promptFeedback.safetyRatings (blocked): ${blocked
+                    .map(r => `${r.category}=${r.probability}`)
+                    .join(', ')}`
+            );
+        }
+    }
+    if (parsed.candidates) {
+        parsed.candidates.forEach((c, i) => {
+            if (c.finishReason && c.finishReason !== 'STOP') {
+                const fm = c.finishMessage;
+                lines.push(
+                    fm
+                        ? `candidate[${i}].finishReason: ${c.finishReason} (${fm})`
+                        : `candidate[${i}].finishReason: ${c.finishReason}`
+                );
+            }
+            if (c.safetyRatings) {
+                const blocked = c.safetyRatings.filter(r => r.blocked);
+                if (blocked.length > 0) {
+                    lines.push(
+                        `candidate[${i}].safetyRatings (blocked): ${blocked
+                            .map(r => `${r.category}=${r.probability}`)
+                            .join(', ')}`
+                    );
+                }
+            }
+            // Surface any text the API returned (often contains the refusal explanation)
+            if (c.content?.parts) {
+                for (const p of c.content.parts) {
+                    if (p.text && p.text.trim().length > 0) {
+                        lines.push(`candidate[${i}].text: ${p.text.trim()}`);
+                    }
+                }
+            }
+        });
+    }
+    return lines.join('\n');
+}
+
 // Convert an inline error object (from response body) into a GeminiApiError
 function throwApiBodyError(error: { code: number; message: string; status: string }): never {
     throw new GeminiApiError({
@@ -164,13 +220,15 @@ function throwApiBodyError(error: { code: number; message: string; status: strin
     });
 }
 
-// Create a GeminiApiError for application-level errors (no HTTP response)
-function throwAppError(errorKey: string): never {
+// Create a GeminiApiError for application-level errors (no HTTP response).
+// `diagnostic` is appended to apiMessage so the error details panel can show
+// finishReason / blockReason / safetyRatings / refusal text returned by the API.
+function throwAppError(errorKey: string, diagnostic?: string): never {
     throw new GeminiApiError({
         httpStatus: 0,
         apiCode: null,
         apiStatus: errorKey,
-        apiMessage: null,
+        apiMessage: diagnostic && diagnostic.length > 0 ? diagnostic : null,
     });
 }
 
@@ -183,19 +241,21 @@ export async function generateImages(
         throwAppError('API_KEY_NOT_SET');
     }
 
-    const endpoint = getApiEndpoint(params.model);
-    switch (endpoint) {
-        case 'generateContentAudio':
-            return await generateWithLyria(params, apiKey);
-        case 'generateContentTTS':
-            return await generateWithGeminiTts(params, apiKey);
-        case 'predictLongRunning':
+    // Dispatch by mediaType. For images, the model id prefix disambiguates Imagen
+    // (`imagen-*`, predict API) from Gemini image (`gemini-*`, generateContent API).
+    const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
+    switch (modelDef?.mediaType) {
+        case 'video':
             return await generateWithVeo(params, apiKey);
-        case 'predict':
-            return await generateWithImagen(params, apiKey);
-        case 'generateContent':
+        case 'music':
+            return await generateWithLyria(params, apiKey);
+        case 'voice':
+            return await generateWithGeminiTts(params, apiKey);
+        case 'image':
         default:
-            return await generateWithGemini(params, apiKey);
+            return params.model.startsWith('imagen-')
+                ? await generateWithImagen(params, apiKey)
+                : await generateWithGemini(params, apiKey);
     }
 }
 
@@ -250,7 +310,19 @@ async function generateWithImagen(
         throwAppError('NO_IMAGES_GENERATED');
     }
 
-    const buffers = parsed.predictions.map(p => Buffer.from(p.bytesBase64Encoded, 'base64'));
+    const buffers: Buffer[] = [];
+    const filterReasons: string[] = [];
+    for (let i = 0; i < parsed.predictions.length; i++) {
+        const p = parsed.predictions[i];
+        if (p.bytesBase64Encoded) {
+            buffers.push(Buffer.from(p.bytesBase64Encoded, 'base64'));
+        } else if (p.raiFilteredReason) {
+            filterReasons.push(`prediction[${i}].raiFilteredReason: ${p.raiFilteredReason}`);
+        }
+    }
+    if (buffers.length === 0) {
+        throwAppError('NO_IMAGES_GENERATED', filterReasons.join('\n'));
+    }
     return { buffers, mimeType: 'image/png' };
 }
 
@@ -265,26 +337,26 @@ async function generateWithGemini(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const parts: any[] = [];
 
-    // Add reference images if present
-    if (params.referenceImagePaths && params.referenceImagePaths.length > 0) {
-        for (const imgPath of params.referenceImagePaths) {
-            try {
-                const imageData = fs.readFileSync(imgPath);
-                const base64 = imageData.toString('base64');
-                const ext = imgPath.toLowerCase().split('.').pop();
-                let mimeType = 'image/png';
-                if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
-                else if (ext === 'webp') mimeType = 'image/webp';
-
-                parts.push({
-                    inlineData: {
-                        mimeType,
-                        data: base64,
-                    },
-                });
-            } catch (err) {
-                console.warn(`Failed to read reference image: ${imgPath}`, err);
-            }
+    // Add reference images if present (downscale + JPEG re-encode applied uniformly).
+    // Per-model cap comes from `maxReferenceImages`.
+    const geminiImageModelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
+    const geminiImageMaxRefs = geminiImageModelDef?.maxReferenceImages ?? 0;
+    if (geminiImageMaxRefs > 0 && params.referenceImagePaths && params.referenceImagePaths.length > 0) {
+        const capped = params.referenceImagePaths.slice(0, geminiImageMaxRefs);
+        if (params.referenceImagePaths.length > geminiImageMaxRefs) {
+            console.warn(
+                `Gemini image reference images truncated from ${params.referenceImagePaths.length} to ${geminiImageMaxRefs}`
+            );
+        }
+        for (const imgPath of capped) {
+            const prepared = prepareReferenceImage(imgPath);
+            if (!prepared) continue;
+            parts.push({
+                inlineData: {
+                    mimeType: prepared.mimeType,
+                    data: prepared.base64,
+                },
+            });
         }
     }
 
@@ -321,6 +393,7 @@ async function generateWithGemini(
 
     const allBuffers: Buffer[] = [];
     let resultMimeType = 'image/png'; // Default; will be overridden by actual response
+    const diagnostics: string[] = [];
 
     // Generate multiple images by making multiple requests if needed
     const requestCount = params.numberOfImages;
@@ -342,7 +415,7 @@ async function generateWithGemini(
         }
 
         if (!parsed.candidates || parsed.candidates.length === 0) {
-            throwAppError('NO_RESPONSE');
+            throwAppError('NO_RESPONSE', formatGeminiDiagnostics(parsed));
         }
 
         for (const candidate of parsed.candidates) {
@@ -358,10 +431,14 @@ async function generateWithGemini(
                 }
             }
         }
+
+        // Collect diagnostics from this request (finishReason, safety, text refusals)
+        const diag = formatGeminiDiagnostics(parsed);
+        if (diag) diagnostics.push(`[request ${i + 1}/${requestCount}]\n${diag}`);
     }
 
     if (allBuffers.length === 0) {
-        throwAppError('NO_IMAGES_GENERATED');
+        throwAppError('NO_IMAGES_GENERATED', diagnostics.join('\n\n'));
     }
 
     return { buffers: allBuffers, mimeType: resultMimeType };
@@ -444,6 +521,35 @@ export function setGenerationProgressCallback(
     progressCallback = cb;
 }
 
+// Decode a reference image, downscale it if its long edge exceeds the limit
+// (preserving aspect ratio), and re-encode as JPEG. Applied uniformly to all
+// generation paths that accept reference images (image, video, music) so that
+// request payload size stays bounded regardless of source resolution/format.
+function prepareReferenceImage(imgPath: string): { mimeType: string; base64: string } | null {
+    try {
+        const raw = fs.readFileSync(imgPath);
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { nativeImage } = require('electron');
+        let img = nativeImage.createFromBuffer(raw);
+        if (img.isEmpty()) return null;
+        const size = img.getSize();
+        const longEdge = Math.max(size.width, size.height);
+        if (longEdge > REFERENCE_IMAGE_MAX_LONG_EDGE) {
+            const scale = REFERENCE_IMAGE_MAX_LONG_EDGE / longEdge;
+            img = img.resize({
+                width: Math.round(size.width * scale),
+                height: Math.round(size.height * scale),
+                quality: 'best',
+            });
+        }
+        const jpeg = img.toJPEG(REFERENCE_IMAGE_JPEG_QUALITY);
+        return { mimeType: 'image/jpeg', base64: jpeg.toString('base64') };
+    } catch (err) {
+        console.warn(`Failed to prepare reference image: ${imgPath}`, err);
+        return null;
+    }
+}
+
 // Generate music with Lyria models (using generateContent API)
 async function generateWithLyria(
     params: GenerationParams,
@@ -455,26 +561,27 @@ async function generateWithLyria(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const parts: any[] = [];
 
-    // Add reference images if present (image-to-music)
-    if (params.referenceImagePaths && params.referenceImagePaths.length > 0) {
-        for (const imgPath of params.referenceImagePaths) {
-            try {
-                const imageData = fs.readFileSync(imgPath);
-                const base64 = imageData.toString('base64');
-                const ext = imgPath.toLowerCase().split('.').pop();
-                let mimeType = 'image/png';
-                if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
-                else if (ext === 'webp') mimeType = 'image/webp';
-
-                parts.push({
-                    inlineData: {
-                        mimeType,
-                        data: base64,
-                    },
-                });
-            } catch (err) {
-                console.warn(`Failed to read reference image: ${imgPath}`, err);
-            }
+    // Add reference images if present (image-to-music). Per-model cap comes from
+    // `maxReferenceImages`. Each image is downscaled and re-encoded as JPEG to
+    // keep payload size bounded.
+    const lyriaModelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
+    const lyriaMaxRefs = lyriaModelDef?.maxReferenceImages ?? 0;
+    if (lyriaMaxRefs > 0 && params.referenceImagePaths && params.referenceImagePaths.length > 0) {
+        const capped = params.referenceImagePaths.slice(0, lyriaMaxRefs);
+        if (params.referenceImagePaths.length > lyriaMaxRefs) {
+            console.warn(
+                `Lyria reference images truncated from ${params.referenceImagePaths.length} to ${lyriaMaxRefs}`
+            );
+        }
+        for (const imgPath of capped) {
+            const prepared = prepareReferenceImage(imgPath);
+            if (!prepared) continue;
+            parts.push({
+                inlineData: {
+                    mimeType: prepared.mimeType,
+                    data: prepared.base64,
+                },
+            });
         }
     }
 
@@ -506,7 +613,7 @@ async function generateWithLyria(
     }
 
     if (!parsed.candidates || parsed.candidates.length === 0) {
-        throwAppError('NO_RESPONSE');
+        throwAppError('NO_RESPONSE', formatGeminiDiagnostics(parsed));
     }
 
     // Extract audio buffers, lyrics, and description from response parts (order is not guaranteed).
@@ -529,7 +636,7 @@ async function generateWithLyria(
     }
 
     if (audioBuffers.length === 0) {
-        throwAppError('NO_AUDIO_GENERATED');
+        throwAppError('NO_MUSIC_GENERATED', formatGeminiDiagnostics(parsed));
     }
 
     return {
@@ -551,7 +658,10 @@ function parsePcmMimeType(mimeType: string): { sampleRate: number; channels: num
     return { sampleRate, channels, bitsPerSample };
 }
 
-// Generate speech with Gemini TTS models (generateContent + speechConfig)
+// Generate speech with Gemini TTS models (generateContent + speechConfig).
+// Gemini TTS returns raw PCM (e.g., audio/L16;codec=pcm;rate=24000). We try to
+// encode it to MP3 in memory via ffmpeg; if that fails (binary missing, sandbox
+// block, etc.), we fall back to WAV in pure JS so the API call is never wasted.
 async function generateWithGeminiTts(
     params: GenerationParams,
     apiKey: string
@@ -584,7 +694,7 @@ async function generateWithGeminiTts(
         throwApiBodyError(parsed.error);
     }
     if (!parsed.candidates || parsed.candidates.length === 0) {
-        throwAppError('NO_RESPONSE');
+        throwAppError('NO_RESPONSE', formatGeminiDiagnostics(parsed));
     }
 
     const audioBuffers: Buffer[] = [];
@@ -597,16 +707,20 @@ async function generateWithGeminiTts(
                 if (part.inlineData?.data && part.inlineData.mimeType?.startsWith('audio/')) {
                     const raw = Buffer.from(part.inlineData.data, 'base64');
                     const mime = part.inlineData.mimeType.toLowerCase();
-                    // Gemini TTS returns raw PCM (e.g., audio/L16;codec=pcm;rate=24000).
-                    // Encode it to MP3 via bundled ffmpeg (stdin/stdout pipe, no intermediate files).
                     if (mime.includes('l16') || mime.includes('pcm')) {
                         const { sampleRate, channels, bitsPerSample } = parsePcmMimeType(mime);
                         const mp3 = encodePcmToMp3(raw, sampleRate, channels, bitsPerSample);
-                        if (!mp3) {
-                            throwAppError('NO_AUDIO_GENERATED');
+                        if (mp3.ok) {
+                            audioBuffers.push(mp3.data);
+                            resultMimeType = 'audio/mpeg';
+                        } else {
+                            // ffmpeg unavailable / failed: preserve audio losslessly in WAV.
+                            // This prevents discarding a billed API result.
+                            console.warn(`PCM->MP3 encoding failed, saving as WAV instead: ${mp3.reason}`);
+                            const wav = wrapPcmAsWav(raw, sampleRate, channels, bitsPerSample);
+                            audioBuffers.push(wav);
+                            resultMimeType = 'audio/wav';
                         }
-                        audioBuffers.push(mp3);
-                        resultMimeType = 'audio/mpeg';
                     } else {
                         audioBuffers.push(raw);
                         resultMimeType = part.inlineData.mimeType;
@@ -619,7 +733,7 @@ async function generateWithGeminiTts(
     }
 
     if (audioBuffers.length === 0) {
-        throwAppError('NO_AUDIO_GENERATED');
+        throwAppError('NO_VOICE_GENERATED', formatGeminiDiagnostics(parsed));
     }
 
     return {
@@ -649,19 +763,15 @@ async function generateWithVeo(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const instance: any = { prompt: promptText };
 
-    // Image-to-video: attach first reference image as the starting frame
-    if (params.referenceImagePaths && params.referenceImagePaths.length > 0) {
-        try {
-            const imgPath = params.referenceImagePaths[0];
-            const imageData = fs.readFileSync(imgPath);
-            const base64 = imageData.toString('base64');
-            const ext = imgPath.toLowerCase().split('.').pop();
-            let mimeType = 'image/png';
-            if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
-            else if (ext === 'webp') mimeType = 'image/webp';
-            instance.image = { bytesBase64Encoded: base64, mimeType };
-        } catch (err) {
-            console.warn('Failed to read reference image for video generation:', err);
+    // Image-to-video: attach first reference image as the starting frame.
+    // Veo declares maxReferenceImages: 1 — only the first image is used regardless of
+    // how many were attached (UI also enforces overwrite-to-1 for video models).
+    const veoModelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
+    const veoMaxRefs = veoModelDef?.maxReferenceImages ?? 0;
+    if (veoMaxRefs > 0 && params.referenceImagePaths && params.referenceImagePaths.length > 0) {
+        const prepared = prepareReferenceImage(params.referenceImagePaths[0]);
+        if (prepared) {
+            instance.image = { bytesBase64Encoded: prepared.base64, mimeType: prepared.mimeType };
         }
     }
 
@@ -733,7 +843,7 @@ async function generateWithVeo(
             // Extract video data from the completed operation
             const videoResult = pollResult.response;
             if (!videoResult) {
-                throwAppError('NO_VIDEO_GENERATED');
+                throwAppError('NO_VIDEO_GENERATED', 'LRO completed but response payload is empty');
             }
 
             // Gemini API response: generateVideoResponse.generatedSamples[]
@@ -743,8 +853,20 @@ async function generateWithVeo(
                 generateVideoResponse.generatedVideos ||
                 videoResult.generatedVideos ||
                 [];
+
+            // Veo surfaces RAI (Responsible AI) filtering through these fields when content is blocked.
+            const raiDiagnostics: string[] = [];
+            const raiCount = generateVideoResponse.raiMediaFilteredCount ?? videoResult.raiMediaFilteredCount;
+            const raiReasons = generateVideoResponse.raiMediaFilteredReasons ?? videoResult.raiMediaFilteredReasons;
+            if (typeof raiCount === 'number' && raiCount > 0) {
+                raiDiagnostics.push(`raiMediaFilteredCount: ${raiCount}`);
+            }
+            if (Array.isArray(raiReasons) && raiReasons.length > 0) {
+                raiDiagnostics.push(`raiMediaFilteredReasons: ${raiReasons.join(' | ')}`);
+            }
+
             if (generatedSamples.length === 0) {
-                throwAppError('NO_VIDEO_GENERATED');
+                throwAppError('NO_VIDEO_GENERATED', raiDiagnostics.join('\n'));
             }
 
             // Extract video buffer
@@ -760,7 +882,11 @@ async function generateWithVeo(
             }
 
             if (allBuffers.length === 0) {
-                throwAppError('NO_VIDEO_GENERATED');
+                const diag = [
+                    ...raiDiagnostics,
+                    `generatedSamples count: ${generatedSamples.length} but no decodable video data extracted`,
+                ].join('\n');
+                throwAppError('NO_VIDEO_GENERATED', diag);
             }
 
             return { buffers: allBuffers, mimeType: 'video/mp4' };

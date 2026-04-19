@@ -31,6 +31,15 @@ export const HISTORY_PAGE_SIZE = 50;
 export const GENERATION_COUNT_MIN = 1;
 export const GENERATION_COUNT_MAX = 4;
 
+// --- Reference image preprocessing (applied to all generation paths that accept images) ---
+// Each reference image is decoded, downscaled so the long edge fits within
+// REFERENCE_IMAGE_MAX_LONG_EDGE (preserving aspect ratio), and re-encoded as JPEG.
+// PNG/WebP inputs are converted to JPEG. This keeps request payloads bounded
+// regardless of source resolution. Per-model attachment count caps are declared
+// on each model definition via `maxReferenceImages`.
+export const REFERENCE_IMAGE_MAX_LONG_EDGE = 1920;
+export const REFERENCE_IMAGE_JPEG_QUALITY = 85;
+
 // --- Default values ---
 export const DEFAULT_ASPECT_RATIO: AspectRatio = '16:9';
 export const DEFAULT_QUALITY: Quality = '1k';
@@ -98,10 +107,9 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     // generateContent API: 1 image/req, negative prompt embedded in text prompt
     {
         id: 'gemini-2.5-flash-image',
-        displayName: 'Nano Banana (gemini-2.5-flash-image)',
+        displayName: 'Nano Banana',
         provider: 'gemini',
         mediaType: 'image',
-        apiEndpoint: 'generateContent',
         supportedAspectRatios: [
             '1:1',
             '4:3',
@@ -119,7 +127,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
             '1:8',
         ],
         supportedQualities: [],
-        supportsImageInput: true,
+        maxReferenceImages: 10,
         supportsNegativePrompt: true,
         apiNegativePrompt: false,
         maxImages: 1,
@@ -129,10 +137,9 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     },
     {
         id: 'gemini-3.1-flash-image-preview',
-        displayName: 'Nano Banana 2 (gemini-3.1-flash-image-preview)',
+        displayName: 'Nano Banana 2',
         provider: 'gemini',
         mediaType: 'image',
-        apiEndpoint: 'generateContent',
         supportedAspectRatios: [
             '1:1',
             '4:3',
@@ -150,7 +157,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
             '1:8',
         ],
         supportedQualities: ['512px', '1k', '2k', '4k'],
-        supportsImageInput: true,
+        maxReferenceImages: 10,
         supportsNegativePrompt: true,
         apiNegativePrompt: false,
         maxImages: 1,
@@ -159,10 +166,9 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     },
     {
         id: 'gemini-3-pro-image-preview',
-        displayName: 'Nano Banana Pro (gemini-3-pro-image-preview)',
+        displayName: 'Nano Banana Pro',
         provider: 'gemini',
         mediaType: 'image',
-        apiEndpoint: 'generateContent',
         supportedAspectRatios: [
             '1:1',
             '4:3',
@@ -180,7 +186,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
             '1:8',
         ],
         supportedQualities: ['1k', '2k', '4k'],
-        supportsImageInput: true,
+        maxReferenceImages: 10,
         supportsNegativePrompt: true,
         apiNegativePrompt: false,
         maxImages: 1,
@@ -192,13 +198,11 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     // All Imagen 4 models will shut down on 2026/6/24. Recommended migration: Nano Banana 2 (gemini-3.1-flash-image-preview)
     {
         id: 'imagen-4.0-fast-generate-001',
-        displayName: 'Imagen 4 Fast (imagen-4.0-fast-generate-001)',
+        displayName: 'Imagen 4 Fast',
         provider: 'gemini',
         mediaType: 'image',
-        apiEndpoint: 'predict',
         supportedAspectRatios: ['1:1', '4:3', '16:9', '3:4', '9:16'],
         supportedQualities: [],
-        supportsImageInput: false,
         supportsNegativePrompt: true,
         apiNegativePrompt: false,
         maxImages: 4,
@@ -208,13 +212,11 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     },
     {
         id: 'imagen-4.0-generate-001',
-        displayName: 'Imagen 4 (imagen-4.0-generate-001)',
+        displayName: 'Imagen 4',
         provider: 'gemini',
         mediaType: 'image',
-        apiEndpoint: 'predict',
         supportedAspectRatios: ['1:1', '4:3', '16:9', '3:4', '9:16'],
         supportedQualities: ['1k', '2k'],
-        supportsImageInput: false,
         supportsNegativePrompt: true,
         apiNegativePrompt: false,
         maxImages: 4,
@@ -224,13 +226,11 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     },
     {
         id: 'imagen-4.0-ultra-generate-001',
-        displayName: 'Imagen 4 Ultra (imagen-4.0-ultra-generate-001)',
+        displayName: 'Imagen 4 Ultra',
         provider: 'gemini',
         mediaType: 'image',
-        apiEndpoint: 'predict',
         supportedAspectRatios: ['1:1', '4:3', '16:9', '3:4', '9:16'],
         supportedQualities: ['1k', '2k'],
-        supportsImageInput: false,
         supportsNegativePrompt: true,
         apiNegativePrompt: false,
         maxImages: 4,
@@ -242,48 +242,45 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     // predictLongRunning API: text-to-video, image-to-video, native audio generation
     {
         id: 'veo-3.1-lite-generate-preview',
-        displayName: 'Veo 3.1 Lite (veo-3.1-lite-generate-preview)',
+        displayName: 'Veo 3.1 Lite',
         provider: 'gemini',
         mediaType: 'video',
-        apiEndpoint: 'predictLongRunning',
         supportedAspectRatios: ['16:9', '9:16'],
         supportedDurations: [4, 6, 8],
         supportedResolutions: ['720p', '1080p'],
         supportsNegativePrompt: true,
         apiNegativePrompt: false,
-        supportsImageInput: true,
+        maxReferenceImages: 1,
         supportsSeed: true,
         costLabel: ['720p: $0.05/sec', '1080p: $0.08/sec'],
         freeTierAvailable: false,
     },
     {
         id: 'veo-3.1-fast-generate-preview',
-        displayName: 'Veo 3.1 Fast (veo-3.1-fast-generate-preview)',
+        displayName: 'Veo 3.1 Fast',
         provider: 'gemini',
         mediaType: 'video',
-        apiEndpoint: 'predictLongRunning',
         supportedAspectRatios: ['16:9', '9:16'],
         supportedDurations: [4, 6, 8],
         supportedResolutions: ['720p', '1080p', '4k'],
         supportsNegativePrompt: true,
         apiNegativePrompt: true,
-        supportsImageInput: true,
+        maxReferenceImages: 1,
         supportsSeed: true,
         costLabel: ['720p: $0.10/sec', '1080p: $0.12/sec', '4K: $0.30/sec'],
         freeTierAvailable: false,
     },
     {
         id: 'veo-3.1-generate-preview',
-        displayName: 'Veo 3.1 (veo-3.1-generate-preview)',
+        displayName: 'Veo 3.1',
         provider: 'gemini',
         mediaType: 'video',
-        apiEndpoint: 'predictLongRunning',
         supportedAspectRatios: ['16:9', '9:16'],
         supportedDurations: [4, 6, 8],
         supportedResolutions: ['720p', '1080p', '4k'],
         supportsNegativePrompt: true,
         apiNegativePrompt: true,
-        supportsImageInput: true,
+        maxReferenceImages: 1,
         supportsSeed: true,
         costLabel: ['720p/1080p: $0.40/sec', '4K: $0.60/sec'],
         freeTierAvailable: false,
@@ -293,12 +290,10 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     // Output: MP3, 48kHz stereo, SynthID watermarked
     {
         id: 'lyria-3-clip-preview',
-        displayName: 'Lyria 3 Clip (lyria-3-clip-preview)',
+        displayName: 'Lyria 3 Clip',
         provider: 'gemini',
-        mediaType: 'audio',
-        apiEndpoint: 'generateContentAudio',
-        supportedAspectRatios: [],
-        supportsImageInput: true,
+        mediaType: 'music',
+        maxReferenceImages: 5,
         supportsNegativePrompt: false,
         apiNegativePrompt: false,
         costLabel: ['$0.04/song'],
@@ -307,12 +302,10 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     },
     {
         id: 'lyria-3-pro-preview',
-        displayName: 'Lyria 3 Pro (lyria-3-pro-preview)',
+        displayName: 'Lyria 3 Pro',
         provider: 'gemini',
-        mediaType: 'audio',
-        apiEndpoint: 'generateContentAudio',
-        supportedAspectRatios: [],
-        supportsImageInput: true,
+        mediaType: 'music',
+        maxReferenceImages: 5,
         supportsNegativePrompt: false,
         apiNegativePrompt: false,
         costLabel: ['$0.08/song'],
@@ -325,12 +318,9 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     // Sorted by cost: 2.5 Flash (cheapest) -> 2.5 Pro -> 3.1 Flash (latest, Audio Tags).
     {
         id: 'gemini-2.5-flash-preview-tts',
-        displayName: 'Gemini 2.5 Flash TTS (gemini-2.5-flash-preview-tts)',
+        displayName: 'Gemini 2.5 Flash TTS',
         provider: 'gemini',
         mediaType: 'voice',
-        apiEndpoint: 'generateContentTTS',
-        supportedAspectRatios: [],
-        supportsImageInput: false,
         supportsNegativePrompt: false,
         apiNegativePrompt: false,
         costLabel: ['Input: $0.50 / 1M tok', 'Output: $10.00 / 1M tok'],
@@ -339,12 +329,9 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     },
     {
         id: 'gemini-2.5-pro-preview-tts',
-        displayName: 'Gemini 2.5 Pro TTS (gemini-2.5-pro-preview-tts)',
+        displayName: 'Gemini 2.5 Pro TTS',
         provider: 'gemini',
         mediaType: 'voice',
-        apiEndpoint: 'generateContentTTS',
-        supportedAspectRatios: [],
-        supportsImageInput: false,
         supportsNegativePrompt: false,
         apiNegativePrompt: false,
         costLabel: ['Input: $1.00 / 1M tok', 'Output: $20.00 / 1M tok'],
@@ -352,12 +339,9 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     },
     {
         id: 'gemini-3.1-flash-tts-preview',
-        displayName: 'Gemini 3.1 Flash TTS (gemini-3.1-flash-tts-preview)',
+        displayName: 'Gemini 3.1 Flash TTS',
         provider: 'gemini',
         mediaType: 'voice',
-        apiEndpoint: 'generateContentTTS',
-        supportedAspectRatios: [],
-        supportsImageInput: false,
         supportsNegativePrompt: false,
         apiNegativePrompt: false,
         costLabel: ['Input: $1.00 / 1M tok', 'Output: $20.00 / 1M tok'],

@@ -11,18 +11,29 @@ import VideocamIcon from '@mui/icons-material/Videocam';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
 
+// Content-soft errors: the API call returned 200 but produced no usable result.
+// These are NOT mapped to actionable i18n keys — guidance is in the diagnostics shown
+// in the details panel (finishReason / safetyRatings / refusal text). Only the
+// factual "no <type> was produced" headline is localized.
+const CONTENT_SOFT_ERROR_KEYS: Record<string, string> = {
+    NO_IMAGES_GENERATED: 'api.error.noImagesGenerated',
+    NO_VIDEO_GENERATED: 'api.error.noVideoGenerated',
+    NO_MUSIC_GENERATED: 'api.error.noMusicGenerated',
+    NO_VOICE_GENERATED: 'api.error.noVoiceGenerated',
+    NO_RESPONSE: 'api.error.noResponse',
+};
+
 // Map structured API error to an i18n key using httpStatus and apiStatus (code/status based, no message parsing)
 function errorToI18nKey(error: ApiErrorDetail): string {
     const { httpStatus, apiStatus } = error;
 
     // Application-level errors (httpStatus === 0): internal app errors, not from API
     if (httpStatus === 0 && apiStatus) {
+        if (CONTENT_SOFT_ERROR_KEYS[apiStatus]) {
+            return CONTENT_SOFT_ERROR_KEYS[apiStatus];
+        }
         const appErrorMap: Record<string, string> = {
             API_KEY_NOT_SET: 'api.error.keyNotSet',
-            NO_IMAGES_GENERATED: 'api.error.noImagesGenerated',
-            NO_VIDEO_GENERATED: 'api.error.noVideoGenerated',
-            NO_AUDIO_GENERATED: 'api.error.noAudioGenerated',
-            NO_RESPONSE: 'api.error.noResponse',
             HISTORY_LIMIT_EXCEEDED: 'api.error.historyLimitExceeded',
         };
         return appErrorMap[apiStatus] ?? 'api.error.unknown';
@@ -97,7 +108,7 @@ export default function GenerateButton() {
     const activeKeyInfo = useAppStore(s => s.activeKeyInfo);
     const currentModel = MODEL_DEFINITIONS.find(m => m.id === model);
     const isVideoModel = currentModel?.mediaType === 'video';
-    const isAudioModel = currentModel?.mediaType === 'audio';
+    const isMusicModel = currentModel?.mediaType === 'music';
     const isVoiceModel = currentModel?.mediaType === 'voice';
     const freeTierBlocked = !!activeKeyInfo?.isFreeTier && currentModel?.freeTierAvailable === false;
     const { loadHistory, isOverLimit } = useHistoryStore();
@@ -141,14 +152,20 @@ export default function GenerateButton() {
     const isDisabled = isGenerating || !prompt.trim() || overLimit || freeTierBlocked;
     const detailText = error ? buildDetailText(error) : '';
     const hasDetails = detailText.length > 0;
+    const isContentSoftError = !!(error && error.apiStatus && CONTENT_SOFT_ERROR_KEYS[error.apiStatus]);
 
-    // Build the user-facing error message
+    // Build the user-facing error message.
+    // Content-soft errors (NO_*_GENERATED / NO_RESPONSE) render the localized factual
+    // headline directly; the diagnostics surface in the details panel rather than as
+    // misleading actionable advice in the headline.
     const errorMessage = error
         ? networkError
             ? t('generation.networkError')
             : error.apiStatus === 'HISTORY_LIMIT_EXCEEDED'
               ? t('api.error.historyLimitExceeded', { limit: error.apiMessage ?? String(HISTORY_MAX_COUNT) })
-              : t('generation.error', { message: t(errorToI18nKey(error)) })
+              : isContentSoftError
+                ? t(errorToI18nKey(error))
+                : t('generation.error', { message: t(errorToI18nKey(error)) })
         : '';
 
     return (
@@ -243,7 +260,7 @@ export default function GenerateButton() {
                         <CircularProgress size={20} color='inherit' />
                     ) : isVoiceModel ? (
                         <RecordVoiceOverIcon />
-                    ) : isAudioModel ? (
+                    ) : isMusicModel ? (
                         <MusicNoteIcon />
                     ) : isVideoModel ? (
                         <VideocamIcon />
@@ -262,12 +279,12 @@ export default function GenerateButton() {
                           ? t('generation.generatingVideo')
                           : isVoiceModel
                             ? t('generation.generatingSpeech')
-                            : isAudioModel
+                            : isMusicModel
                               ? t('generation.generatingMusic')
                               : t('generation.generating')
                     : isVoiceModel
                       ? t('common.generateSpeech')
-                      : isAudioModel
+                      : isMusicModel
                         ? t('common.generateMusic')
                         : isVideoModel
                           ? t('common.generateVideo')

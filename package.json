@@ -1,6 +1,6 @@
 {
   "name": "imagin-ai",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "A desktop application for controlling AI image/video/music generation APIs through a dedicated GUI.",
   "main": "dist/main/index.js",
   "engines": {

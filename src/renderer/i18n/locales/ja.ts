@@ -54,7 +54,7 @@ export default {
     'model.note.lyriaPro': 'プロンプトで3分までの長さを指示可能',
     'model.note.imagenShutdown': 'サポート終了: 2026/6/24',
     'model.note.nanoBananaShutdown': 'サポート終了: 2026/10/2',
-    'model.freeTierUnavailable': '無料枠では利用不可',
+    'model.freeTierUnavailable': '無料枠不可',
     'model.freeTier.ttsFlash': '無料枠:\n3 RPM / 10K TPM\n1分あたり最大3リクエスト、合計で約6分程度の音声生成が目安',
 
     // TTS スタイル / ボイス
@@ -236,6 +236,7 @@ export default {
     'prompt.placeholderTts': '読み上げたいテキストを入力してください。',
     'prompt.required': 'プロンプトは必須です',
     'prompt.charCount': '{{count}}文字',
+    'prompt.startingFrame': '開始フレーム（動画は1枚のみ）',
 
     // Negative prompt
     'negativePrompt.label': 'ネガティブプロンプト',
@@ -362,10 +363,10 @@ export default {
 
     // アプリケーションレベルのエラー
     'api.error.keyNotSet': 'APIキーが設定されていません。設定画面で設定してください。',
-    'api.error.noImagesGenerated':
-        '画像が生成されませんでした。コンテンツがフィルタリングされた可能性があります。別のプロンプトをお試しください。',
-    'api.error.noVideoGenerated': '動画が生成されませんでした。別のプロンプトをお試しください。',
-    'api.error.noAudioGenerated': '音楽が生成されませんでした。別のプロンプトをお試しください。',
-    'api.error.noResponse': 'APIからの応答がありませんでした。',
+    'api.error.noImagesGenerated': '画像が生成されませんでした。詳細を確認してください。',
+    'api.error.noVideoGenerated': '動画が生成されませんでした。詳細を確認してください。',
+    'api.error.noMusicGenerated': '音楽が生成されませんでした。詳細を確認してください。',
+    'api.error.noVoiceGenerated': '音声が生成されませんでした。詳細を確認してください。',
+    'api.error.noResponse': 'APIから応答がありましたが、生成結果が含まれていませんでした。詳細を確認してください。',
     'api.error.historyLimitExceeded': '履歴が上限({{limit}}件)を超えています。履歴を整理してから生成してください。',
 };

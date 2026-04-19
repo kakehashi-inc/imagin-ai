@@ -22,33 +22,31 @@ export type ApiProvider = 'gemini';
 // --- Media type ---
 // image: Imagen / Nano Banana
 // video: Veo
-// audio: Lyria (music)
+// music: Lyria
 // voice: Gemini TTS (speech)
-export type MediaType = 'image' | 'video' | 'audio' | 'voice';
+export type MediaType = 'image' | 'video' | 'music' | 'voice';
 
 // --- Video generation parameters ---
 export type VideoDuration = 4 | 6 | 8;
 export type VideoResolution = '720p' | '1080p' | '4k';
 
 // --- Model definition ---
-// API endpoint type for generation
-export type ApiEndpointType =
-    | 'generateContent'
-    | 'predict'
-    | 'predictLongRunning'
-    | 'generateContentAudio'
-    | 'generateContentTTS';
-
+// Generator dispatch is driven entirely by `mediaType`. For image models, Imagen
+// vs Gemini image is disambiguated by the model id prefix (`imagen-*` are Imagen,
+// per Google's naming convention) — see gemini-service.ts.
 export type ModelDefinition = {
     id: string;
     displayName: string;
     provider: ApiProvider;
     mediaType: MediaType;
-    apiEndpoint: ApiEndpointType;
-    supportedAspectRatios: string[];
+    // Omit for models where aspect ratio is not applicable (music, voice).
+    supportedAspectRatios?: string[];
     // Image model properties
     supportedQualities?: string[];
-    supportsImageInput?: boolean;
+    // Maximum number of reference images this model accepts. Omit (or 0) means
+    // image input is not supported. Used to gate UI and to cap attachments
+    // server-side per generator.
+    maxReferenceImages?: number;
     maxImages?: number;
     // Video model properties
     supportedDurations?: VideoDuration[];

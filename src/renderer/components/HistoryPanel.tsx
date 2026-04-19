@@ -91,7 +91,7 @@ export default function HistoryPanel() {
     const { model, addReferenceImages, restoreParams } = useGenerationStore();
 
     const currentModel = MODEL_DEFINITIONS.find(m => m.id === model);
-    const supportsImageInput = currentModel?.supportsImageInput ?? false;
+    const supportsImageInput = (currentModel?.maxReferenceImages ?? 0) > 0;
 
     const [contextMenu, setContextMenu] = React.useState<ContextMenuState>(null);
     const [headerMenuAnchor, setHeaderMenuAnchor] = React.useState<HTMLElement | null>(null);
@@ -202,7 +202,7 @@ export default function HistoryPanel() {
         if (contextMenu?.entry) {
             const mediaType = contextMenu.entry.mediaType;
             for (const filePath of contextMenu.entry.generatedImagePaths) {
-                if (mediaType === 'audio' || mediaType === 'voice') {
+                if (mediaType === 'music' || mediaType === 'voice') {
                     await window.imaginai.saveAudioAs(filePath);
                 } else if (mediaType === 'video') {
                     await window.imaginai.saveVideoAs(filePath);
@@ -275,7 +275,7 @@ export default function HistoryPanel() {
             entry.prompt.substring(0, 60) ||
             (mediaType === 'voice'
                 ? 'Generated Speech'
-                : mediaType === 'audio'
+                : mediaType === 'music'
                   ? 'Generated Music'
                   : mediaType === 'video'
                     ? 'Generated Video'
@@ -285,7 +285,7 @@ export default function HistoryPanel() {
                 entry.generatedImagePaths.length > 1
                     ? `${baseTitle} (${i + 1}/${entry.generatedImagePaths.length})`
                     : baseTitle;
-            if (mediaType === 'audio' || mediaType === 'voice') {
+            if (mediaType === 'music' || mediaType === 'voice') {
                 // Sections are separate groups (each with its own heading box) — not concatenated.
                 const sections: { label?: string; items: string[] }[] = [];
                 if (mediaType === 'voice') {
@@ -439,7 +439,7 @@ export default function HistoryPanel() {
                                             <RecordVoiceOverIcon
                                                 sx={{ fontSize: 48, color: 'text.disabled' }}
                                             />
-                                        ) : entry.mediaType === 'audio' ? (
+                                        ) : entry.mediaType === 'music' ? (
                                             <MusicNoteIcon
                                                 sx={{ fontSize: 48, color: 'text.disabled' }}
                                             />
@@ -488,9 +488,9 @@ export default function HistoryPanel() {
                                                 <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>
                                                     {entry.modelDisplayName.replace(/\s*\(.*\)$/, '')}
                                                 </Typography>
-                                                {entry.mediaType === 'audio' || entry.mediaType === 'voice' ? (
+                                                {entry.mediaType === 'music' || entry.mediaType === 'voice' ? (
                                                     <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>
-                                                        MP3
+                                                        {(entry.generatedImagePaths[0]?.toLowerCase().split('.').pop() ?? 'mp3').toUpperCase()}
                                                     </Typography>
                                                 ) : entry.mediaType === 'video' && entry.videoDuration ? (
                                                     <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>
@@ -550,7 +550,7 @@ export default function HistoryPanel() {
                     contextMenu ? { top: contextMenu.mouseY, left: contextMenu.mouseX } : undefined
                 }
             >
-                <MenuItem onClick={handleAddToPrompt} disabled={!supportsImageInput || contextMenu?.entry?.mediaType === 'video' || contextMenu?.entry?.mediaType === 'audio' || contextMenu?.entry?.mediaType === 'voice'}>
+                <MenuItem onClick={handleAddToPrompt} disabled={!supportsImageInput || contextMenu?.entry?.mediaType === 'video' || contextMenu?.entry?.mediaType === 'music' || contextMenu?.entry?.mediaType === 'voice'}>
                     {t('contextMenu.addToPrompt')}
                 </MenuItem>
                 <MenuItem onClick={handleSaveAs}>{t('contextMenu.saveAs')}</MenuItem>

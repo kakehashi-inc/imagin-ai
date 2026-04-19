@@ -54,7 +54,7 @@ export default {
     'model.note.lyriaPro': 'Up to 3 min (specify duration in prompt)',
     'model.note.imagenShutdown': 'Shutdown: 2026/6/24',
     'model.note.nanoBananaShutdown': 'Shutdown: 2026/10/2',
-    'model.freeTierUnavailable': 'Not available on free tier',
+    'model.freeTierUnavailable': 'No free tier',
     'model.freeTier.ttsFlash':
         'Free tier:\n3 RPM / 10K TPM\nUp to 3 requests/min, ~6 minutes of audio per minute total',
 
@@ -229,6 +229,7 @@ export default {
     'prompt.placeholderTts': 'Enter the text you want read aloud.',
     'prompt.required': 'Prompt is required',
     'prompt.charCount': '{{count}} characters',
+    'prompt.startingFrame': 'Starting frame (video uses 1 image)',
 
     // Negative prompt
     'negativePrompt.label': 'Negative Prompt',
@@ -356,11 +357,11 @@ export default {
 
     // Application-level errors
     'api.error.keyNotSet': 'API key is not set. Please configure it in Settings.',
-    'api.error.noImagesGenerated':
-        'No images were generated. The content may have been filtered. Please try a different prompt.',
-    'api.error.noVideoGenerated': 'No video was generated. Please try a different prompt.',
-    'api.error.noAudioGenerated': 'No audio was generated. Please try a different prompt.',
-    'api.error.noResponse': 'No response received from the API.',
+    'api.error.noImagesGenerated': 'No images were produced. See details for the reason.',
+    'api.error.noVideoGenerated': 'No video was produced. See details for the reason.',
+    'api.error.noMusicGenerated': 'No music was produced. See details for the reason.',
+    'api.error.noVoiceGenerated': 'No speech was produced. See details for the reason.',
+    'api.error.noResponse': 'The API responded but did not include a generation result. See details for the reason.',
     'api.error.historyLimitExceeded':
         'History limit ({{limit}} entries) exceeded. Please clean up history before generating.',
 };

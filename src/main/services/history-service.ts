@@ -211,11 +211,24 @@ export function createVideoHistoryEntry(
     return entry;
 }
 
+// Map an audio mimeType to a file extension. Falls back to mp3 for safety.
+function audioExtensionFromMime(mimeType: string): string {
+    const m = mimeType.toLowerCase();
+    if (m.includes('wav') || m.includes('wave') || m.includes('x-wav')) return 'wav';
+    if (m.includes('mpeg') || m.includes('mp3')) return 'mp3';
+    if (m.includes('ogg')) return 'ogg';
+    if (m.includes('flac')) return 'flac';
+    if (m.includes('webm')) return 'webm';
+    if (m.includes('aac') || m.includes('mp4')) return 'm4a';
+    return 'mp3';
+}
+
 // Create history entry from audio generation result
 export function createAudioHistoryEntry(
     params: GenerationParams,
     modelDisplayName: string,
     audioBuffer: Buffer,
+    mimeType: string,
     audioTexts?: string[],
     elapsedMs?: number
 ): HistoryEntry {
@@ -225,8 +238,9 @@ export function createAudioHistoryEntry(
 
     ensureDirs();
 
-    // Save audio as MP3
-    const audioPath = path.join(getImagesDir(), `${id}.mp3`);
+    // Save audio with extension derived from the API/post-process mimeType
+    const ext = audioExtensionFromMime(mimeType);
+    const audioPath = path.join(getImagesDir(), `${id}.${ext}`);
     fs.writeFileSync(audioPath, audioBuffer);
 
     const entry: HistoryEntry = {
@@ -243,7 +257,7 @@ export function createAudioHistoryEntry(
         referenceImagePaths: params.referenceImagePaths,
         generatedImagePaths: [audioPath],
         fileSize: audioBuffer.length,
-        mediaType: MODEL_DEFINITIONS.find(m => m.id === params.model)?.mediaType === 'voice' ? 'voice' : 'audio',
+        mediaType: MODEL_DEFINITIONS.find(m => m.id === params.model)?.mediaType === 'voice' ? 'voice' : 'music',
         audioTexts,
         elapsedMs,
         styleInstruction: params.styleInstruction,

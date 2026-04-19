@@ -25,8 +25,28 @@ import {
     GENERATION_COUNT_MIN,
     COST_REFERENCE_DATE,
 } from '../../shared/constants';
-import type { AspectRatio, Quality, VideoDuration, VideoResolution } from '../../shared/types';
+import type { AspectRatio, Quality, VideoDuration, VideoResolution, MediaType } from '../../shared/types';
 import InfoIcon from '@mui/icons-material/Info';
+import ImageIcon from '@mui/icons-material/Image';
+import VideocamIcon from '@mui/icons-material/Videocam';
+import MusicNoteIcon from '@mui/icons-material/MusicNote';
+import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
+
+// Map mediaType to a small leading icon shown in the model selector items.
+function MediaTypeIcon({ mediaType }: { mediaType: MediaType | undefined }) {
+    const sx = { fontSize: 18, color: 'text.secondary', flexShrink: 0 };
+    switch (mediaType) {
+        case 'video':
+            return <VideocamIcon sx={sx} />;
+        case 'music':
+            return <MusicNoteIcon sx={sx} />;
+        case 'voice':
+            return <RecordVoiceOverIcon sx={sx} />;
+        case 'image':
+        default:
+            return <ImageIcon sx={sx} />;
+    }
+}
 
 export default function ParameterPanel() {
     const { t } = useTranslation();
@@ -53,20 +73,20 @@ export default function ParameterPanel() {
 
     const currentModel = MODEL_DEFINITIONS.find(m => m.id === model);
     const isVideoModel = currentModel?.mediaType === 'video';
-    const isAudioLikeModel = currentModel?.mediaType === 'audio' || currentModel?.mediaType === 'voice';
-    const isTtsModel = currentModel?.apiEndpoint === 'generateContentTTS';
+    const isVoiceModel = currentModel?.mediaType === 'voice';
     const maxImages = currentModel?.maxImages ?? 1;
-    const showAspectRatio = !isAudioLikeModel && (currentModel?.supportedAspectRatios?.length ?? 0) > 0;
-    const showNumberOfImages = !isAudioLikeModel && maxImages > 1;
-    const showQuality =
-        !isVideoModel && !isAudioLikeModel && (!currentModel || (currentModel.supportedQualities?.length ?? 0) > 0);
+    // Capability-driven gating: each control is shown when the model declares the capability,
+    // not based on broad media-type buckets.
+    const showAspectRatio = (currentModel?.supportedAspectRatios?.length ?? 0) > 0;
+    const showNumberOfImages = maxImages > 1;
+    const showQuality = !currentModel || (currentModel.supportedQualities?.length ?? 0) > 0;
     const showDuration = isVideoModel && (currentModel?.supportedDurations?.length ?? 0) > 0;
     const showResolution = isVideoModel && (currentModel?.supportedResolutions?.length ?? 0) > 0;
     const showSeed = isVideoModel && currentModel?.supportsSeed;
 
     const groupedAspectRatioItems = useMemo(() => {
         const supported = ASPECT_RATIO_OPTIONS.filter(
-            opt => currentModel?.supportedAspectRatios.includes(opt.value) ?? true
+            opt => currentModel?.supportedAspectRatios?.includes(opt.value) ?? true
         );
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const items: any[] = [];
@@ -101,6 +121,7 @@ export default function ParameterPanel() {
                         const unavailable = isFreeTierKey && m?.freeTierAvailable === false;
                         return (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                <MediaTypeIcon mediaType={m?.mediaType} />
                                 <Typography component='span' sx={{ fontSize: 'inherit' }}>
                                     {m?.displayName ?? value}
                                 </Typography>
@@ -122,6 +143,7 @@ export default function ParameterPanel() {
                         return (
                             <MenuItem key={m.id} value={m.id}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                    <MediaTypeIcon mediaType={m.mediaType} />
                                     <Typography component='span' sx={{ flexGrow: 1 }}>
                                         {m.displayName}
                                     </Typography>
@@ -140,8 +162,17 @@ export default function ParameterPanel() {
                     })}
                 </Select>
             </FormControl>
+            {currentModel && (
+                <Typography
+                    variant='caption'
+                    color='text.secondary'
+                    sx={{ mt: -1, ml: 0.5, fontFamily: 'monospace', lineHeight: 1.4 }}
+                >
+                    {currentModel.id}
+                </Typography>
+            )}
             {isFreeTierKey && currentModel?.freeTierAvailable === true && currentModel.freeTierNoteKey ? (
-                <Box sx={{ mt: -1, ml: 0.5 }}>
+                <Box sx={{ mt: -2, ml: 0.5 }}>
                     <Typography
                         variant='caption'
                         color='text.secondary'
@@ -154,7 +185,7 @@ export default function ParameterPanel() {
             ) : (
                 currentModel?.costLabel &&
                 currentModel.costLabel.length > 0 && (
-                    <Box sx={{ mt: -1, ml: 0.5 }}>
+                    <Box sx={{ mt: -2, ml: 0.5 }}>
                         {currentModel.costLabel.map((line, i) => (
                             <Typography
                                 key={i}
@@ -300,8 +331,8 @@ export default function ParameterPanel() {
                 />
             )}
 
-            {/* Voice - shown only for TTS models */}
-            {isTtsModel && (
+            {/* Voice - shown only for voice (TTS) models */}
+            {isVoiceModel && (
                 <FormControl size='small' fullWidth>
                     <InputLabel>{t('tts.voice.label')}</InputLabel>
                     <Select
