@@ -10,8 +10,8 @@ portable:
 publish:
   provider: github
   owner: kakehashi-inc
-  repo: https://github.com/kakehashi-inc/imagin-ai
-  releaseType: release
+  repo: imagin-ai
+  releaseType: draft
 releaseInfo:
   releaseName: "v${version}"
   releaseNotes: |

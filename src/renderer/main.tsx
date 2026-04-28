@@ -7,6 +7,7 @@ import './i18n/config';
 import TitleBar from './components/TitleBar';
 import MainPage from './components/MainPage';
 import SettingsPage from './components/SettingsPage';
+import UpdateNotifier from './components/UpdateNotifier';
 import { useAppStore } from './stores/app-store';
 import { useHistoryStore } from './stores/history-store';
 
@@ -59,6 +60,7 @@ function App() {
                     {showSettings ? <SettingsPage onClose={() => setShowSettings(false)} /> : <MainPage />}
                 </Box>
             </Box>
+            <UpdateNotifier />
         </ThemeProvider>
     );
 }

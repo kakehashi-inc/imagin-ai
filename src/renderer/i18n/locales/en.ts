@@ -364,4 +364,11 @@ export default {
     'api.error.noResponse': 'The API responded but did not include a generation result. See details for the reason.',
     'api.error.historyLimitExceeded':
         'History limit ({{limit}} entries) exceeded. Please clean up history before generating.',
+
+    // Auto-updater
+    'updater.confirm': 'A new version v{{version}} is available. Update now?',
+    'updater.update': 'Update',
+    'updater.later': 'Later',
+    'updater.downloading': 'Downloading... {{progress}}%',
+    'updater.installing': 'Applying update...',
 };

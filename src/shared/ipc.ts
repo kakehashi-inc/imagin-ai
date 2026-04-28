@@ -9,7 +9,16 @@ import type {
     GenerationParams,
     GenerationResult,
     HistoryEntry,
+    UpdateState,
 } from './types';
+
+export type UpdaterApi = {
+    getState(): Promise<UpdateState>;
+    check(): Promise<void>;
+    download(): Promise<void>;
+    quitAndInstall(): Promise<void>;
+    onStateChanged(callback: (state: UpdateState) => void): () => void;
+};
 
 // IPC API type definition
 export type IpcApi = {
@@ -76,6 +85,9 @@ export type IpcApi = {
     // Event listeners
     onExportProgress(callback: (percent: number) => void): () => void;
     onGenerationProgress(callback: (progress: import('./types').GenerationProgress) => void): () => void;
+
+    // Auto-updater
+    updater: UpdaterApi;
 };
 
 declare global {

@@ -40,6 +40,11 @@ const CH = {
     HISTORY_SAVE_AUDIO_AS: 'history:saveAudioAs',
     EXPORT_PROGRESS: 'export:progress',
     GENERATION_PROGRESS: 'generation:progress',
+    UPDATER_CHECK: 'updater:check',
+    UPDATER_DOWNLOAD: 'updater:download',
+    UPDATER_QUIT_AND_INSTALL: 'updater:quitAndInstall',
+    UPDATER_GET_STATE: 'updater:getState',
+    UPDATER_STATE_CHANGED: 'updater:stateChanged',
 } as const;
 
 const api: IpcApi = {
@@ -186,6 +191,30 @@ const api: IpcApi = {
         return () => {
             ipcRenderer.removeListener(CH.GENERATION_PROGRESS, handler);
         };
+    },
+
+    // Auto-updater
+    updater: {
+        async getState() {
+            return ipcRenderer.invoke(CH.UPDATER_GET_STATE);
+        },
+        async check() {
+            return ipcRenderer.invoke(CH.UPDATER_CHECK);
+        },
+        async download() {
+            return ipcRenderer.invoke(CH.UPDATER_DOWNLOAD);
+        },
+        async quitAndInstall() {
+            return ipcRenderer.invoke(CH.UPDATER_QUIT_AND_INSTALL);
+        },
+        onStateChanged(callback) {
+            const handler = (_event: Electron.IpcRendererEvent, state: import('../shared/types').UpdateState) =>
+                callback(state);
+            ipcRenderer.on(CH.UPDATER_STATE_CHANGED, handler);
+            return () => {
+                ipcRenderer.removeListener(CH.UPDATER_STATE_CHANGED, handler);
+            };
+        },
     },
 };
 

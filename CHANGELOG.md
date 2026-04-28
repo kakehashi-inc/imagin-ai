@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Auto-update via `electron-updater`: a Snackbar in the lower-right prompts when a new version is available, then displays a determinate progress bar while downloading and an indeterminate bar while installing; "Later" suppresses the prompt for the session. The startup check waits for the main window's first `did-finish-load` and then runs after a 3 s delay, so it never fires before the window is shown. Disabled entirely in development (`NODE_ENV=development` or `--dev`).
+- New IPC channels (`updater:check` / `updater:download` / `updater:quitAndInstall` / `updater:getState` / `updater:stateChanged`) and a `window.imaginai.updater` preload bridge.
+
+### Changed
+
+- Bumped `@mui/material` and `@mui/icons-material` to `^9.0.0`.
+  - Root `tsconfig.json` `moduleResolution` switched to `"bundler"` so MUI v9's `.d.mts`-only types resolve.
+  - `tsconfig.main.json` overrides `moduleResolution` back to `"node"` because `bundler` is incompatible with `module: "CommonJS"` for the Electron main / preload bundles.
+  - Migrated remaining MUI v9 deprecations: `Typography` `fontWeight` / `display` system props moved into `sx`; `TextField` `inputProps` replaced by `slotProps.htmlInput`; legacy `PlayCircleOutline` icon import switched to `PlayCircleOutlined`.
+- `electron-builder.yml` `publish.repo` is now the bare repository name (not the full URL) and `releaseType` is `draft` so multi-platform release artifacts are aggregated into one draft release per version on GitHub.
+
 ## [v0.5.1] - 2026-04-19
 
 ### Fixed

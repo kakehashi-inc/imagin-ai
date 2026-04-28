@@ -369,4 +369,11 @@ export default {
     'api.error.noVoiceGenerated': '音声が生成されませんでした。詳細を確認してください。',
     'api.error.noResponse': 'APIから応答がありましたが、生成結果が含まれていませんでした。詳細を確認してください。',
     'api.error.historyLimitExceeded': '履歴が上限({{limit}}件)を超えています。履歴を整理してから生成してください。',
+
+    // Auto-updater
+    'updater.confirm': '新しいバージョン v{{version}} が利用可能です。アップデートしますか？',
+    'updater.update': 'アップデート',
+    'updater.later': '後で',
+    'updater.downloading': 'ダウンロード中… {{progress}}%',
+    'updater.installing': 'アップデートを適用しています…',
 };

@@ -196,3 +196,13 @@ export type ApiErrorDetail = {
 
 // --- Generation result (success or structured error) ---
 export type GenerationResult = { success: true; entries: HistoryEntry[] } | { success: false; error: ApiErrorDetail };
+
+// --- Auto-update state ---
+export type UpdateStatus = 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
+
+export type UpdateState = {
+    status: UpdateStatus;
+    version?: string;
+    progress?: number;
+    error?: string;
+};

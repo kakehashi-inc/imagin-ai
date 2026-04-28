@@ -19,6 +19,7 @@ import {
     getImageDataUrl,
     moveHistoryDir,
 } from '../services/history-service';
+import { getUpdateState, checkForUpdates, downloadUpdate, quitAndInstall } from '../services/updater-service';
 import type { GenerationParams } from '../../shared/types';
 
 /**
@@ -330,6 +331,23 @@ export function registerIpcHandlers() {
             console.error('Failed to save audio:', err);
             throw err;
         }
+    });
+
+    // --- Auto-updater ---
+    ipcMain.handle(IPC_CHANNELS.UPDATER_GET_STATE, async () => {
+        return getUpdateState();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.UPDATER_CHECK, async () => {
+        await checkForUpdates();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.UPDATER_DOWNLOAD, async () => {
+        await downloadUpdate();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.UPDATER_QUIT_AND_INSTALL, async () => {
+        quitAndInstall();
     });
 
     // --- Save Video As ---

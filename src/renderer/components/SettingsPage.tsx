@@ -380,7 +380,7 @@ export default function SettingsPage({ onClose }: Props) {
                 <IconButton onClick={onClose} size='small'>
                     <ArrowBackIcon />
                 </IconButton>
-                <Typography variant='h6' fontWeight={600}>
+                <Typography variant='h6' sx={{ fontWeight: 600 }}>
                     {t('settings.title')}
                 </Typography>
             </Box>
@@ -389,7 +389,7 @@ export default function SettingsPage({ onClose }: Props) {
                 <Box sx={{ maxWidth: 720, mx: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {/* Language */}
                     <Box>
-                        <Typography variant='subtitle2' fontWeight={600} gutterBottom>
+                        <Typography variant='subtitle2' gutterBottom sx={{ fontWeight: 600 }}>
                             {t('settings.language')}
                         </Typography>
                         <FormControl size='small' fullWidth>
@@ -407,7 +407,7 @@ export default function SettingsPage({ onClose }: Props) {
 
                     {/* Theme */}
                     <Box>
-                        <Typography variant='subtitle2' fontWeight={600} gutterBottom>
+                        <Typography variant='subtitle2' gutterBottom sx={{ fontWeight: 600 }}>
                             {t('settings.theme')}
                         </Typography>
                         <FormControl size='small' fullWidth>
@@ -426,7 +426,7 @@ export default function SettingsPage({ onClose }: Props) {
 
                     {/* History Directory */}
                     <Box>
-                        <Typography variant='subtitle2' fontWeight={600} gutterBottom>
+                        <Typography variant='subtitle2' gutterBottom sx={{ fontWeight: 600 }}>
                             {t('settings.historyDir')}
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -450,7 +450,7 @@ export default function SettingsPage({ onClose }: Props) {
 
                     {/* API Keys */}
                     <Box>
-                        <Typography variant='subtitle2' fontWeight={600} gutterBottom>
+                        <Typography variant='subtitle2' gutterBottom sx={{ fontWeight: 600 }}>
                             {t('settings.apiKey.label')}
                         </Typography>
                         <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>

@@ -415,6 +415,12 @@ export const IPC_CHANNELS = {
     AUDIO_PLAYER_OPEN: 'audioPlayer:open',
     // Audio save
     HISTORY_SAVE_AUDIO_AS: 'history:saveAudioAs',
+    // Auto-updater
+    UPDATER_CHECK: 'updater:check',
+    UPDATER_DOWNLOAD: 'updater:download',
+    UPDATER_QUIT_AND_INSTALL: 'updater:quitAndInstall',
+    UPDATER_GET_STATE: 'updater:getState',
+    UPDATER_STATE_CHANGED: 'updater:stateChanged',
     // Events (main -> renderer)
     EXPORT_PROGRESS: 'export:progress',
     GENERATION_PROGRESS: 'generation:progress',

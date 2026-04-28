@@ -176,8 +176,7 @@ export default function ParameterPanel() {
                     <Typography
                         variant='caption'
                         color='text.secondary'
-                        display='block'
-                        sx={{ lineHeight: 1.4, whiteSpace: 'pre-line' }}
+                        sx={{ display: 'block', lineHeight: 1.4, whiteSpace: 'pre-line' }}
                     >
                         {t(currentModel.freeTierNoteKey)}
                     </Typography>
@@ -191,8 +190,7 @@ export default function ParameterPanel() {
                                 key={i}
                                 variant='caption'
                                 color='text.secondary'
-                                display='block'
-                                sx={{ lineHeight: 1.4 }}
+                                sx={{ display: 'block', lineHeight: 1.4 }}
                             >
                                 {line}
                             </Typography>
@@ -200,8 +198,7 @@ export default function ParameterPanel() {
                         <Typography
                             variant='caption'
                             color='text.secondary'
-                            display='block'
-                            sx={{ lineHeight: 1.4 }}
+                            sx={{ display: 'block', lineHeight: 1.4 }}
                         >
                             ({COST_REFERENCE_DATE})
                         </Typography>
@@ -327,7 +324,7 @@ export default function ParameterPanel() {
                         const val = e.target.value.replace(/\D/g, '');
                         setSeed(val);
                     }}
-                    inputProps={{ inputMode: 'numeric' }}
+                    slotProps={{ htmlInput: { inputMode: 'numeric' } }}
                 />
             )}
 

@@ -134,7 +134,7 @@ export default function PromptPanel() {
 
             {/* Prompt label */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography variant='body2' fontWeight={500}>
+                <Typography variant='body2' sx={{ fontWeight: 500 }}>
                     {t(isVoiceModel ? 'prompt.labelTts' : 'prompt.label')}
                 </Typography>
                 {supportsAudioTags && (
@@ -251,7 +251,7 @@ export default function PromptPanel() {
             {/* Negative Prompt - hidden when model does not support it */}
             {supportsNegativePrompt && (
                 <>
-                    <Typography variant='body2' fontWeight={500}>
+                    <Typography variant='body2' sx={{ fontWeight: 500 }}>
                         {t('negativePrompt.label')}
                     </Typography>
                     <TextField

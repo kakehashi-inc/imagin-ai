@@ -25,7 +25,7 @@ import type { HistoryEntry } from '../../shared/types';
 import { MODEL_DEFINITIONS } from '../../shared/constants';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import SearchIcon from '@mui/icons-material/Search';
-import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
+import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutlined';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
 
@@ -342,7 +342,7 @@ export default function HistoryPanel() {
                     flexShrink: 0,
                 }}
             >
-                <Typography variant='subtitle2' fontWeight={600} sx={{ flexShrink: 0 }}>
+                <Typography variant='subtitle2' sx={{ fontWeight: 600, flexShrink: 0 }}>
                     {t('history.title')}
                 </Typography>
                 <IconButton size='small' onClick={e => setHeaderMenuAnchor(e.currentTarget)}>

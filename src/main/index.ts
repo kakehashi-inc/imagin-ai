@@ -3,6 +3,7 @@ import { app, BrowserWindow, nativeTheme, ipcMain, shell } from 'electron';
 import { setupConsoleBridge, setMainWindow } from './utils/console-bridge';
 import { registerIpcHandlers } from './ipc/index';
 import { loadSettings, mergeSettings, ensureHistoryDir } from './services/settings-service';
+import { initUpdater, scheduleStartupCheck } from './services/updater-service';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -85,6 +86,9 @@ app.whenReady().then(async () => {
     // Register application IPC handlers
     registerIpcHandlers();
 
+    // Initialize auto-updater (no-op in dev)
+    initUpdater();
+
     // App info IPC
     ipcMain.handle('app:getInfo', async () => {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -129,6 +133,10 @@ app.whenReady().then(async () => {
     });
 
     createWindow();
+
+    if (mainWindow) {
+        scheduleStartupCheck(mainWindow);
+    }
 });
 
 app.on('window-all-closed', () => {
