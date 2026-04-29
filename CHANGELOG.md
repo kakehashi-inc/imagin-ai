@@ -11,9 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Auto-update via `electron-updater`: a Snackbar in the lower-right prompts when a new version is available, then displays a determinate progress bar while downloading and an indeterminate bar while installing; "Later" suppresses the prompt for the session. The startup check waits for the main window's first `did-finish-load` and then runs after a 3 s delay, so it never fires before the window is shown. Disabled entirely in development (`NODE_ENV=development` or `--dev`).
 - New IPC channels (`updater:check` / `updater:download` / `updater:quitAndInstall` / `updater:getState` / `updater:stateChanged`) and a `window.imaginai.updater` preload bridge.
+- Windows portable artifacts are now compressed to `.zip` after the build via an `afterAllArtifactBuild` hook (`scripts/zip-portable.js`). The original `.exe` is removed so portable builds are distributed exclusively as `.zip`, reducing browser/AV warnings on unsigned executables. NSIS installer artifacts (`.exe` + `.blockmap` + `latest.yml`) are untouched.
 
 ### Changed
 
+- `electron-updater` is fully short-circuited when running from a portable build (detected via `process.env.PORTABLE_EXECUTABLE_FILE`). This prevents portable users from inadvertently downloading and running the NSIS installer through the updater.
 - Bumped `@mui/material` and `@mui/icons-material` to `^9.0.0`.
   - Root `tsconfig.json` `moduleResolution` switched to `"bundler"` so MUI v9's `.d.mts`-only types resolve.
   - `tsconfig.main.json` overrides `moduleResolution` back to `"node"` because `bundler` is incompatible with `module: "CommonJS"` for the Electron main / preload bundles.
