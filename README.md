@@ -4,18 +4,21 @@
 
 ## 1. Overview
 
-ImaginAI is a desktop application for controlling AI image/video/music/speech generation APIs through a dedicated GUI. It supports the Google Gemini API (Image Generation), Veo 3.1 (Video Generation), Lyria 3 (Music Generation), and Gemini TTS (Speech Generation), with an extensible architecture designed to accommodate additional AI generation APIs in the future.
+ImaginAI is a desktop application for controlling AI image/video/music/speech generation APIs through a dedicated GUI. It supports both **Google AI Studio** (Nano Banana for image, Imagen 4 for image, Veo 3.1 for video, Lyria 3 for music, Gemini TTS for speech) and **OpenAI** (GPT Image 2 / 1.5 / 1 for image), with an extensible architecture designed to accommodate additional AI generation APIs in the future.
 
 Key features:
 
-- **Image Generation**: Configure parameters such as model, aspect ratio, resolution, image count, output format, and safety filter via the GUI, and generate images from text prompts
-- **Video Generation**: Generate videos from text prompts or images using Veo 3.1 models, with configurable duration, resolution, and aspect ratio
-- **Music Generation**: Generate music from text prompts or images using Lyria 3 models (30-second clips or up to 3-minute full songs)
-- **Speech Generation (TTS)**: Generate speech from text using Gemini TTS models with selectable style presets and 30 built-in voices. Output is MP3, with automatic WAV fallback if the bundled audio encoder is unavailable, so a successful API call never goes to waste
-- **Reference Image Attachment**: Image-to-image/video/music generation via file picker, drag & drop, or from history entries
-- **Generation History**: Thumbnail grid view, search, parameter restore, save as, and bulk ZIP archive export (supports images, videos, music, and speech)
-- **Image/Video/Audio Viewer**: View images, play videos, and listen to generated music or speech in modeless windows
-- **Settings**: Language (Japanese/English), theme (light/dark/system), API key management (encrypted storage & connection test), history save location
+- **Image Generation**: Generate images from text prompts on either provider (Nano Banana / Imagen 4 / GPT Image)
+- **Image Edit Mode**: Treat the prompt as an editing instruction applied to an attached reference image (supported on Nano Banana and GPT Image)
+- **Video Generation**: Text-to-video and image-to-video with Veo 3.1
+- **Music Generation**: Text-to-music and image-to-music with Lyria 3
+- **Speech Generation (TTS)**: Text-to-speech with Gemini TTS, including style presets and built-in voices
+- **Reference Image Attachment**: Via file picker, drag & drop, or attaching a previous history result
+- **API Key Management**: Per-provider default key plus named custom keys, encrypted with Electron safeStorage; one-click provider switch from the title bar
+- **Generation History**: Mixed thumbnail grid across providers with filters, search, parameter restore, save-as, and bulk ZIP export
+- **Image/Video/Audio Viewer**: Modeless windows for viewing images and playing video/music/speech
+- **Settings**: Language (Japanese/English), theme (light/dark/system), API key management with connection test, history save location
+- **In-App Auto-Update** (installer builds only)
 - **Security**: API keys encrypted with Electron safeStorage; IPC-based architecture prevents direct access from the Renderer process
 
 ## 2. Supported OS
@@ -113,7 +116,7 @@ src/
 ### Technologies Used
 
 - **Electron**
-- **React (MUI v7)**
+- **React 19 (MUI v9)**
 - **TypeScript**
 - **Zustand**
 - **i18next**
