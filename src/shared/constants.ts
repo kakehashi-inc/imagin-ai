@@ -48,7 +48,9 @@ export const DEFAULT_DURATION: VideoDuration = 4;
 export const DEFAULT_RESOLUTION: VideoResolution = '720p';
 
 // --- Cost reference date ---
-export const COST_REFERENCE_DATE = '2026.4.17';
+// Source: https://ai.google.dev/gemini-api/docs/pricing and
+// https://ai.google.dev/gemini-api/docs/deprecations (verified May 2026).
+export const COST_REFERENCE_DATE = '2026.5.13';
 
 // --- Duration options ---
 export const DURATION_OPTIONS: { value: VideoDuration; labelKey: string }[] = [

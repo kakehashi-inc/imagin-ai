@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   - `tsconfig.main.json` overrides `moduleResolution` back to `"node"` because `bundler` is incompatible with `module: "CommonJS"` for the Electron main / preload bundles.
   - Migrated remaining MUI v9 deprecations: `Typography` `fontWeight` / `display` system props moved into `sx`; `TextField` `inputProps` replaced by `slotProps.htmlInput`; legacy `PlayCircleOutline` icon import switched to `PlayCircleOutlined`.
 - `electron-builder.yml` `publish.repo` is now the bare repository name (not the full URL) and `releaseType` is `draft` so multi-platform release artifacts are aggregated into one draft release per version on GitHub.
+- Updated the reference pricing date shown in the Parameter panel to 2026-05-13 after re-verifying Google AI Studio model prices and shutdown dates.
 
 ## [v0.5.1] - 2026-04-19
 
