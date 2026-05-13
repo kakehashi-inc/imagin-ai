@@ -1,174 +1,110 @@
 import fs from 'fs';
-import https from 'https';
-import http from 'http';
-import type { GenerationParams, ApiErrorDetail, VideoDuration, VideoResolution } from '../../shared/types';
-import { MODEL_DEFINITIONS, REFERENCE_IMAGE_MAX_LONG_EDGE, REFERENCE_IMAGE_JPEG_QUALITY } from '../../shared/constants';
-import { getActiveApiKey } from './api-key-service';
+import os from 'os';
+import path from 'path';
+import { GoogleGenAI } from '@google/genai';
+import type { Image as GenAiImage, GeneratedImage, GenerateVideosOperation, Part } from '@google/genai';
+import type {
+    ApiErrorDetail,
+    GeminiQuality,
+    GenerationParams,
+    GenerationProgress,
+    HistoryEntry,
+} from '../../shared/types';
+
+// Per-call metadata that we capture from the API response and persist on the
+// history entry. Shaped as a partial of HistoryEntry.gemini so history-service
+// can just spread it into the entry without any field-by-field mapping.
+type GeminiResponseMeta = Partial<NonNullable<HistoryEntry['gemini']>>;
+import { MODEL_DEFINITIONS, REFERENCE_IMAGE_JPEG_QUALITY, REFERENCE_IMAGE_MAX_LONG_EDGE } from '../../shared/constants';
 import { encodePcmToMp3, wrapPcmAsWav } from './ffmpeg-service';
 
-const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com';
+// =============================================================================
+// Errors
+// =============================================================================
 
-type SafetyRating = {
-    category?: string;
-    probability?: string;
-    blocked?: boolean;
-};
-
-type GeminiResponse = {
-    candidates?: Array<{
-        content?: {
-            parts?: Array<{
-                inlineData?: {
-                    mimeType: string;
-                    data: string;
-                };
-                text?: string;
-            }>;
-        };
-        finishReason?: string;
-        finishMessage?: string;
-        safetyRatings?: SafetyRating[];
-    }>;
-    promptFeedback?: {
-        blockReason?: string;
-        blockReasonMessage?: string;
-        safetyRatings?: SafetyRating[];
-    };
-    error?: {
-        code: number;
-        message: string;
-        status: string;
-    };
-};
-
-type ImagenResponse = {
-    predictions?: Array<{
-        bytesBase64Encoded: string;
-        mimeType: string;
-        // Imagen may include filter reason instead of bytes when blocked
-        raiFilteredReason?: string;
-    }>;
-    error?: {
-        code: number;
-        message: string;
-        status: string;
-    };
-};
-
-// Custom error class that carries structured API error information
+// Carries the structured error detail used by the renderer's error panel.
 export class GeminiApiError extends Error {
     constructor(public readonly detail: ApiErrorDetail) {
         super(`HTTP ${detail.httpStatus}: ${detail.apiStatus ?? 'UNKNOWN'} - ${detail.apiMessage ?? ''}`);
     }
 }
 
-// Parse a JSON response body to extract the Google API error structure
-function parseApiError(httpStatus: number, body: string): ApiErrorDetail {
-    try {
-        const parsed = JSON.parse(body);
-        const err = parsed?.error;
-        if (err && typeof err === 'object') {
-            return {
-                httpStatus,
-                apiCode: typeof err.code === 'number' ? err.code : null,
-                apiStatus: typeof err.status === 'string' ? err.status : null,
-                apiMessage: typeof err.message === 'string' ? err.message : null,
-            };
+// SDK error -> ApiErrorDetail. The SDK throws plain Error objects for HTTP
+// failures; the response body (if JSON) is embedded in the message. We extract
+// it best-effort so the error panel can show the API status/code.
+function toApiErrorDetail(err: unknown): ApiErrorDetail {
+    const message = err instanceof Error ? err.message : String(err);
+    // Try to recover structured fields from a stringified JSON body within the message.
+    const jsonMatch = message.match(/\{[\s\S]*"error"[\s\S]*\}/);
+    if (jsonMatch) {
+        try {
+            const parsed = JSON.parse(jsonMatch[0]);
+            const apiErr = parsed?.error;
+            if (apiErr && typeof apiErr === 'object') {
+                return {
+                    httpStatus: typeof apiErr.code === 'number' ? apiErr.code : 0,
+                    apiCode: typeof apiErr.code === 'number' ? apiErr.code : null,
+                    apiStatus: typeof apiErr.status === 'string' ? apiErr.status : null,
+                    apiMessage: typeof apiErr.message === 'string' ? apiErr.message : message,
+                };
+            }
+        } catch {
+            // fall through
         }
-    } catch {
-        // Not JSON
     }
-    return { httpStatus, apiCode: null, apiStatus: null, apiMessage: body || null };
+    // Pattern match an HTTP status from the message ("got status: 401 ...").
+    const statusMatch = message.match(/status[:\s]+(\d{3})/i);
+    return {
+        httpStatus: statusMatch ? Number(statusMatch[1]) : 0,
+        apiCode: null,
+        apiStatus: null,
+        apiMessage: message,
+    };
 }
 
-function httpsRequest(url: string, options: https.RequestOptions, body: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const parsedUrl = new URL(url);
-        const reqOptions: https.RequestOptions = {
-            ...options,
-            hostname: parsedUrl.hostname,
-            port: parsedUrl.port,
-            path: parsedUrl.pathname + parsedUrl.search,
-        };
+function asGeminiApiError(err: unknown): GeminiApiError {
+    if (err instanceof GeminiApiError) return err;
+    return new GeminiApiError(toApiErrorDetail(err));
+}
 
-        const req = (parsedUrl.protocol === 'https:' ? https : http).request(reqOptions, res => {
-            let data = '';
-            res.on('data', (chunk: Buffer) => {
-                data += chunk.toString();
-            });
-            res.on('end', () => {
-                if (res.statusCode && res.statusCode >= 400) {
-                    reject(new GeminiApiError(parseApiError(res.statusCode, data)));
-                } else {
-                    resolve(data);
-                }
-            });
-        });
-
-        req.on('error', reject);
-        req.write(body);
-        req.end();
+// Application-level error (no underlying HTTP response). Diagnostic message is
+// surfaced in the error panel so the user can see refusals / RAI reasons / etc.
+function appError(statusKey: string, diagnostic?: string): GeminiApiError {
+    return new GeminiApiError({
+        httpStatus: 0,
+        apiCode: null,
+        apiStatus: statusKey,
+        apiMessage: diagnostic && diagnostic.length > 0 ? diagnostic : null,
     });
 }
 
-// Test API key validity. If `rawKey` is provided, that key is tested directly; otherwise the currently active key is used.
-export async function testApiKey(rawKey?: string): Promise<import('../../shared/types').ApiTestResult> {
-    const apiKey = rawKey !== undefined ? rawKey : getActiveApiKey();
-    if (!apiKey) {
-        return { success: false, status: 'KEY_NOT_SET', rawMessage: null };
-    }
+// =============================================================================
+// Diagnostics (RAI / safety / refusal text extraction)
+// =============================================================================
 
-    try {
-        const url = `${GEMINI_API_BASE}/v1beta/models?key=${apiKey}`;
-        const response = await httpsRequest(url, { method: 'GET' }, '');
-        const parsed = JSON.parse(response);
-        if (parsed.models && Array.isArray(parsed.models)) {
-            return { success: true, status: 'KEY_VALID', rawMessage: null };
-        }
-        return { success: false, status: 'KEY_INVALID', rawMessage: null };
-    } catch (err) {
-        if (err instanceof GeminiApiError) {
-            // 401/UNAUTHENTICATED means the key is invalid
-            if (err.detail.httpStatus === 401 || err.detail.apiStatus === 'UNAUTHENTICATED') {
-                return { success: false, status: 'KEY_INVALID', rawMessage: err.detail.apiMessage };
-            }
-            return { success: false, status: 'TEST_ERROR', rawMessage: err.detail.apiMessage };
-        }
-        const rawMessage = err instanceof Error ? err.message : String(err);
-        return { success: false, status: 'TEST_ERROR', rawMessage };
-    }
-}
-
-// Check if model supports negativePrompt as an API parameter
-function hasApiNegativePrompt(modelId: string): boolean {
-    const modelDef = MODEL_DEFINITIONS.find(m => m.id === modelId);
-    return modelDef?.apiNegativePrompt ?? false;
-}
-
-// Long-Running Operation response
-type LroResponse = {
-    name?: string;
-    done?: boolean;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    response?: any;
-    error?: {
-        code: number;
-        message: string;
-        status: string;
+// Format the human-readable diagnostic from a generateContent response. Mirrors
+// the previous fetch-based service so the error panel keeps the same UX.
+function formatContentDiagnostics(resp: {
+    candidates?: ReadonlyArray<{
+        finishReason?: string;
+        finishMessage?: string;
+        safetyRatings?: ReadonlyArray<{ category?: string; probability?: string; blocked?: boolean }>;
+        content?: { parts?: ReadonlyArray<{ text?: string }> };
+    }>;
+    promptFeedback?: {
+        blockReason?: string;
+        blockReasonMessage?: string;
+        safetyRatings?: ReadonlyArray<{ category?: string; probability?: string; blocked?: boolean }>;
     };
-};
-
-// Format diagnostic info from a Gemini response into a human-readable string
-// for the error details panel. Returns empty string when no diagnostics found.
-function formatGeminiDiagnostics(parsed: GeminiResponse): string {
+}): string {
     const lines: string[] = [];
-    if (parsed.promptFeedback?.blockReason) {
-        const reason = parsed.promptFeedback.blockReason;
-        const msg = parsed.promptFeedback.blockReasonMessage;
+    if (resp.promptFeedback?.blockReason) {
+        const reason = resp.promptFeedback.blockReason;
+        const msg = resp.promptFeedback.blockReasonMessage;
         lines.push(msg ? `promptFeedback.blockReason: ${reason} (${msg})` : `promptFeedback.blockReason: ${reason}`);
     }
-    if (parsed.promptFeedback?.safetyRatings) {
-        const blocked = parsed.promptFeedback.safetyRatings.filter(r => r.blocked);
+    if (resp.promptFeedback?.safetyRatings) {
+        const blocked = resp.promptFeedback.safetyRatings.filter(r => r.blocked);
         if (blocked.length > 0) {
             lines.push(
                 `promptFeedback.safetyRatings (blocked): ${blocked
@@ -177,8 +113,8 @@ function formatGeminiDiagnostics(parsed: GeminiResponse): string {
             );
         }
     }
-    if (parsed.candidates) {
-        parsed.candidates.forEach((c, i) => {
+    if (resp.candidates) {
+        resp.candidates.forEach((c, i) => {
             if (c.finishReason && c.finishReason !== 'STOP') {
                 const fm = c.finishMessage;
                 lines.push(
@@ -197,7 +133,6 @@ function formatGeminiDiagnostics(parsed: GeminiResponse): string {
                     );
                 }
             }
-            // Surface any text the API returned (often contains the refusal explanation)
             if (c.content?.parts) {
                 for (const p of c.content.parts) {
                     if (p.text && p.text.trim().length > 0) {
@@ -210,321 +145,82 @@ function formatGeminiDiagnostics(parsed: GeminiResponse): string {
     return lines.join('\n');
 }
 
-// Convert an inline error object (from response body) into a GeminiApiError
-function throwApiBodyError(error: { code: number; message: string; status: string }): never {
-    throw new GeminiApiError({
-        httpStatus: error.code,
-        apiCode: error.code,
-        apiStatus: error.status,
-        apiMessage: error.message,
-    });
-}
+// Extract diagnostic + usage metadata from a generateContent response into the
+// shape we persist on the history entry. Only fields actually present in the
+// response are emitted; otherwise nothing is set so the JSON stays minimal.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractContentResponseMeta(response: any): GeminiResponseMeta {
+    const meta: GeminiResponseMeta = {};
 
-// Create a GeminiApiError for application-level errors (no HTTP response).
-// `diagnostic` is appended to apiMessage so the error details panel can show
-// finishReason / blockReason / safetyRatings / refusal text returned by the API.
-function throwAppError(errorKey: string, diagnostic?: string): never {
-    throw new GeminiApiError({
-        httpStatus: 0,
-        apiCode: null,
-        apiStatus: errorKey,
-        apiMessage: diagnostic && diagnostic.length > 0 ? diagnostic : null,
-    });
-}
-
-// Generate images using Gemini API
-export async function generateImages(
-    params: GenerationParams
-): Promise<{ buffers: Buffer[]; mimeType: string; audioTexts?: string[] }> {
-    const apiKey = getActiveApiKey();
-    if (!apiKey) {
-        throwAppError('API_KEY_NOT_SET');
-    }
-
-    // Dispatch by mediaType. For images, the model id prefix disambiguates Imagen
-    // (`imagen-*`, predict API) from Gemini image (`gemini-*`, generateContent API).
-    const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
-    switch (modelDef?.mediaType) {
-        case 'video':
-            return await generateWithVeo(params, apiKey);
-        case 'music':
-            return await generateWithLyria(params, apiKey);
-        case 'voice':
-            return await generateWithGeminiTts(params, apiKey);
-        case 'image':
-        default:
-            return params.model.startsWith('imagen-')
-                ? await generateWithImagen(params, apiKey)
-                : await generateWithGemini(params, apiKey);
-    }
-}
-
-// Generate with Imagen models
-async function generateWithImagen(
-    params: GenerationParams,
-    apiKey: string
-): Promise<{ buffers: Buffer[]; mimeType: string }> {
-    const url = `${GEMINI_API_BASE}/v1beta/models/${params.model}:predict?key=${apiKey}`;
-
-    let promptText = params.prompt;
-    if (params.negativePrompt && !hasApiNegativePrompt(params.model)) {
-        promptText += `\n\nDo not include: ${params.negativePrompt}`;
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const parameters: any = {
-        sampleCount: params.numberOfImages,
-        aspectRatio: params.aspectRatio,
-    };
-
-    // imageSize is only supported by models with supportedQualities
-    const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
-    if (modelDef && modelDef.supportedQualities && modelDef.supportedQualities.length > 0) {
-        const imageSizeMap: Record<string, string> = { '512px': '512px', '1k': '1K', '2k': '2K' };
-        parameters.imageSize = imageSizeMap[params.quality] ?? '1K';
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const requestBody: any = {
-        instances: [{ prompt: promptText }],
-        parameters,
-    };
-
-    const body = JSON.stringify(requestBody);
-    const response = await httpsRequest(
-        url,
-        {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-        },
-        body
-    );
-
-    const parsed = JSON.parse(response) as ImagenResponse;
-
-    if (parsed.error) {
-        throwApiBodyError(parsed.error);
-    }
-
-    if (!parsed.predictions || parsed.predictions.length === 0) {
-        throwAppError('NO_IMAGES_GENERATED');
-    }
-
-    const buffers: Buffer[] = [];
-    const filterReasons: string[] = [];
-    for (let i = 0; i < parsed.predictions.length; i++) {
-        const p = parsed.predictions[i];
-        if (p.bytesBase64Encoded) {
-            buffers.push(Buffer.from(p.bytesBase64Encoded, 'base64'));
-        } else if (p.raiFilteredReason) {
-            filterReasons.push(`prediction[${i}].raiFilteredReason: ${p.raiFilteredReason}`);
+    const firstCandidate = response?.candidates?.[0];
+    if (firstCandidate) {
+        if (typeof firstCandidate.finishReason === 'string' && firstCandidate.finishReason !== 'STOP') {
+            meta.finishReason = firstCandidate.finishReason;
         }
-    }
-    if (buffers.length === 0) {
-        throwAppError('NO_IMAGES_GENERATED', filterReasons.join('\n'));
-    }
-    return { buffers, mimeType: 'image/png' };
-}
-
-// Generate with Gemini models (using generateContent API)
-async function generateWithGemini(
-    params: GenerationParams,
-    apiKey: string
-): Promise<{ buffers: Buffer[]; mimeType: string }> {
-    const url = `${GEMINI_API_BASE}/v1beta/models/${params.model}:generateContent?key=${apiKey}`;
-
-    // Build parts array
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const parts: any[] = [];
-
-    // Add reference images if present (downscale + JPEG re-encode applied uniformly).
-    // Per-model cap comes from `maxReferenceImages`.
-    const geminiImageModelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
-    const geminiImageMaxRefs = geminiImageModelDef?.maxReferenceImages ?? 0;
-    if (geminiImageMaxRefs > 0 && params.referenceImagePaths && params.referenceImagePaths.length > 0) {
-        const capped = params.referenceImagePaths.slice(0, geminiImageMaxRefs);
-        if (params.referenceImagePaths.length > geminiImageMaxRefs) {
-            console.warn(
-                `Gemini image reference images truncated from ${params.referenceImagePaths.length} to ${geminiImageMaxRefs}`
-            );
+        if (typeof firstCandidate.finishMessage === 'string' && firstCandidate.finishMessage.length > 0) {
+            meta.finishMessage = firstCandidate.finishMessage;
         }
-        for (const imgPath of capped) {
-            const prepared = prepareReferenceImage(imgPath);
-            if (!prepared) continue;
-            parts.push({
-                inlineData: {
-                    mimeType: prepared.mimeType,
-                    data: prepared.base64,
-                },
-            });
-        }
-    }
-
-    // Add text prompt
-    let promptText = params.prompt;
-    if (params.negativePrompt && !hasApiNegativePrompt(params.model)) {
-        promptText += `\n\nDo not include: ${params.negativePrompt}`;
-    }
-    parts.push({ text: promptText });
-
-    // Build imageConfig based on model capabilities
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const imageConfig: any = {
-        aspectRatio: params.aspectRatio,
-    };
-
-    // imageSize is only supported by models with supportedQualities
-    const geminiModelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
-    if (geminiModelDef && geminiModelDef.supportedQualities && geminiModelDef.supportedQualities.length > 0) {
-        const imageSizeMap: Record<string, string> = { '512px': '512px', '1k': '1K', '2k': '2K', '4k': '4K' };
-        imageConfig.imageSize = imageSizeMap[params.quality] ?? '1K';
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const requestBody: any = {
-        contents: [{ parts }],
-        generationConfig: {
-            // responseMimeType does not accept image/* types in generateContent API.
-            // Image output is controlled by including 'IMAGE' in responseModalities.
-            responseModalities: ['TEXT', 'IMAGE'],
-            imageConfig,
-        },
-    };
-
-    const allBuffers: Buffer[] = [];
-    let resultMimeType = 'image/png'; // Default; will be overridden by actual response
-    const diagnostics: string[] = [];
-
-    // Generate multiple images by making multiple requests if needed
-    const requestCount = params.numberOfImages;
-    for (let i = 0; i < requestCount; i++) {
-        const body = JSON.stringify(requestBody);
-        const response = await httpsRequest(
-            url,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-            },
-            body
-        );
-
-        const parsed = JSON.parse(response) as GeminiResponse;
-
-        if (parsed.error) {
-            throwApiBodyError(parsed.error);
-        }
-
-        if (!parsed.candidates || parsed.candidates.length === 0) {
-            throwAppError('NO_RESPONSE', formatGeminiDiagnostics(parsed));
-        }
-
-        for (const candidate of parsed.candidates) {
-            if (candidate.content?.parts) {
-                for (const part of candidate.content.parts) {
-                    if (part.inlineData?.data) {
-                        allBuffers.push(Buffer.from(part.inlineData.data, 'base64'));
-                        // Use the MIME type from the API response
-                        if (part.inlineData.mimeType) {
-                            resultMimeType = part.inlineData.mimeType;
-                        }
-                    }
-                }
+        if (Array.isArray(firstCandidate.safetyRatings)) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const blocked = firstCandidate.safetyRatings.filter((r: any) => r?.blocked);
+            if (blocked.length > 0) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                meta.safetyRatings = blocked.map((r: any) => ({
+                    category: typeof r.category === 'string' ? r.category : undefined,
+                    probability: typeof r.probability === 'string' ? r.probability : undefined,
+                    blocked: r.blocked === true,
+                }));
             }
         }
-
-        // Collect diagnostics from this request (finishReason, safety, text refusals)
-        const diag = formatGeminiDiagnostics(parsed);
-        if (diag) diagnostics.push(`[request ${i + 1}/${requestCount}]\n${diag}`);
     }
 
-    if (allBuffers.length === 0) {
-        throwAppError('NO_IMAGES_GENERATED', diagnostics.join('\n\n'));
-    }
-
-    return { buffers: allBuffers, mimeType: resultMimeType };
-}
-
-// Simple HTTPS GET request
-function httpsGet(url: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const parsedUrl = new URL(url);
-        const reqFn = parsedUrl.protocol === 'https:' ? https : http;
-        reqFn
-            .get(url, res => {
-                let data = '';
-                res.on('data', (chunk: Buffer) => {
-                    data += chunk.toString();
-                });
-                res.on('end', () => {
-                    if (res.statusCode && res.statusCode >= 400) {
-                        reject(new GeminiApiError(parseApiError(res.statusCode, data)));
-                    } else {
-                        resolve(data);
-                    }
-                });
-            })
-            .on('error', reject);
-    });
-}
-
-// Download binary data from URL (with API key passed via x-goog-api-key header)
-function downloadBuffer(url: string, apiKey?: string): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-        const parsedUrl = new URL(url);
-        const reqFn = parsedUrl.protocol === 'https:' ? https : http;
-        const options: https.RequestOptions = {
-            hostname: parsedUrl.hostname,
-            port: parsedUrl.port,
-            path: parsedUrl.pathname + parsedUrl.search,
-            method: 'GET',
-            headers: apiKey ? { 'x-goog-api-key': apiKey } : {},
+    const pf = response?.promptFeedback;
+    if (
+        pf &&
+        (pf.blockReason || pf.blockReasonMessage || (Array.isArray(pf.safetyRatings) && pf.safetyRatings.length > 0))
+    ) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const blocked = Array.isArray(pf.safetyRatings) ? pf.safetyRatings.filter((r: any) => r?.blocked) : [];
+        meta.promptFeedback = {
+            blockReason: typeof pf.blockReason === 'string' ? pf.blockReason : undefined,
+            blockReasonMessage: typeof pf.blockReasonMessage === 'string' ? pf.blockReasonMessage : undefined,
+            safetyRatings:
+                blocked.length > 0
+                    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      blocked.map((r: any) => ({
+                          category: typeof r.category === 'string' ? r.category : undefined,
+                          probability: typeof r.probability === 'string' ? r.probability : undefined,
+                          blocked: r.blocked === true,
+                      }))
+                    : undefined,
         };
+    }
 
-        reqFn
-            .request(options, res => {
-                // Follow redirects (pass apiKey for subsequent requests)
-                if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-                    downloadBuffer(res.headers.location, apiKey).then(resolve, reject);
-                    return;
-                }
-                const chunks: Buffer[] = [];
-                res.on('data', (chunk: Buffer) => chunks.push(chunk));
-                res.on('end', () => {
-                    if (res.statusCode && res.statusCode >= 400) {
-                        reject(
-                            new GeminiApiError({
-                                httpStatus: res.statusCode,
-                                apiCode: null,
-                                apiStatus: null,
-                                apiMessage: 'Download failed',
-                            })
-                        );
-                    } else {
-                        resolve(Buffer.concat(chunks));
-                    }
-                });
-            })
-            .on('error', reject)
-            .end();
-    });
+    const um = response?.usageMetadata;
+    if (
+        um &&
+        (typeof um.promptTokenCount === 'number' ||
+            typeof um.candidatesTokenCount === 'number' ||
+            typeof um.totalTokenCount === 'number')
+    ) {
+        meta.usageTokens = {
+            promptTokens: typeof um.promptTokenCount === 'number' ? um.promptTokenCount : undefined,
+            candidatesTokens: typeof um.candidatesTokenCount === 'number' ? um.candidatesTokenCount : undefined,
+            totalTokens: typeof um.totalTokenCount === 'number' ? um.totalTokenCount : undefined,
+        };
+    }
+
+    return meta;
 }
 
-// Polling interval for Veo LRO (no timeout — wait until done, per official SDK pattern)
-const VEO_POLL_INTERVAL_MS = 10000;
+// =============================================================================
+// Reference image preprocessing (decode -> downscale -> JPEG re-encode)
+// =============================================================================
 
-// Event emitter for generation progress (set by IPC layer)
-let progressCallback: ((progress: import('../../shared/types').GenerationProgress) => void) | null = null;
-
-export function setGenerationProgressCallback(
-    cb: ((progress: import('../../shared/types').GenerationProgress) => void) | null
-): void {
-    progressCallback = cb;
-}
-
-// Decode a reference image, downscale it if its long edge exceeds the limit
-// (preserving aspect ratio), and re-encode as JPEG. Applied uniformly to all
-// generation paths that accept reference images (image, video, music) so that
-// request payload size stays bounded regardless of source resolution/format.
+// Decodes a reference image (any format supported by Electron's nativeImage),
+// downscales it so the long edge is <= REFERENCE_IMAGE_MAX_LONG_EDGE while
+// preserving aspect ratio, then re-encodes as JPEG. Returning a single
+// canonical format keeps request payloads bounded regardless of source.
 function prepareReferenceImage(imgPath: string): { mimeType: string; base64: string } | null {
     try {
         const raw = fs.readFileSync(imgPath);
@@ -550,101 +246,323 @@ function prepareReferenceImage(imgPath: string): { mimeType: string; base64: str
     }
 }
 
-// Generate music with Lyria models (using generateContent API)
-async function generateWithLyria(
+// =============================================================================
+// Progress callback (consumed by Veo polling loop)
+// =============================================================================
+
+let progressCallback: ((progress: GenerationProgress) => void) | null = null;
+
+export function setGenerationProgressCallback(cb: ((progress: GenerationProgress) => void) | null): void {
+    progressCallback = cb;
+}
+
+// =============================================================================
+// Top-level entry point (Gemini only — provider dispatch lives in generation-service.ts)
+// =============================================================================
+
+// Dispatches by mediaType. For images, the model id prefix disambiguates Imagen
+// (`imagen-*`, predict / generateImages) from Gemini image generateContent.
+// `perItemMeta` is parallel to `buffers` — one metadata bag per generated
+// artifact, persisted onto the corresponding history entry. The metadata is a
+// partial of HistoryEntry.gemini so history-service can spread it directly.
+export async function generateWithGemini(
     params: GenerationParams,
     apiKey: string
-): Promise<{ buffers: Buffer[]; mimeType: string; audioTexts?: string[] }> {
-    const url = `${GEMINI_API_BASE}/v1beta/models/${params.model}:generateContent?key=${apiKey}`;
+): Promise<{
+    buffers: Buffer[];
+    mimeType: string;
+    audioTexts?: string[];
+    perItemMeta?: GeminiResponseMeta[];
+}> {
+    const ai = new GoogleGenAI({ apiKey });
+    const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
+    if (!modelDef) throw appError('UNKNOWN_MODEL', `Unknown model: ${params.model}`);
 
-    // Build parts array
+    try {
+        switch (modelDef.mediaType) {
+            case 'video':
+                return await generateVideo(ai, params);
+            case 'music':
+                return await generateMusic(ai, params);
+            case 'voice':
+                return await generateSpeech(ai, params);
+            case 'image':
+            default:
+                return params.model.startsWith('imagen-')
+                    ? await generateImagen(ai, params)
+                    : await generateGeminiImage(ai, params);
+        }
+    } catch (err) {
+        throw asGeminiApiError(err);
+    }
+}
+
+// =============================================================================
+// Imagen (text-to-image, predict API via SDK's generateImages)
+// =============================================================================
+
+function mapGeminiQualityToSdkImageSize(q: GeminiQuality | undefined): string | undefined {
+    if (!q) return undefined;
+    if (q === '512px') return '512px';
+    if (q === '1k') return '1K';
+    if (q === '2k') return '2K';
+    if (q === '4k') return '4K';
+    return undefined;
+}
+
+async function generateImagen(
+    ai: GoogleGenAI,
+    params: GenerationParams
+): Promise<{ buffers: Buffer[]; mimeType: string; perItemMeta: GeminiResponseMeta[] }> {
+    const g = params.gemini;
+    if (!g) throw appError('INVALID_PARAMS', 'Gemini params missing for Imagen request');
+
+    const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
+    const apiNegative = modelDef?.apiNegativePrompt ?? false;
+
+    let promptText = params.prompt;
+    if (g.negativePrompt && !apiNegative) {
+        promptText += `\n\nDo not include: ${g.negativePrompt}`;
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const parts: any[] = [];
+    const config: any = {
+        numberOfImages: params.numberOfImages,
+        aspectRatio: g.aspectRatio,
+    };
+    if ((modelDef?.gemini?.supportedQualities?.length ?? 0) > 0) {
+        const sdkImageSize = mapGeminiQualityToSdkImageSize(g.quality);
+        if (sdkImageSize) config.imageSize = sdkImageSize;
+    }
+    if (apiNegative && g.negativePrompt) {
+        config.negativePrompt = g.negativePrompt;
+    }
 
-    // Add reference images if present (image-to-music). Per-model cap comes from
-    // `maxReferenceImages`. Each image is downscaled and re-encoded as JPEG to
-    // keep payload size bounded.
-    const lyriaModelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
-    const lyriaMaxRefs = lyriaModelDef?.maxReferenceImages ?? 0;
-    if (lyriaMaxRefs > 0 && params.referenceImagePaths && params.referenceImagePaths.length > 0) {
-        const capped = params.referenceImagePaths.slice(0, lyriaMaxRefs);
-        if (params.referenceImagePaths.length > lyriaMaxRefs) {
+    const response = await ai.models.generateImages({
+        model: params.model,
+        prompt: promptText,
+        config,
+    });
+
+    const generated = response.generatedImages ?? [];
+    if (generated.length === 0) {
+        throw appError('NO_IMAGES_GENERATED');
+    }
+
+    // Walk the response in order. For each entry that yielded image bytes we
+    // produce one buffer and one metadata bag so they stay index-aligned for
+    // history-service. Entries that came back without bytes (e.g. RAI-filtered
+    // ones) contribute only to filterReasons used in the "all filtered" path.
+    const buffers: Buffer[] = [];
+    const perItemMeta: GeminiResponseMeta[] = [];
+    const filterReasons: string[] = [];
+    generated.forEach((g: GeneratedImage, i: number) => {
+        const bytes = g.image?.imageBytes;
+        if (bytes) {
+            buffers.push(Buffer.from(bytes, 'base64'));
+            const meta: GeminiResponseMeta = {};
+            if (typeof g.enhancedPrompt === 'string' && g.enhancedPrompt.length > 0) {
+                meta.enhancedPrompt = g.enhancedPrompt;
+            }
+            if (typeof g.raiFilteredReason === 'string' && g.raiFilteredReason.length > 0) {
+                meta.raiFilteredReason = g.raiFilteredReason;
+            }
+            perItemMeta.push(meta);
+        } else if (g.raiFilteredReason) {
+            filterReasons.push(`prediction[${i}].raiFilteredReason: ${g.raiFilteredReason}`);
+        }
+    });
+    if (buffers.length === 0) {
+        throw appError('NO_IMAGES_GENERATED', filterReasons.join('\n'));
+    }
+    return { buffers, mimeType: 'image/png', perItemMeta };
+}
+
+// =============================================================================
+// Gemini Image (Nano Banana — generateContent API via SDK)
+// =============================================================================
+
+async function generateGeminiImage(
+    ai: GoogleGenAI,
+    params: GenerationParams
+): Promise<{ buffers: Buffer[]; mimeType: string; perItemMeta: GeminiResponseMeta[] }> {
+    const g = params.gemini;
+    if (!g) throw appError('INVALID_PARAMS', 'Gemini params missing for image generation');
+
+    const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
+    const apiNegative = modelDef?.apiNegativePrompt ?? false;
+    // Edit mode is fixed to a single reference image across all providers;
+    // otherwise honor the model's declared reference cap.
+    const maxRefs = params.editMode ? 1 : modelDef?.supportsReferenceFile ? (modelDef.maxReferenceImages ?? 0) : 0;
+
+    const parts: Part[] = [];
+
+    // Reference images (image-to-image / image-edit). Capped per model.
+    if (maxRefs > 0 && params.referenceImagePaths.length > 0) {
+        const capped = params.referenceImagePaths.slice(0, maxRefs);
+        if (params.referenceImagePaths.length > maxRefs) {
             console.warn(
-                `Lyria reference images truncated from ${params.referenceImagePaths.length} to ${lyriaMaxRefs}`
+                `Gemini image reference images truncated from ${params.referenceImagePaths.length} to ${maxRefs}`
             );
         }
         for (const imgPath of capped) {
             const prepared = prepareReferenceImage(imgPath);
             if (!prepared) continue;
-            parts.push({
-                inlineData: {
-                    mimeType: prepared.mimeType,
-                    data: prepared.base64,
-                },
-            });
+            parts.push({ inlineData: { mimeType: prepared.mimeType, data: prepared.base64 } });
         }
     }
 
-    // Add text prompt
-    parts.push({ text: params.prompt });
+    // Image edit mode is a UI-level toggle. The Gemini Developer API has no
+    // dedicated `editImage` endpoint nor a "fidelity" parameter (Vertex AI's
+    // imagen-3.0-capability with EditMode and SubjectReference/StyleReference
+    // images is *not* available with an AI Studio API key — see the model
+    // catalog at ai.google.dev/gemini-api/docs/models). The official Nano
+    // Banana guidance is to (1) describe what to change explicitly and (2)
+    // describe what to keep exactly the same. We prepend that instruction
+    // here so the user's prompt only needs to focus on the actual edit.
+    let promptText = params.prompt;
+    if (params.editMode && parts.length > 0) {
+        promptText =
+            'Edit the attached image according to the instruction below. Keep every other element of the image exactly the same — preserve the subject identity, faces, poses, layout, lighting, and color grading unless the instruction explicitly changes them.\n\n' +
+            promptText;
+    }
+    if (g.negativePrompt && !apiNegative) {
+        promptText += `\n\nDo not include: ${g.negativePrompt}`;
+    }
+    parts.push({ text: promptText });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const requestBody: any = {
-        contents: [{ parts }],
-        generationConfig: {
-            responseModalities: ['AUDIO', 'TEXT'],
-        },
+    const imageConfig: any = { aspectRatio: g.aspectRatio };
+    if ((modelDef?.gemini?.supportedQualities?.length ?? 0) > 0) {
+        const sdkSize = mapGeminiQualityToSdkImageSize(g.quality);
+        if (sdkSize) imageConfig.imageSize = sdkSize;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const config: any = {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig,
     };
 
-    const body = JSON.stringify(requestBody);
-    const response = await httpsRequest(
-        url,
-        {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-        },
-        body
-    );
+    const buffers: Buffer[] = [];
+    const perItemMeta: GeminiResponseMeta[] = [];
+    let resultMimeType = 'image/png';
+    const diagnostics: string[] = [];
 
-    const parsed = JSON.parse(response) as GeminiResponse;
+    // The Gemini generateContent endpoint returns 1 image per request; loop for
+    // multi-image generation. Each iteration is independent so RAI filtering of
+    // one candidate doesn't abort the rest. Each response's metadata is mirrored
+    // onto every buffer produced by that response so perItemMeta stays aligned
+    // with `buffers` (typically 1:1 for this model).
+    for (let i = 0; i < params.numberOfImages; i++) {
+        const response = await ai.models.generateContent({
+            model: params.model,
+            contents: [{ role: 'user', parts }],
+            config,
+        });
 
-    if (parsed.error) {
-        throwApiBodyError(parsed.error);
+        const candidates = response.candidates ?? [];
+        if (candidates.length === 0) {
+            throw appError('NO_RESPONSE', formatContentDiagnostics(response));
+        }
+        const responseMeta = extractContentResponseMeta(response);
+        for (const c of candidates) {
+            const candidateParts = c.content?.parts ?? [];
+            for (const part of candidateParts) {
+                if (part.inlineData?.data) {
+                    buffers.push(Buffer.from(part.inlineData.data, 'base64'));
+                    perItemMeta.push(responseMeta);
+                    if (part.inlineData.mimeType) resultMimeType = part.inlineData.mimeType;
+                }
+            }
+        }
+        const diag = formatContentDiagnostics(response);
+        if (diag) diagnostics.push(`[request ${i + 1}/${params.numberOfImages}]\n${diag}`);
     }
 
-    if (!parsed.candidates || parsed.candidates.length === 0) {
-        throwAppError('NO_RESPONSE', formatGeminiDiagnostics(parsed));
+    if (buffers.length === 0) {
+        throw appError('NO_IMAGES_GENERATED', diagnostics.join('\n\n'));
+    }
+    return { buffers, mimeType: resultMimeType, perItemMeta };
+}
+
+// =============================================================================
+// Lyria 3 music (generateContent API via SDK)
+// =============================================================================
+
+async function generateMusic(
+    ai: GoogleGenAI,
+    params: GenerationParams
+): Promise<{
+    buffers: Buffer[];
+    mimeType: string;
+    audioTexts?: string[];
+    perItemMeta: GeminiResponseMeta[];
+}> {
+    const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
+    const maxRefs = modelDef?.supportsReferenceFile ? (modelDef.maxReferenceImages ?? 0) : 0;
+    const parts: Part[] = [];
+
+    // Reference images (image-to-music).
+    if (maxRefs > 0 && params.referenceImagePaths.length > 0) {
+        const capped = params.referenceImagePaths.slice(0, maxRefs);
+        if (params.referenceImagePaths.length > maxRefs) {
+            console.warn(`Lyria reference images truncated from ${params.referenceImagePaths.length} to ${maxRefs}`);
+        }
+        for (const imgPath of capped) {
+            const prepared = prepareReferenceImage(imgPath);
+            if (!prepared) continue;
+            parts.push({ inlineData: { mimeType: prepared.mimeType, data: prepared.base64 } });
+        }
     }
 
-    // Extract audio buffers, lyrics, and description from response parts (order is not guaranteed).
-    // The API may return up to two text parts: LYRICS (song lyrics) and DESCRIPTION (caption + metadata).
+    parts.push({ text: params.prompt });
+
+    const response = await ai.models.generateContent({
+        model: params.model,
+        contents: [{ role: 'user', parts }],
+        config: { responseModalities: ['AUDIO', 'TEXT'] },
+    });
+
+    const candidates = response.candidates ?? [];
+    if (candidates.length === 0) {
+        throw appError('NO_RESPONSE', formatContentDiagnostics(response));
+    }
+
     const audioBuffers: Buffer[] = [];
     let resultMimeType = 'audio/mpeg';
     const textParts: string[] = [];
 
-    for (const candidate of parsed.candidates) {
-        if (candidate.content?.parts) {
-            for (const part of candidate.content.parts) {
-                if (part.inlineData?.data && part.inlineData.mimeType?.startsWith('audio/')) {
-                    audioBuffers.push(Buffer.from(part.inlineData.data, 'base64'));
-                    resultMimeType = part.inlineData.mimeType;
-                } else if (part.text) {
-                    textParts.push(part.text);
-                }
+    for (const c of candidates) {
+        for (const part of c.content?.parts ?? []) {
+            if (part.inlineData?.data && part.inlineData.mimeType?.startsWith('audio/')) {
+                audioBuffers.push(Buffer.from(part.inlineData.data, 'base64'));
+                resultMimeType = part.inlineData.mimeType;
+            } else if (part.text) {
+                textParts.push(part.text);
             }
         }
     }
 
     if (audioBuffers.length === 0) {
-        throwAppError('NO_MUSIC_GENERATED', formatGeminiDiagnostics(parsed));
+        throw appError('NO_MUSIC_GENERATED', formatContentDiagnostics(response));
     }
-
+    // Lyria typically returns one audio file per request, but mirror the
+    // response-wide metadata onto every buffer to keep the shape uniform with
+    // the other generators.
+    const responseMeta = extractContentResponseMeta(response);
+    const perItemMeta: GeminiResponseMeta[] = audioBuffers.map(() => responseMeta);
     return {
         buffers: audioBuffers,
         mimeType: resultMimeType,
         audioTexts: textParts.length > 0 ? textParts : undefined,
+        perItemMeta,
     };
 }
+
+// =============================================================================
+// Gemini TTS (generateContent + speechConfig)
+// =============================================================================
 
 // Parse PCM audio mimeType (e.g., "audio/L16;codec=pcm;rate=24000") into parameters.
 function parsePcmMimeType(mimeType: string): { sampleRate: number; channels: number; bitsPerSample: number } {
@@ -658,25 +576,27 @@ function parsePcmMimeType(mimeType: string): { sampleRate: number; channels: num
     return { sampleRate, channels, bitsPerSample };
 }
 
-// Generate speech with Gemini TTS models (generateContent + speechConfig).
-// Gemini TTS returns raw PCM (e.g., audio/L16;codec=pcm;rate=24000). We try to
-// encode it to MP3 in memory via ffmpeg; if that fails (binary missing, sandbox
-// block, etc.), we fall back to WAV in pure JS so the API call is never wasted.
-async function generateWithGeminiTts(
-    params: GenerationParams,
-    apiKey: string
-): Promise<{ buffers: Buffer[]; mimeType: string; audioTexts?: string[] }> {
-    const url = `${GEMINI_API_BASE}/v1beta/models/${params.model}:generateContent?key=${apiKey}`;
+async function generateSpeech(
+    ai: GoogleGenAI,
+    params: GenerationParams
+): Promise<{
+    buffers: Buffer[];
+    mimeType: string;
+    audioTexts?: string[];
+    perItemMeta: GeminiResponseMeta[];
+}> {
+    const g = params.gemini;
+    if (!g) throw appError('INVALID_PARAMS', 'Gemini params missing for TTS request');
 
     const userText = params.prompt ?? '';
-    const style = (params.styleInstruction ?? '').trim();
+    const style = (g.styleInstruction ?? '').trim();
     const text = style.length > 0 ? `Style: ${style}, Text: ${userText}` : userText;
-    const voiceName = params.voice && params.voice.length > 0 ? params.voice : 'Kore';
+    const voiceName = g.voice && g.voice.length > 0 ? g.voice : 'Kore';
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const requestBody: any = {
-        contents: [{ parts: [{ text }] }],
-        generationConfig: {
+    const response = await ai.models.generateContent({
+        model: params.model,
+        contents: [{ role: 'user', parts: [{ text }] }],
+        config: {
             responseModalities: ['AUDIO'],
             speechConfig: {
                 voiceConfig: {
@@ -684,212 +604,229 @@ async function generateWithGeminiTts(
                 },
             },
         },
-    };
+    });
 
-    const body = JSON.stringify(requestBody);
-    const response = await httpsRequest(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } }, body);
-
-    const parsed = JSON.parse(response) as GeminiResponse;
-    if (parsed.error) {
-        throwApiBodyError(parsed.error);
-    }
-    if (!parsed.candidates || parsed.candidates.length === 0) {
-        throwAppError('NO_RESPONSE', formatGeminiDiagnostics(parsed));
+    const candidates = response.candidates ?? [];
+    if (candidates.length === 0) {
+        throw appError('NO_RESPONSE', formatContentDiagnostics(response));
     }
 
     const audioBuffers: Buffer[] = [];
     let resultMimeType = 'audio/mpeg';
     const textParts: string[] = [];
+    // Track the original (pre-conversion) audio mimeType per buffer so the
+    // history entry preserves the source format even after PCM->MP3/WAV.
+    const originalMimes: string[] = [];
 
-    for (const candidate of parsed.candidates) {
-        if (candidate.content?.parts) {
-            for (const part of candidate.content.parts) {
-                if (part.inlineData?.data && part.inlineData.mimeType?.startsWith('audio/')) {
-                    const raw = Buffer.from(part.inlineData.data, 'base64');
-                    const mime = part.inlineData.mimeType.toLowerCase();
-                    if (mime.includes('l16') || mime.includes('pcm')) {
-                        const { sampleRate, channels, bitsPerSample } = parsePcmMimeType(mime);
-                        const mp3 = encodePcmToMp3(raw, sampleRate, channels, bitsPerSample);
-                        if (mp3.ok) {
-                            audioBuffers.push(mp3.data);
-                            resultMimeType = 'audio/mpeg';
-                        } else {
-                            // ffmpeg unavailable / failed: preserve audio losslessly in WAV.
-                            // This prevents discarding a billed API result.
-                            console.warn(`PCM->MP3 encoding failed, saving as WAV instead: ${mp3.reason}`);
-                            const wav = wrapPcmAsWav(raw, sampleRate, channels, bitsPerSample);
-                            audioBuffers.push(wav);
-                            resultMimeType = 'audio/wav';
-                        }
+    for (const c of candidates) {
+        for (const part of c.content?.parts ?? []) {
+            if (part.inlineData?.data && part.inlineData.mimeType?.startsWith('audio/')) {
+                const raw = Buffer.from(part.inlineData.data, 'base64');
+                const mime = part.inlineData.mimeType.toLowerCase();
+                originalMimes.push(part.inlineData.mimeType);
+                if (mime.includes('l16') || mime.includes('pcm')) {
+                    // Re-encode PCM to MP3 in memory. Falls back to WAV when
+                    // ffmpeg is unavailable so a billed call is never wasted.
+                    const { sampleRate, channels, bitsPerSample } = parsePcmMimeType(mime);
+                    const mp3 = encodePcmToMp3(raw, sampleRate, channels, bitsPerSample);
+                    if (mp3.ok) {
+                        audioBuffers.push(mp3.data);
+                        resultMimeType = 'audio/mpeg';
                     } else {
-                        audioBuffers.push(raw);
-                        resultMimeType = part.inlineData.mimeType;
+                        console.warn(`PCM->MP3 encoding failed, saving as WAV instead: ${mp3.reason}`);
+                        audioBuffers.push(wrapPcmAsWav(raw, sampleRate, channels, bitsPerSample));
+                        resultMimeType = 'audio/wav';
                     }
-                } else if (part.text) {
-                    textParts.push(part.text);
+                } else {
+                    audioBuffers.push(raw);
+                    resultMimeType = part.inlineData.mimeType;
                 }
+            } else if (part.text) {
+                textParts.push(part.text);
             }
         }
     }
 
     if (audioBuffers.length === 0) {
-        throwAppError('NO_VOICE_GENERATED', formatGeminiDiagnostics(parsed));
+        throw appError('NO_VOICE_GENERATED', formatContentDiagnostics(response));
     }
-
+    // Compose per-buffer metadata: response-wide diagnostics/usage merged with
+    // the original pre-conversion mime for that specific buffer.
+    const responseMeta = extractContentResponseMeta(response);
+    const perItemMeta: GeminiResponseMeta[] = audioBuffers.map((_, i) => ({
+        ...responseMeta,
+        originalAudioMimeType: originalMimes[i],
+    }));
     return {
         buffers: audioBuffers,
         mimeType: resultMimeType,
         audioTexts: textParts.length > 0 ? textParts : undefined,
+        perItemMeta,
     };
 }
 
-// Generate video with Veo models (using generateVideos API + LRO polling)
-async function generateWithVeo(
-    params: GenerationParams,
-    apiKey: string
-): Promise<{ buffers: Buffer[]; mimeType: string }> {
-    const duration: VideoDuration = params.duration ?? 4;
-    const resolution: VideoResolution = params.resolution ?? '720p';
+// =============================================================================
+// Veo video (generateVideos + LRO polling via SDK)
+// =============================================================================
 
-    const url = `${GEMINI_API_BASE}/v1beta/models/${params.model}:predictLongRunning?key=${apiKey}`;
+const VEO_POLL_INTERVAL_MS = 10000;
 
-    // Build request body
-    // Embed negative prompt into main prompt if API parameter not supported
+async function generateVideo(
+    ai: GoogleGenAI,
+    params: GenerationParams
+): Promise<{ buffers: Buffer[]; mimeType: string; perItemMeta: GeminiResponseMeta[] }> {
+    const g = params.gemini;
+    if (!g) throw appError('INVALID_PARAMS', 'Gemini params missing for video request');
+
+    const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
+    const apiNegative = modelDef?.apiNegativePrompt ?? false;
+    const maxRefs = modelDef?.supportsReferenceFile ? (modelDef.maxReferenceImages ?? 0) : 0;
+
     let promptText = params.prompt;
-    if (params.negativePrompt && !hasApiNegativePrompt(params.model)) {
-        promptText += `\n\nDo not include: ${params.negativePrompt}`;
+    if (g.negativePrompt && !apiNegative) {
+        promptText += `\n\nDo not include: ${g.negativePrompt}`;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const instance: any = { prompt: promptText };
-
-    // Image-to-video: attach first reference image as the starting frame.
-    // Veo declares maxReferenceImages: 1 — only the first image is used regardless of
-    // how many were attached (UI also enforces overwrite-to-1 for video models).
-    const veoModelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
-    const veoMaxRefs = veoModelDef?.maxReferenceImages ?? 0;
-    if (veoMaxRefs > 0 && params.referenceImagePaths && params.referenceImagePaths.length > 0) {
+    // Image-to-video: attach the first reference image as the starting frame.
+    // Veo declares maxReferenceImages: 1 — only the first is used regardless of
+    // how many were attached (the UI also caps to 1 for video models).
+    let firstImage: GenAiImage | undefined;
+    if (maxRefs > 0 && params.referenceImagePaths.length > 0) {
         const prepared = prepareReferenceImage(params.referenceImagePaths[0]);
         if (prepared) {
-            instance.image = { bytesBase64Encoded: prepared.base64, mimeType: prepared.mimeType };
+            firstImage = { imageBytes: prepared.base64, mimeType: prepared.mimeType };
         }
     }
 
-    // Build parameters object faithful to Gemini API spec
-    // Gemini API generates 1 video per request (numberOfVideos not needed)
+    // The `seed` config field is intentionally not set here. The current SDK
+    // (Gemini Developer API mode) rejects it client-side, and the Vertex AI
+    // path is out of scope for this app. The app never accepts a seed from the
+    // user, but if the server returns one in the response we still capture it
+    // below so it's retained in history for future reference.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const parameters: any = {
-        aspectRatio: params.aspectRatio,
-        durationSeconds: duration,
-        resolution,
+    const config: any = {
+        aspectRatio: g.aspectRatio,
+        durationSeconds: g.duration ?? 4,
+        resolution: g.resolution ?? '720p',
     };
-
-    // Negative prompt (API parameter, only if supported by this model)
-    if (params.negativePrompt && hasApiNegativePrompt(params.model)) {
-        parameters.negativePrompt = params.negativePrompt;
+    if (apiNegative && g.negativePrompt) {
+        config.negativePrompt = g.negativePrompt;
     }
 
-    // Seed for reproducibility
-    if (params.seed != null) {
-        parameters.seed = params.seed;
+    let operation: GenerateVideosOperation = await ai.models.generateVideos({
+        model: params.model,
+        prompt: promptText,
+        image: firstImage,
+        config,
+    });
+
+    if (!operation.name) {
+        throw appError('NO_RESPONSE', 'Veo did not return an operation name');
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const requestBody: any = {
-        instances: [instance],
-        parameters,
-    };
-
-    const body = JSON.stringify(requestBody);
-    const response = await httpsRequest(
-        url,
-        {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-        },
-        body
-    );
-
-    const lro = JSON.parse(response) as LroResponse;
-
-    if (lro.error) {
-        throwApiBodyError(lro.error);
-    }
-
-    if (!lro.name) {
-        throwAppError('NO_RESPONSE');
-    }
-
-    // Poll for completion
-    const operationUrl = `${GEMINI_API_BASE}/v1beta/${lro.name}?key=${apiKey}`;
+    // Poll for completion. The SDK's getVideosOperation throws on terminal API
+    // errors, so we just keep polling until done. Progress callback fires each
+    // iteration so the renderer can show "generating Xs" feedback.
     const startTime = Date.now();
-
-    while (true) {
+    while (!operation.done) {
         await new Promise(resolve => setTimeout(resolve, VEO_POLL_INTERVAL_MS));
-
         const elapsed = Math.round((Date.now() - startTime) / 1000);
         if (progressCallback) {
             progressCallback({ status: 'generating', elapsedSeconds: elapsed });
         }
+        operation = await ai.operations.getVideosOperation({ operation });
+    }
 
-        const pollResponse = await httpsGet(operationUrl);
-        const pollResult = JSON.parse(pollResponse) as LroResponse;
+    // operation.error can be set by the long-running operation even when the
+    // overall request returned 200; surface it through the diagnostics panel.
+    if (operation.error) {
+        const e = operation.error as { code?: number; status?: string; message?: string };
+        throw new GeminiApiError({
+            httpStatus: typeof e.code === 'number' ? e.code : 0,
+            apiCode: typeof e.code === 'number' ? e.code : null,
+            apiStatus: typeof e.status === 'string' ? e.status : null,
+            apiMessage: typeof e.message === 'string' ? e.message : null,
+        });
+    }
 
-        if (pollResult.error) {
-            throwApiBodyError(pollResult.error);
-        }
+    const videoResp = operation.response;
+    if (!videoResp) {
+        throw appError('NO_VIDEO_GENERATED', 'LRO completed but response payload is empty');
+    }
 
-        if (pollResult.done) {
-            // Extract video data from the completed operation
-            const videoResult = pollResult.response;
-            if (!videoResult) {
-                throwAppError('NO_VIDEO_GENERATED', 'LRO completed but response payload is empty');
-            }
+    const generated = videoResp.generatedVideos ?? [];
 
-            // Gemini API response: generateVideoResponse.generatedSamples[]
-            const generateVideoResponse = videoResult.generateVideoResponse || videoResult;
-            const generatedSamples =
-                generateVideoResponse.generatedSamples ||
-                generateVideoResponse.generatedVideos ||
-                videoResult.generatedVideos ||
-                [];
+    // RAI filter signals on the video response.
+    const raiDiagnostics: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawVideoResp = videoResp as any;
+    const raiCount = rawVideoResp.raiMediaFilteredCount;
+    const raiReasons = rawVideoResp.raiMediaFilteredReasons;
+    if (typeof raiCount === 'number' && raiCount > 0) {
+        raiDiagnostics.push(`raiMediaFilteredCount: ${raiCount}`);
+    }
+    if (Array.isArray(raiReasons) && raiReasons.length > 0) {
+        raiDiagnostics.push(`raiMediaFilteredReasons: ${raiReasons.join(' | ')}`);
+    }
 
-            // Veo surfaces RAI (Responsible AI) filtering through these fields when content is blocked.
-            const raiDiagnostics: string[] = [];
-            const raiCount = generateVideoResponse.raiMediaFilteredCount ?? videoResult.raiMediaFilteredCount;
-            const raiReasons = generateVideoResponse.raiMediaFilteredReasons ?? videoResult.raiMediaFilteredReasons;
-            if (typeof raiCount === 'number' && raiCount > 0) {
-                raiDiagnostics.push(`raiMediaFilteredCount: ${raiCount}`);
-            }
-            if (Array.isArray(raiReasons) && raiReasons.length > 0) {
-                raiDiagnostics.push(`raiMediaFilteredReasons: ${raiReasons.join(' | ')}`);
-            }
+    if (generated.length === 0) {
+        throw appError('NO_VIDEO_GENERATED', raiDiagnostics.join('\n'));
+    }
 
-            if (generatedSamples.length === 0) {
-                throwAppError('NO_VIDEO_GENERATED', raiDiagnostics.join('\n'));
-            }
-
-            // Extract video buffer
-            const allBuffers: Buffer[] = [];
-            for (const sample of generatedSamples) {
-                const video = sample.video;
-                if (video?.bytesBase64Encoded) {
-                    allBuffers.push(Buffer.from(video.bytesBase64Encoded, 'base64'));
-                } else if (video?.uri) {
-                    const buffer = await downloadBuffer(video.uri, apiKey);
-                    allBuffers.push(buffer);
+    const buffers: Buffer[] = [];
+    for (const item of generated) {
+        const video = item.video;
+        if (!video) continue;
+        if (video.videoBytes) {
+            // Base64-encoded inline video.
+            buffers.push(Buffer.from(video.videoBytes, 'base64'));
+        } else if (video.uri) {
+            // URI-only response: SDK's files.download writes to disk; we read it
+            // back into a Buffer so history-service can name and persist it
+            // through its normal flow.
+            const tmpPath = path.join(
+                os.tmpdir(),
+                `imaginai-veo-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`
+            );
+            try {
+                await ai.files.download({ file: video, downloadPath: tmpPath });
+                buffers.push(fs.readFileSync(tmpPath));
+            } finally {
+                try {
+                    fs.unlinkSync(tmpPath);
+                } catch {
+                    // ignore cleanup failure
                 }
             }
-
-            if (allBuffers.length === 0) {
-                const diag = [
-                    ...raiDiagnostics,
-                    `generatedSamples count: ${generatedSamples.length} but no decodable video data extracted`,
-                ].join('\n');
-                throwAppError('NO_VIDEO_GENERATED', diag);
-            }
-
-            return { buffers: allBuffers, mimeType: 'video/mp4' };
         }
     }
+
+    if (buffers.length === 0) {
+        const diag = [
+            ...raiDiagnostics,
+            `generatedVideos count: ${generated.length} but no decodable video data extracted`,
+        ].join('\n');
+        throw appError('NO_VIDEO_GENERATED', diag);
+    }
+
+    // Build operation-wide metadata once, then mirror onto every buffer so the
+    // shape matches the other generators. operation.metadata is `Record<string,
+    // unknown>` in the SDK type, so we copy it verbatim — this is the slot
+    // that would receive a future server-side seed value, for example.
+    const veoMeta: GeminiResponseMeta = {};
+    if (typeof operation.name === 'string' && operation.name.length > 0) {
+        veoMeta.operationName = operation.name;
+    }
+    if (operation.metadata && typeof operation.metadata === 'object') {
+        veoMeta.operationMetadata = operation.metadata as Record<string, unknown>;
+    }
+    if (typeof raiCount === 'number') {
+        veoMeta.raiMediaFilteredCount = raiCount;
+    }
+    if (Array.isArray(raiReasons) && raiReasons.length > 0) {
+        veoMeta.raiMediaFilteredReasons = raiReasons.map(String);
+    }
+    const perItemMeta: GeminiResponseMeta[] = buffers.map(() => veoMeta);
+
+    return { buffers, mimeType: 'video/mp4', perItemMeta };
 }

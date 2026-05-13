@@ -19,14 +19,18 @@ export default {
     'common.settings': 'Settings',
     'common.back': 'Back',
 
+    // Providers (user-facing names — code uses 'gemini' / 'openai' internally)
+    'provider.gemini': 'Google AI Studio',
+    'provider.openai': 'OpenAI',
+
     // Notices dialog
     'notices.button.label': 'Usage notes',
     'notices.button.tooltip': 'Usage notes',
     'notices.dialog.title': 'Usage Notes',
     'notices.dialog.close': 'Close',
-    'notices.googleAiStudio.title': 'Google AI Studio',
-    'notices.googleAiStudio.precautions.title': 'Free tier and commercial use',
-    'notices.googleAiStudio.precautions.items': [
+    'notices.gemini.title': 'Google AI Studio',
+    'notices.gemini.precautions.title': 'Free tier and commercial use',
+    'notices.gemini.precautions.items': [
         "Input data and generated results may be used to improve Google's models and may be reviewed by humans.",
         'Usage data is processed in a non-personally-identifiable form, but avoid entering confidential or highly sensitive data.',
         'Providing AI-generated content to users while claiming it was "created by a human" is prohibited.',
@@ -34,10 +38,25 @@ export default {
         'You must clearly disclose that generated content is AI-produced so that users do not misidentify it.',
         'You must not intentionally remove or tamper with digital watermarks (such as SynthID) embedded in AI-generated content.',
     ],
-    'notices.googleAiStudio.recommendations.title': 'Recommendations',
-    'notices.googleAiStudio.recommendations.items': [
+    'notices.gemini.recommendations.title': 'Recommendations',
+    'notices.gemini.recommendations.items': [
         'When handling customer data or privacy-sensitive information, subscribe to the Paid Tier (data is not used for training).',
         'Use the free tier for prototyping and processing of public information, and switch to the Paid Tier for production releases.',
+        'To avoid disputes with users, include a disclaimer stating that the content is AI-generated and that accuracy is not guaranteed.',
+    ],
+    'notices.openai.title': 'OpenAI',
+    'notices.openai.precautions.title': 'Standard API usage and commercial use',
+    'notices.openai.precautions.items': [
+        'On the Standard API, input prompts and generated outputs are not used to train OpenAI models by default (March 2023 policy change). Customer Content is used only to provide the Service, comply with applicable law, and enforce OpenAI policies.',
+        'For abuse monitoring, API inputs and outputs may be retained server-side for up to 30 days unless a Zero Data Retention (ZDR) contract is in place. Avoid entering confidential or highly sensitive data because the data passes through and may be temporarily retained by OpenAI servers.',
+        'Per the OpenAI Sharing & Publication Policy, you must not represent API-generated content as wholly created by a human, and you must clearly disclose AI involvement when you publish.',
+        'A human must take ultimate responsibility for any content you publish that includes API-generated output (review, edit, and accept responsibility for accuracy).',
+        'Per the OpenAI Usage Policies, the API will refuse requests that violate the content policy (e.g. sexual content involving minors, content that promotes violence or illegal activity, election interference, etc.).',
+    ],
+    'notices.openai.recommendations.title': 'Recommendations',
+    'notices.openai.recommendations.items': [
+        'When handling customer data or privacy-sensitive information, review the latest OpenAI Data Usage policy and contract terms before sending it through the API. Consider applying for a Zero Data Retention (ZDR) arrangement if your workload requires it.',
+        'You own the output you generate (OpenAI assigns its rights in Output to you), but similar outputs may be produced for other customers — do not assume the output is unique.',
         'To avoid disputes with users, include a disclaimer stating that the content is AI-generated and that accuracy is not guaranteed.',
     ],
 
@@ -47,22 +66,24 @@ export default {
     'titleBar.apiKey.untitled': '(untitled)',
     'titleBar.apiKey.freeTierBadge': 'Free',
     'titleBar.apiKey.noKey': '(empty)',
+    'titleBar.apiKey.group.gemini': 'Google AI Studio',
+    'titleBar.apiKey.group.openai': 'OpenAI',
 
     // Model selection
     'model.label': 'Model',
-    'model.note.lyriaClip': 'Fixed 30-second clip',
-    'model.note.lyriaPro': 'Up to 3 min (specify duration in prompt)',
-    'model.note.imagenShutdown': 'Shutdown: 2026/6/24',
-    'model.note.nanoBananaShutdown': 'Shutdown: 2026/10/2',
     'model.freeTierUnavailable': 'No free tier',
-    'model.freeTier.ttsFlash':
+    'gemini.model.note.lyriaClip': 'Fixed 30-second clip',
+    'gemini.model.note.lyriaPro': 'Up to 3 min (specify duration in prompt)',
+    'gemini.model.note.imagenShutdown': 'Shutdown: 2026/6/24',
+    'gemini.model.note.nanoBananaShutdown': 'Shutdown: 2026/10/2',
+    'gemini.model.freeTier.ttsFlash':
         'Free tier:\n3 RPM / 10K TPM\nUp to 3 requests/min, ~6 minutes of audio per minute total',
 
-    // TTS style / voice
-    'tts.style.label': 'Style',
-    'tts.style.instructionLabel': 'Style instruction (English)',
-    'tts.style.custom': 'Custom',
-    'tts.style.presets': [
+    // Gemini TTS style / voice
+    'gemini.tts.style.label': 'Style',
+    'gemini.tts.style.instructionLabel': 'Style instruction (English)',
+    'gemini.tts.style.custom': 'Custom',
+    'gemini.tts.style.presets': [
         {
             name: 'Enthusiastic',
             effect: 'Crisp high-pitched, energetic delivery',
@@ -101,8 +122,8 @@ export default {
         },
         { name: 'Sleepy', effect: 'Extremely slow, soothing voice', instruction: 'Sleepy, soothing, and very gentle' },
     ],
-    'tts.voice.label': 'Voice',
-    'tts.voice.presets': [
+    'gemini.tts.voice.label': 'Voice',
+    'gemini.tts.voice.presets': [
         { name: 'Aoede', gender: 'Female', characteristic: 'Fresh, neutral' },
         { name: 'Charon', gender: 'Male', characteristic: 'Sincere, informative' },
         { name: 'Kore', gender: 'Female', characteristic: 'Strong, decisive' },
@@ -166,50 +187,65 @@ export default {
         { tag: '[long pause]', desc: 'Inserts a 2+ sec dramatic pause before scene changes or key moments.' },
     ],
 
-    // Aspect ratio
-    'aspectRatio.label': 'Aspect Ratio',
-    'aspectRatio.group.square': 'Square',
-    'aspectRatio.group.landscape': 'Landscape',
-    'aspectRatio.group.portrait': 'Portrait',
-    'aspectRatio.1:1': '1:1',
-    'aspectRatio.9:16': '9:16',
-    'aspectRatio.16:9': '16:9',
-    'aspectRatio.3:4': '3:4',
-    'aspectRatio.4:3': '4:3',
-    'aspectRatio.2:3': '2:3',
-    'aspectRatio.3:2': '3:2',
-    'aspectRatio.4:5': '4:5',
-    'aspectRatio.5:4': '5:4',
-    'aspectRatio.21:9': '21:9',
-    'aspectRatio.4:1': '4:1',
-    'aspectRatio.8:1': '8:1',
-    'aspectRatio.1:4': '1:4',
-    'aspectRatio.1:8': '1:8',
+    // Gemini aspect ratio
+    'gemini.aspectRatio.label': 'Aspect Ratio',
+    'gemini.aspectRatio.group.square': 'Square',
+    'gemini.aspectRatio.group.landscape': 'Landscape',
+    'gemini.aspectRatio.group.portrait': 'Portrait',
+    'gemini.aspectRatio.1:1': '1:1',
+    'gemini.aspectRatio.9:16': '9:16',
+    'gemini.aspectRatio.16:9': '16:9',
+    'gemini.aspectRatio.3:4': '3:4',
+    'gemini.aspectRatio.4:3': '4:3',
+    'gemini.aspectRatio.2:3': '2:3',
+    'gemini.aspectRatio.3:2': '3:2',
+    'gemini.aspectRatio.4:5': '4:5',
+    'gemini.aspectRatio.5:4': '5:4',
+    'gemini.aspectRatio.21:9': '21:9',
+    'gemini.aspectRatio.4:1': '4:1',
+    'gemini.aspectRatio.8:1': '8:1',
+    'gemini.aspectRatio.1:4': '1:4',
+    'gemini.aspectRatio.1:8': '1:8',
 
-    // Quality
-    'quality.label': 'Resolution',
-    'quality.512px': '512px',
-    'quality.1k': '1K (Standard)',
-    'quality.2k': '2K (High)',
-    'quality.4k': '4K (Ultra)',
+    // Gemini Quality
+    'gemini.quality.label': 'Resolution',
+    'gemini.quality.512px': '512px',
+    'gemini.quality.1k': '1K (Standard)',
+    'gemini.quality.2k': '2K (High)',
+    'gemini.quality.4k': '4K (Ultra)',
 
-    // Duration (video)
-    'duration.label': 'Duration',
-    'duration.4s': '4 seconds',
-    'duration.6s': '6 seconds',
-    'duration.8s': '8 seconds',
+    // Gemini Duration (video)
+    'gemini.duration.label': 'Duration',
+    'gemini.duration.4s': '4 seconds',
+    'gemini.duration.6s': '6 seconds',
+    'gemini.duration.8s': '8 seconds',
 
-    // Resolution (video)
-    'resolution.label': 'Video Resolution',
-    'resolution.720p': '720p (HD)',
-    'resolution.1080p': '1080p (Full HD)',
+    // Gemini Resolution (video)
+    'gemini.resolution.label': 'Video Resolution',
+    'gemini.resolution.720p': '720p (HD)',
+    'gemini.resolution.1080p': '1080p (Full HD)',
+    'gemini.resolution.4k': '4K (Ultra HD)',
 
-    // Resolution (video) - 4k
-    'resolution.4k': '4K (Ultra HD)',
+    // OpenAI parameters
+    'openai.parameter.size.label': 'Size',
+    'openai.parameter.quality.label': 'Quality',
+    'openai.parameter.outputFormat.label': 'Output format',
+    'openai.parameter.background.label': 'Background',
+    'openai.size.square': 'Square (1024x1024) 1:1',
+    'openai.size.portrait': 'Portrait (1024x1536) 2:3',
+    'openai.size.landscape': 'Landscape (1536x1024) 3:2',
+    'openai.size.square2k': '2K Square (2048x2048) 1:1',
+    'openai.size.landscape2k': '2K Landscape (2048x1152) 16:9',
+    'openai.size.landscape4k': '4K Landscape (3840x2160) 16:9',
+    'openai.size.portrait4k': '4K Portrait (2160x3840) 9:16',
+    'openai.quality.low': 'Low',
+    'openai.quality.medium': 'Medium',
+    'openai.quality.high': 'High',
+    'openai.background.opaque': 'Opaque',
+    'openai.background.transparent': 'Transparent',
 
-    // Seed (video)
-    'seed.label': 'Seed',
-    'seed.placeholder': 'Optional (for reproducibility)',
+    // Image edit mode (shared toggle, both providers)
+    'parameter.editMode.label': 'Image Edit Mode',
 
     // Number of images/videos
     'numberOfImages.label': 'Number of Images',
@@ -275,6 +311,14 @@ export default {
     'history.exportFailed': 'Failed to export history.',
     'history.exporting': 'Exporting history...',
     'history.exportProgress': 'Compressing: {{percent}}%',
+    'history.editBadge': 'Edit',
+    'history.filter.all': 'All',
+    'history.filter.allProviders': 'All providers',
+    'history.filter.allMediaTypes': 'All media types',
+    'history.filter.mediaType.image': 'Image',
+    'history.filter.mediaType.video': 'Video',
+    'history.filter.mediaType.music': 'Music',
+    'history.filter.mediaType.voice': 'Voice',
 
     // Context menu
     'contextMenu.addToPrompt': 'Add to Prompt',
@@ -294,12 +338,16 @@ export default {
     'settings.theme.dark': 'Dark',
     'settings.theme.system': 'System',
     'settings.apiKey': 'API Key',
-    'settings.apiKey.label': 'Gemini API Keys',
-    'settings.apiKey.hintPrefix': 'You can get an API key from ',
-    'settings.apiKey.hintPrefixLink': 'Google AI Studio',
-    'settings.apiKey.hintPrefixSuffix': '.',
+    'settings.apiKey.label': 'API Keys',
+    'settings.apiKey.gemini.title': 'Google AI Studio API Keys',
+    'settings.apiKey.openai.title': 'OpenAI API Keys',
+    'settings.apiKey.hintPrefix': 'You can get a Gemini API key from ',
+    'settings.apiKey.hintGeminiLink': 'Google AI Studio',
+    'settings.apiKey.hintMiddle': ' and an OpenAI API key from ',
+    'settings.apiKey.hintOpenaiLink': 'OpenAI Platform',
+    'settings.apiKey.hintSuffix': '.',
     'settings.apiKey.hintTierRequirement':
-        'Default / custom (non-free-tier) keys must be on billing tier 1 or higher. Free-tier keys may only be used with models that offer free tier access.',
+        'Gemini: Default / custom (non-free-tier) keys must be on billing tier 1 or higher. Free-tier keys may only be used with models that offer free tier access. OpenAI: usage is metered per request — no free-tier flag applies.',
     'settings.apiKey.placeholder': 'Enter your API key',
     'settings.apiKey.default.title': 'Default key',
     'settings.apiKey.default.label': 'API key',

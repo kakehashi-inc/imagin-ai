@@ -19,14 +19,18 @@ export default {
     'common.settings': '設定',
     'common.back': '戻る',
 
+    // プロバイダ (ユーザー向け表示名 — コードでは 'gemini' / 'openai' を使用)
+    'provider.gemini': 'Google AI Studio',
+    'provider.openai': 'OpenAI',
+
     // 注意事項ダイアログ
     'notices.button.label': '利用上の注意',
     'notices.button.tooltip': '利用上の注意',
     'notices.dialog.title': '利用上の注意',
     'notices.dialog.close': '閉じる',
-    'notices.googleAiStudio.title': 'Google AI Studio',
-    'notices.googleAiStudio.precautions.title': '無料枠および商用利用時の注意点',
-    'notices.googleAiStudio.precautions.items': [
+    'notices.gemini.title': 'Google AI Studio',
+    'notices.gemini.precautions.title': '無料枠および商用利用時の注意点',
+    'notices.gemini.precautions.items': [
         '入力データと生成結果はGoogleのモデル改善や人間によるレビューに利用される可能性がある。',
         '利用データは個人を特定できない形で処理されるが、機密情報や秘匿性の高いデータの入力は避ける。',
         'AIが生成した内容を「人間が作成した」と偽って利用者に提供することは禁止されている。',
@@ -34,10 +38,25 @@ export default {
         '生成したコンテンツがAIによるものであることを、利用者が誤認しないよう適切に開示する必要がある。',
         'AI生成物に含まれる電子透かし（SynthID等）を意図的に削除したり改ざんしたりしてはならない。',
     ],
-    'notices.googleAiStudio.recommendations.title': '推奨事項',
-    'notices.googleAiStudio.recommendations.items': [
+    'notices.gemini.recommendations.title': '推奨事項',
+    'notices.gemini.recommendations.items': [
         '顧客データやプライバシーに関わる情報を扱う場合は、データが学習に使用されない支払い枠を契約する。',
         'プロトタイプ開発や公開情報の処理には無料枠を使い、本番リリース時に支払い枠へ切り替えて運用する。',
+        '利用者とのトラブルを防ぐため、サービス内に「AI生成物であり正確性を保証しない」旨の免責事項を明記する。',
+    ],
+    'notices.openai.title': 'OpenAI',
+    'notices.openai.precautions.title': 'Standard API利用および商用利用時の注意点',
+    'notices.openai.precautions.items': [
+        'Standard APIでは、入力プロンプトと生成結果はOpenAIのモデル学習に既定で使用されない（2023年3月のポリシー変更による）。Customer Contentはサービス提供・適用法令の遵守・OpenAIポリシーの執行のためにのみ使用される。',
+        '不正利用監視のため、APIの入出力は通常最大30日間サーバ側に保持される（Zero Data Retention契約締結時を除く）。プロンプトと生成結果はOpenAIサーバを経由し一時的に保持されるため、機密情報や秘匿性の高いデータの入力は避ける。',
+        'OpenAIのSharing & Publication Policyに基づき、APIで生成したコンテンツを「すべて人間が作成した」と偽って公開することは禁止されている。公開時はAIの関与を明示的に開示する必要がある。',
+        'API生成物を含むコンテンツを公開する場合、最終的な責任は人間が負うものとされる（人間が内容をレビューし、編集し、正確性について責任を持つ）。',
+        'OpenAI Usage Policiesに反するリクエスト（未成年者を含む性的コンテンツ、暴力や違法行為の助長、選挙干渉等）はAPI側で拒否される。',
+    ],
+    'notices.openai.recommendations.title': '推奨事項',
+    'notices.openai.recommendations.items': [
+        '顧客データやプライバシーに関わる情報を扱う場合は、最新のOpenAI Data Usageポリシーと契約条件を確認した上でAPIに送信する。必要に応じてZero Data Retention（ZDR）契約の申請を検討する。',
+        '生成物の権利はユーザーに帰属する（OpenAIはOutputに対する権利をユーザーに譲渡する）が、他の利用者にも類似の生成物が出力される可能性があるため、生成物が一意であるとは限らない点に留意する。',
         '利用者とのトラブルを防ぐため、サービス内に「AI生成物であり正確性を保証しない」旨の免責事項を明記する。',
     ],
 
@@ -47,21 +66,24 @@ export default {
     'titleBar.apiKey.untitled': '（タイトルなし）',
     'titleBar.apiKey.freeTierBadge': '無料',
     'titleBar.apiKey.noKey': '（未設定）',
+    'titleBar.apiKey.group.gemini': 'Google AI Studio',
+    'titleBar.apiKey.group.openai': 'OpenAI',
 
-    // Model selection
+    // モデル選択
     'model.label': 'モデル',
-    'model.note.lyriaClip': '30秒固定',
-    'model.note.lyriaPro': 'プロンプトで3分までの長さを指示可能',
-    'model.note.imagenShutdown': 'サポート終了: 2026/6/24',
-    'model.note.nanoBananaShutdown': 'サポート終了: 2026/10/2',
     'model.freeTierUnavailable': '無料枠不可',
-    'model.freeTier.ttsFlash': '無料枠:\n3 RPM / 10K TPM\n1分あたり最大3リクエスト、合計で約6分程度の音声生成が目安',
+    'gemini.model.note.lyriaClip': '30秒固定',
+    'gemini.model.note.lyriaPro': 'プロンプトで3分までの長さを指示可能',
+    'gemini.model.note.imagenShutdown': 'サポート終了: 2026/6/24',
+    'gemini.model.note.nanoBananaShutdown': 'サポート終了: 2026/10/2',
+    'gemini.model.freeTier.ttsFlash':
+        '無料枠:\n3 RPM / 10K TPM\n1分あたり最大3リクエスト、合計で約6分程度の音声生成が目安',
 
-    // TTS スタイル / ボイス
-    'tts.style.label': 'スタイル',
-    'tts.style.instructionLabel': 'スタイル内容（英語で記述）',
-    'tts.style.custom': 'カスタム',
-    'tts.style.presets': [
+    // Gemini TTS スタイル / ボイス
+    'gemini.tts.style.label': 'スタイル',
+    'gemini.tts.style.instructionLabel': 'スタイル内容（英語で記述）',
+    'gemini.tts.style.custom': 'カスタム',
+    'gemini.tts.style.presets': [
         {
             name: '明るく元気に',
             effect: 'ハキハキとした高いトーンで活発に',
@@ -108,8 +130,8 @@ export default {
             instruction: 'Sleepy, soothing, and very gentle',
         },
     ],
-    'tts.voice.label': 'ボイス',
-    'tts.voice.presets': [
+    'gemini.tts.voice.label': 'ボイス',
+    'gemini.tts.voice.presets': [
         { name: 'Aoede', gender: '女性', characteristic: 'さわやか、中性的' },
         { name: 'Charon', gender: '男性', characteristic: '誠実、情報伝達的' },
         { name: 'Kore', gender: '女性', characteristic: '芯が強い、きっぱり' },
@@ -173,52 +195,67 @@ export default {
         { tag: '[long pause]', desc: '場面転換や重要な発言の前に、約 2 秒以上の長い溜めを作ります。' },
     ],
 
-    // Aspect ratio
-    'aspectRatio.label': 'アスペクト比',
-    'aspectRatio.group.square': '正方形',
-    'aspectRatio.group.landscape': '横長',
-    'aspectRatio.group.portrait': '縦長',
-    'aspectRatio.1:1': '1:1',
-    'aspectRatio.9:16': '9:16',
-    'aspectRatio.16:9': '16:9',
-    'aspectRatio.3:4': '3:4',
-    'aspectRatio.4:3': '4:3',
-    'aspectRatio.2:3': '2:3',
-    'aspectRatio.3:2': '3:2',
-    'aspectRatio.4:5': '4:5',
-    'aspectRatio.5:4': '5:4',
-    'aspectRatio.21:9': '21:9',
-    'aspectRatio.4:1': '4:1',
-    'aspectRatio.8:1': '8:1',
-    'aspectRatio.1:4': '1:4',
-    'aspectRatio.1:8': '1:8',
+    // Gemini アスペクト比
+    'gemini.aspectRatio.label': 'アスペクト比',
+    'gemini.aspectRatio.group.square': '正方形',
+    'gemini.aspectRatio.group.landscape': '横長',
+    'gemini.aspectRatio.group.portrait': '縦長',
+    'gemini.aspectRatio.1:1': '1:1',
+    'gemini.aspectRatio.9:16': '9:16',
+    'gemini.aspectRatio.16:9': '16:9',
+    'gemini.aspectRatio.3:4': '3:4',
+    'gemini.aspectRatio.4:3': '4:3',
+    'gemini.aspectRatio.2:3': '2:3',
+    'gemini.aspectRatio.3:2': '3:2',
+    'gemini.aspectRatio.4:5': '4:5',
+    'gemini.aspectRatio.5:4': '5:4',
+    'gemini.aspectRatio.21:9': '21:9',
+    'gemini.aspectRatio.4:1': '4:1',
+    'gemini.aspectRatio.8:1': '8:1',
+    'gemini.aspectRatio.1:4': '1:4',
+    'gemini.aspectRatio.1:8': '1:8',
 
-    // Quality
-    'quality.label': '出力解像度',
-    'quality.512px': '512px',
-    'quality.1k': '1K (標準)',
-    'quality.2k': '2K (高精細)',
-    'quality.4k': '4K (最高品質)',
+    // Gemini Quality
+    'gemini.quality.label': '出力解像度',
+    'gemini.quality.512px': '512px',
+    'gemini.quality.1k': '1K (標準)',
+    'gemini.quality.2k': '2K (高精細)',
+    'gemini.quality.4k': '4K (最高品質)',
 
-    // Duration (video)
-    'duration.label': '長さ',
-    'duration.4s': '4秒',
-    'duration.6s': '6秒',
-    'duration.8s': '8秒',
+    // Gemini Duration (video)
+    'gemini.duration.label': '長さ',
+    'gemini.duration.4s': '4秒',
+    'gemini.duration.6s': '6秒',
+    'gemini.duration.8s': '8秒',
 
-    // Resolution (video)
-    'resolution.label': '動画解像度',
-    'resolution.720p': '720p (HD)',
-    'resolution.1080p': '1080p (Full HD)',
+    // Gemini Resolution (video)
+    'gemini.resolution.label': '動画解像度',
+    'gemini.resolution.720p': '720p (HD)',
+    'gemini.resolution.1080p': '1080p (Full HD)',
+    'gemini.resolution.4k': '4K (Ultra HD)',
 
-    // Resolution (video) - 4k
-    'resolution.4k': '4K (Ultra HD)',
+    // OpenAI パラメータ
+    'openai.parameter.size.label': 'サイズ',
+    'openai.parameter.quality.label': '品質',
+    'openai.parameter.outputFormat.label': '出力フォーマット',
+    'openai.parameter.background.label': '背景',
+    'openai.size.square': 'Square (1024x1024) 1:1',
+    'openai.size.portrait': 'Portrait (1024x1536) 2:3',
+    'openai.size.landscape': 'Landscape (1536x1024) 3:2',
+    'openai.size.square2k': '2K Square (2048x2048) 1:1',
+    'openai.size.landscape2k': '2K Landscape (2048x1152) 16:9',
+    'openai.size.landscape4k': '4K Landscape (3840x2160) 16:9',
+    'openai.size.portrait4k': '4K Portrait (2160x3840) 9:16',
+    'openai.quality.low': 'Low',
+    'openai.quality.medium': 'Medium',
+    'openai.quality.high': 'High',
+    'openai.background.opaque': 'Opaque (不透過)',
+    'openai.background.transparent': 'Transparent (透過)',
 
-    // Seed (video)
-    'seed.label': 'シード値',
-    'seed.placeholder': '任意 (再現性のため)',
+    // 画像編集モード (両プロバイダ共通トグル)
+    'parameter.editMode.label': '画像編集モード',
 
-    // Number of images/videos
+    // 生成枚数
     'numberOfImages.label': '生成枚数',
     'numberOfImages.warning': '枚数が多いほどAPI消費量が増加します。',
     'numberOfVideos.label': '生成本数',
@@ -227,7 +264,7 @@ export default {
     // API key banner
     'apiKeyBanner.message': 'APIキーが設定されていません。設定画面で設定してください。',
 
-    // Prompt
+    // プロンプト
     'prompt.label': 'プロンプト',
     'prompt.labelTts': '読み上げテキスト',
     'prompt.placeholder': '生成したい画像を説明してください...',
@@ -238,16 +275,16 @@ export default {
     'prompt.charCount': '{{count}}文字',
     'prompt.startingFrame': '開始フレーム（動画は1枚のみ）',
 
-    // Negative prompt
+    // ネガティブプロンプト
     'negativePrompt.label': 'ネガティブプロンプト',
     'negativePrompt.placeholder': 'text, blurry, low quality, distorted hands',
 
-    // Reference images
+    // 参考画像
     'referenceImages.selectFiles': '画像を添付',
     'referenceImages.removeTooltip': '削除',
     'referenceImages.unsupportedModel': 'このモデルは画像入力に対応していません。',
 
-    // Generation
+    // 生成
     'common.generateVideo': '動画を生成',
     'common.generateMusic': '音楽を生成',
     'common.generateSpeech': '読み上げを生成',
@@ -269,7 +306,7 @@ export default {
     'generation.freeTierBlocked':
         '選択中のモデルは無料枠では利用できません。無料枠キー以外に切り替えるか、別のモデルを選択してください。',
 
-    // History
+    // 履歴
     'history.title': '生成履歴',
     'history.empty': '該当する履歴がありません。',
     'history.allModels': '全モデル',
@@ -281,18 +318,26 @@ export default {
     'history.exportFailed': '履歴のエクスポートに失敗しました。',
     'history.exporting': '履歴をエクスポート中...',
     'history.exportProgress': '圧縮中: {{percent}}%',
+    'history.editBadge': '編集',
+    'history.filter.all': 'すべて',
+    'history.filter.allProviders': '全プロバイダ',
+    'history.filter.allMediaTypes': '全メディア種別',
+    'history.filter.mediaType.image': '画像',
+    'history.filter.mediaType.video': '動画',
+    'history.filter.mediaType.music': '音楽',
+    'history.filter.mediaType.voice': '音声',
 
-    // Context menu
+    // コンテキストメニュー
     'contextMenu.addToPrompt': 'プロンプトに追加',
     'contextMenu.saveAs': '名前をつけて保存...',
     'contextMenu.restoreParams': 'パラメータ復元',
     'contextMenu.delete': '削除',
 
-    // History menu
+    // 履歴メニュー
     'historyMenu.exportAll': 'すべて圧縮して保存',
     'historyMenu.deleteAll': 'すべて削除',
 
-    // Settings
+    // 設定
     'settings.title': '設定',
     'settings.language': '言語',
     'settings.theme': 'テーマ',
@@ -300,12 +345,16 @@ export default {
     'settings.theme.dark': 'ダーク',
     'settings.theme.system': 'システム',
     'settings.apiKey': 'APIキー',
-    'settings.apiKey.label': 'Gemini APIキー',
-    'settings.apiKey.hintPrefix': 'APIキーは ',
-    'settings.apiKey.hintPrefixLink': 'Google AI Studio',
-    'settings.apiKey.hintPrefixSuffix': ' から取得できます。',
+    'settings.apiKey.label': 'APIキー',
+    'settings.apiKey.gemini.title': 'Google AI Studio APIキー',
+    'settings.apiKey.openai.title': 'OpenAI APIキー',
+    'settings.apiKey.hintPrefix': 'Gemini APIキーは ',
+    'settings.apiKey.hintGeminiLink': 'Google AI Studio',
+    'settings.apiKey.hintMiddle': '、OpenAI APIキーは ',
+    'settings.apiKey.hintOpenaiLink': 'OpenAI Platform',
+    'settings.apiKey.hintSuffix': ' から取得できます。',
     'settings.apiKey.hintTierRequirement':
-        'デフォルトキー・カスタムキー（非無料枠）は請求階層がTier 1以上である必要があります。無料枠キーは、無料利用枠が用意されているモデルのみ利用可能です。',
+        'Gemini: デフォルトキー・カスタムキー（非無料枠）は請求階層がTier 1以上である必要があります。無料枠キーは、無料利用枠が用意されているモデルのみ利用可能です。OpenAI: 従量課金制のため、無料枠の概念はありません。',
     'settings.apiKey.placeholder': 'APIキーを入力してください',
     'settings.apiKey.default.title': 'デフォルトキー',
     'settings.apiKey.default.label': 'APIキー',

@@ -12,7 +12,9 @@
       "Bash(yarn lint)",
       "Bash(yarn format:*)",
       "Bash(node -e:*)",
-      "Bash(echo \"EXIT=$?\")"
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(gh api *)",
+      "Read(//tmp/**)"
     ],
     "deny": [],
     "ask": []

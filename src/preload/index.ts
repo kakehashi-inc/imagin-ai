@@ -100,8 +100,8 @@ const api: IpcApi = {
     async getActiveKeyInfo() {
         return ipcRenderer.invoke(CH.API_KEYS_GET_ACTIVE_INFO);
     },
-    async testApiKey(rawKey) {
-        return ipcRenderer.invoke(CH.API_KEY_TEST, rawKey);
+    async testApiKey(provider, rawKey) {
+        return ipcRenderer.invoke(CH.API_KEY_TEST, provider, rawKey);
     },
 
     // Generation

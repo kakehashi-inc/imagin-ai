@@ -9,19 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Auto-update via `electron-updater`: a Snackbar in the lower-right prompts when a new version is available, then displays a determinate progress bar while downloading and an indeterminate bar while installing; "Later" suppresses the prompt for the session. The startup check waits for the main window's first `did-finish-load` and then runs after a 3 s delay, so it never fires before the window is shown. Disabled entirely in development (`NODE_ENV=development` or `--dev`).
-- New IPC channels (`updater:check` / `updater:download` / `updater:quitAndInstall` / `updater:getState` / `updater:stateChanged`) and a `window.imaginai.updater` preload bridge.
-- Windows portable artifacts are now compressed to `.zip` after the build via an `afterAllArtifactBuild` hook (`scripts/zip-portable.js`). The original `.exe` is removed so portable builds are distributed exclusively as `.zip`, reducing browser/AV warnings on unsigned executables. NSIS installer artifacts (`.exe` + `.blockmap` + `latest.yml`) are untouched.
+- OpenAI image generation support: gpt-image-2, gpt-image-1.5, and gpt-image-1. Select size, quality (low/medium/high), output format (PNG/JPEG/WebP), background (opaque/transparent), input fidelity, and image count from the Parameter panel. The per-image cost row matching the current size and quality is highlighted; gpt-image-2 also offers experimental 2K and 4K outputs.
+- OpenAI API keys configuration in Settings (default key + up to 5 named custom keys), and a provider-grouped API key picker in the title bar so you can switch between Google AI Studio and OpenAI keys at any time.
+- Image edit mode: when a reference image is attached and the active model supports editing, a toggle appears next to the prompt label. With it on, your prompt is treated as editing instructions for the attached image and the resulting entry is marked with an "Edit" badge in the history.
+- History filters by provider (Google AI Studio / OpenAI) and by media type (image / video / music / voice), and a provider-brand badge on each thumbnail.
+- Usage notes dialog now covers both Google AI Studio and OpenAI side-by-side.
+- Auto-update via the in-app updater. A notification appears in the lower-right when a new version is available, with a progress indicator while downloading and installing. "Later" silences the prompt for the current session. Auto-update is disabled in development builds.
+- Windows portable distribution is now shipped as a `.zip` archive instead of a bare `.exe`, reducing browser and antivirus warnings on download.
 
 ### Changed
 
-- `electron-updater` is fully short-circuited when running from a portable build (detected via `process.env.PORTABLE_EXECUTABLE_FILE`). This prevents portable users from inadvertently downloading and running the NSIS installer through the updater.
-- Bumped `@mui/material` and `@mui/icons-material` to `^9.0.0`.
-  - Root `tsconfig.json` `moduleResolution` switched to `"bundler"` so MUI v9's `.d.mts`-only types resolve.
-  - `tsconfig.main.json` overrides `moduleResolution` back to `"node"` because `bundler` is incompatible with `module: "CommonJS"` for the Electron main / preload bundles.
-  - Migrated remaining MUI v9 deprecations: `Typography` `fontWeight` / `display` system props moved into `sx`; `TextField` `inputProps` replaced by `slotProps.htmlInput`; legacy `PlayCircleOutline` icon import switched to `PlayCircleOutlined`.
-- `electron-builder.yml` `publish.repo` is now the bare repository name (not the full URL) and `releaseType` is `draft` so multi-platform release artifacts are aggregated into one draft release per version on GitHub.
-- Updated the reference pricing date shown in the Parameter panel to 2026-05-13 after re-verifying Google AI Studio model prices and shutdown dates.
+- On first launch, existing API keys and history entries are silently migrated to the new provider-aware format. The original encrypted API keys file is preserved as `api-keys.enc.bak.v1` next to the active file so you can roll back manually if needed.
+- Updated reference pricing date in the Parameter panel to 2026-05-13 after re-verifying prices across both providers.
 
 ## [v0.5.1] - 2026-04-19
 

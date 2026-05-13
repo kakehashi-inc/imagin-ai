@@ -115,7 +115,8 @@ export default function GenerateButton() {
     const overLimit = isOverLimit();
     const [diskWarning, setDiskWarning] = React.useState(false);
 
-    const { duration, resolution } = useGenerationStore();
+    // Video duration/resolution live under the gemini sub-state in the new schema.
+    const { gemini } = useGenerationStore();
     const [validationError, setValidationError] = React.useState<string | null>(null);
     const [showDetails, setShowDetails] = React.useState(false);
 
@@ -124,8 +125,12 @@ export default function GenerateButton() {
         setDiskWarning(false);
         setValidationError(null);
 
-        // Validate video parameters: 1080p/4K requires 8 seconds
-        if (isVideoModel && (resolution === '1080p' || resolution === '4k') && duration !== 8) {
+        // Validate video parameters: 1080p/4K requires 8 seconds (Gemini Veo constraint)
+        if (
+            isVideoModel &&
+            (gemini.resolution === '1080p' || gemini.resolution === '4k') &&
+            gemini.duration !== 8
+        ) {
             setValidationError(t('generation.videoDurationConstraint'));
             return;
         }

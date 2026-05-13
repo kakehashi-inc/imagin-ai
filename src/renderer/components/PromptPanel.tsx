@@ -2,23 +2,21 @@ import React from 'react';
 import {
     Alert,
     Box,
-    Typography,
-    TextField,
     Button,
-    IconButton,
-    Tooltip,
+    Checkbox,
     FormControl,
+    FormControlLabel,
+    IconButton,
     InputLabel,
-    Select,
     MenuItem,
+    Select,
+    TextField,
+    Typography,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useGenerationStore } from '../stores/generation-store';
 import { useAppStore } from '../stores/app-store';
-import {
-    MODEL_DEFINITIONS,
-    TTS_STYLE_CUSTOM_ID,
-} from '../../shared/constants';
+import { GEMINI_TTS_STYLE_CUSTOM_ID, MODEL_DEFINITIONS } from '../../shared/constants';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import CloseIcon from '@mui/icons-material/Close';
 import AudioTagsDialog from './AudioTagsDialog';
@@ -26,28 +24,36 @@ import AudioTagsDialog from './AudioTagsDialog';
 export default function PromptPanel() {
     const { t } = useTranslation();
     const {
+        provider,
         model,
         prompt,
-        negativePrompt,
+        gemini,
+        openai,
         referenceImagePaths,
         referenceImageThumbnails,
-        styleSelection,
-        styleInstruction,
+        editMode,
         setPrompt,
-        setNegativePrompt,
         addReferenceImages,
         removeReferenceImage,
-        setStyleSelection,
-        setStyleInstruction,
+        setGeminiNegativePrompt,
+        setOpenAINegativePrompt,
+        setGeminiStyleSelection,
+        setGeminiStyleInstruction,
+        setEditMode,
     } = useGenerationStore();
 
     const currentModel = MODEL_DEFINITIONS.find(m => m.id === model);
-    const supportsImageInput = (currentModel?.maxReferenceImages ?? 0) > 0;
+    const supportsImageInput = currentModel?.supportsReferenceFile === true;
+    const supportsImageEdit = currentModel?.supportsImageEdit === true;
+    // Common across providers. Negative prompt is wired to whichever provider
+    // sub-state is active (gemini.negativePrompt / openai.negativePrompt).
     const supportsNegativePrompt = currentModel?.supportsNegativePrompt ?? false;
+    const supportsAudioTags = currentModel?.gemini?.supportsAudioTags ?? false;
+    const negativePromptValue = provider === 'openai' ? openai.negativePrompt : gemini.negativePrompt;
+    const onNegativePromptChange = provider === 'openai' ? setOpenAINegativePrompt : setGeminiNegativePrompt;
     const isMusicModel = currentModel?.mediaType === 'music';
     const isVoiceModel = currentModel?.mediaType === 'voice';
     const isVideoModel = currentModel?.mediaType === 'video';
-    const supportsAudioTags = currentModel?.supportsAudioTags ?? false;
 
     const promptRef = React.useRef<HTMLTextAreaElement>(null);
     const [hasApiKey, setHasApiKey] = React.useState(true);
@@ -86,6 +92,11 @@ export default function PromptPanel() {
         e.preventDefault();
     };
 
+    // The edit-mode checkbox shows only when references are attached AND the
+    // model supports image edit. Both conditions matter so the toggle never
+    // appears in a state where the user can't act on it.
+    const showEditModeToggle = supportsImageEdit && referenceImagePaths.length > 0;
+
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {/* API key not set banner */}
@@ -99,14 +110,14 @@ export default function PromptPanel() {
             {isVoiceModel && (
                 <>
                     <FormControl size='small' fullWidth>
-                        <InputLabel>{t('tts.style.label')}</InputLabel>
+                        <InputLabel>{t('gemini.tts.style.label')}</InputLabel>
                         <Select
-                            value={styleSelection}
-                            label={t('tts.style.label')}
-                            onChange={e => setStyleSelection(e.target.value)}
+                            value={gemini.styleSelection}
+                            label={t('gemini.tts.style.label')}
+                            onChange={e => setGeminiStyleSelection(e.target.value)}
                         >
                             {(
-                                t('tts.style.presets', { returnObjects: true }) as {
+                                t('gemini.tts.style.presets', { returnObjects: true }) as {
                                     name: string;
                                     effect: string;
                                     instruction: string;
@@ -116,7 +127,7 @@ export default function PromptPanel() {
                                     {`${p.name} : ${p.effect}`}
                                 </MenuItem>
                             ))}
-                            <MenuItem value={TTS_STYLE_CUSTOM_ID}>{t('tts.style.custom')}</MenuItem>
+                            <MenuItem value={GEMINI_TTS_STYLE_CUSTOM_ID}>{t('gemini.tts.style.custom')}</MenuItem>
                         </Select>
                     </FormControl>
                     <TextField
@@ -125,14 +136,14 @@ export default function PromptPanel() {
                         multiline
                         minRows={2}
                         maxRows={4}
-                        label={t('tts.style.instructionLabel')}
-                        value={styleInstruction}
-                        onChange={e => setStyleInstruction(e.target.value)}
+                        label={t('gemini.tts.style.instructionLabel')}
+                        value={gemini.styleInstruction}
+                        onChange={e => setGeminiStyleInstruction(e.target.value)}
                     />
                 </>
             )}
 
-            {/* Prompt label */}
+            {/* Prompt label row (audio tags button) */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Typography variant='body2' sx={{ fontWeight: 500 }}>
                     {t(isVoiceModel ? 'prompt.labelTts' : 'prompt.label')}
@@ -233,8 +244,25 @@ export default function PromptPanel() {
                     <Typography variant='caption' color='text.secondary'>
                         {t('prompt.charCount', { count: prompt.length })}
                     </Typography>
-                    {supportsImageInput && (
-                        <Tooltip title=''>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        {showEditModeToggle && (
+                            <FormControlLabel
+                                control={
+                                    <Checkbox
+                                        size='small'
+                                        checked={editMode}
+                                        onChange={e => setEditMode(e.target.checked)}
+                                    />
+                                }
+                                label={
+                                    <Typography variant='caption' sx={{ whiteSpace: 'nowrap' }}>
+                                        {t('parameter.editMode.label')}
+                                    </Typography>
+                                }
+                                sx={{ m: 0 }}
+                            />
+                        )}
+                        {supportsImageInput && (
                             <Button
                                 size='small'
                                 startIcon={<AttachFileIcon />}
@@ -243,8 +271,8 @@ export default function PromptPanel() {
                             >
                                 {t('referenceImages.selectFiles')}
                             </Button>
-                        </Tooltip>
-                    )}
+                        )}
+                    </Box>
                 </Box>
             </Box>
 
@@ -261,8 +289,8 @@ export default function PromptPanel() {
                         fullWidth
                         size='small'
                         placeholder={t('negativePrompt.placeholder')}
-                        value={negativePrompt}
-                        onChange={e => setNegativePrompt(e.target.value)}
+                        value={negativePromptValue}
+                        onChange={e => onNegativePromptChange(e.target.value)}
                     />
                 </>
             )}

@@ -3,8 +3,14 @@ import path from 'path';
 import fs from 'fs';
 import { IPC_CHANNELS, MODEL_DEFINITIONS, HISTORY_MAX_COUNT } from '../../shared/constants';
 import { loadSettings, mergeSettings, ensureHistoryDir } from '../services/settings-service';
-import { getApiKeysData, saveApiKeysData, setActiveApiKeyId, getActiveKeyInfo } from '../services/api-key-service';
-import { testApiKey, generateImages, setGenerationProgressCallback, GeminiApiError } from '../services/gemini-service';
+import {
+    getApiKeysData,
+    saveApiKeysData,
+    setActiveApiKeyId,
+    getActiveKeyInfo,
+    testApiKey,
+} from '../services/api-key-service';
+import { generateImages, isProviderApiError, setGenerationProgressCallback } from '../services/generation-service';
 import {
     getAllHistory,
     getHistoryPage,
@@ -20,7 +26,7 @@ import {
     moveHistoryDir,
 } from '../services/history-service';
 import { getUpdateState, checkForUpdates, downloadUpdate, quitAndInstall } from '../services/updater-service';
-import type { GenerationParams } from '../../shared/types';
+import type { ApiKeysData, ApiProvider, GenerationParams } from '../../shared/types';
 
 /**
  * Register all application IPC handlers
@@ -59,7 +65,7 @@ export function registerIpcHandlers() {
         return getApiKeysData();
     });
 
-    ipcMain.handle(IPC_CHANNELS.API_KEYS_SAVE_DATA, async (_e, data: Parameters<typeof saveApiKeysData>[0]) => {
+    ipcMain.handle(IPC_CHANNELS.API_KEYS_SAVE_DATA, async (_e, data: ApiKeysData) => {
         return saveApiKeysData(data);
     });
 
@@ -71,8 +77,9 @@ export function registerIpcHandlers() {
         return getActiveKeyInfo();
     });
 
-    ipcMain.handle(IPC_CHANNELS.API_KEY_TEST, async (_e, rawKey?: string) => {
-        return testApiKey(rawKey);
+    // API key validation: pass the provider so the right SDK is invoked.
+    ipcMain.handle(IPC_CHANNELS.API_KEY_TEST, async (_e, provider: ApiProvider, rawKey: string) => {
+        return testApiKey(provider, rawKey);
     });
 
     // --- Generation ---
@@ -120,19 +127,20 @@ export function registerIpcHandlers() {
 
                 let entries;
                 if (producesAudioFile) {
-                    entries = result.buffers.map(buf =>
+                    entries = result.buffers.map((buf, i) =>
                         createAudioHistoryEntry(
                             params,
                             modelDisplayName,
                             buf,
                             result.mimeType,
                             result.audioTexts,
-                            elapsedMs
+                            elapsedMs,
+                            result.perItemMeta?.[i]
                         )
                     );
                 } else if (isVideo) {
-                    entries = result.buffers.map(buf =>
-                        createVideoHistoryEntry(params, modelDisplayName, buf, elapsedMs)
+                    entries = result.buffers.map((buf, i) =>
+                        createVideoHistoryEntry(params, modelDisplayName, buf, elapsedMs, result.perItemMeta?.[i])
                     );
                 } else {
                     entries = createHistoryEntries(
@@ -140,13 +148,14 @@ export function registerIpcHandlers() {
                         modelDisplayName,
                         result.buffers,
                         result.mimeType,
-                        elapsedMs
+                        elapsedMs,
+                        result.perItemMeta
                     );
                 }
                 return { success: true, entries };
             } catch (err) {
                 console.error('Generation error:', err instanceof Error ? err.message : err);
-                if (err instanceof GeminiApiError) {
+                if (isProviderApiError(err)) {
                     return { success: false, error: err.detail };
                 }
                 // Unexpected error (network failure, etc.)

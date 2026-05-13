@@ -1,6 +1,10 @@
 import { create } from 'zustand';
-import type { HistoryEntry } from '../../shared/types';
+import type { ApiProvider, HistoryEntry, MediaType } from '../../shared/types';
 import { HISTORY_MAX_COUNT, HISTORY_PAGE_SIZE } from '../../shared/constants';
+
+// 'all' acts as the no-filter sentinel for both provider and mediaType filters.
+export type ProviderFilter = ApiProvider | 'all';
+export type MediaTypeFilter = MediaType | 'all';
 
 type HistoryState = {
     entries: HistoryEntry[];
@@ -8,6 +12,8 @@ type HistoryState = {
     thumbnails: Map<string, string>;
     searchQuery: string;
     filterModel: string;
+    filterProvider: ProviderFilter;
+    filterMediaType: MediaTypeFilter;
     isLoading: boolean;
     hasMore: boolean;
     // Actions
@@ -15,6 +21,8 @@ type HistoryState = {
     loadMore: () => Promise<void>;
     setSearchQuery: (query: string) => void;
     setFilterModel: (model: string) => void;
+    setFilterProvider: (provider: ProviderFilter) => void;
+    setFilterMediaType: (mediaType: MediaTypeFilter) => void;
     deleteEntry: (id: string) => Promise<void>;
     deleteAll: () => Promise<void>;
     exportAll: () => Promise<{ success: boolean; path?: string }>;
@@ -30,6 +38,8 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     thumbnails: new Map(),
     searchQuery: '',
     filterModel: '',
+    filterProvider: 'all',
+    filterMediaType: 'all',
     isLoading: false,
     hasMore: true,
 
@@ -72,6 +82,8 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
 
     setSearchQuery: (query: string) => set({ searchQuery: query }),
     setFilterModel: (model: string) => set({ filterModel: model }),
+    setFilterProvider: (provider: ProviderFilter) => set({ filterProvider: provider }),
+    setFilterMediaType: (mediaType: MediaTypeFilter) => set({ filterMediaType: mediaType }),
 
     deleteEntry: async (id: string) => {
         await window.imaginai.deleteHistory(id);
@@ -94,6 +106,12 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     getFilteredEntries: () => {
         const state = get();
         let result = state.entries;
+        if (state.filterProvider !== 'all') {
+            result = result.filter(e => e.provider === state.filterProvider);
+        }
+        if (state.filterMediaType !== 'all') {
+            result = result.filter(e => e.mediaType === state.filterMediaType);
+        }
         if (state.filterModel) {
             result = result.filter(e => e.model === state.filterModel);
         }

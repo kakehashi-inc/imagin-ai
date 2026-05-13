@@ -1,33 +1,40 @@
 import React from 'react';
 import {
     Box,
-    Typography,
-    TextField,
-    IconButton,
-    Menu,
-    MenuItem,
+    Button,
+    Chip,
+    CircularProgress,
     Dialog,
-    DialogTitle,
+    DialogActions,
     DialogContent,
     DialogContentText,
-    DialogActions,
-    Button,
+    DialogTitle,
+    FormControl,
+    IconButton,
     InputAdornment,
     LinearProgress,
-    CircularProgress,
-    FormControl,
+    Menu,
+    MenuItem,
     Select,
+    TextField,
+    ToggleButton,
+    ToggleButtonGroup,
+    Tooltip,
+    Typography,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useHistoryStore } from '../stores/history-store';
 import { useGenerationStore } from '../stores/generation-store';
 import type { HistoryEntry } from '../../shared/types';
 import { MODEL_DEFINITIONS } from '../../shared/constants';
-import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
-import SearchIcon from '@mui/icons-material/Search';
-import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutlined';
+import ProviderIcon from './ProviderIcon';
+import ImageIcon from '@mui/icons-material/Image';
+import VideocamIcon from '@mui/icons-material/Videocam';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
+import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutlined';
 import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
+import SearchIcon from '@mui/icons-material/Search';
 
 type ContextMenuState = {
     mouseX: number;
@@ -79,6 +86,10 @@ export default function HistoryPanel() {
         setSearchQuery,
         filterModel,
         setFilterModel,
+        filterProvider,
+        setFilterProvider,
+        filterMediaType,
+        setFilterMediaType,
         deleteEntry,
         deleteAll,
         exportAll,
@@ -91,7 +102,7 @@ export default function HistoryPanel() {
     const { model, addReferenceImages, restoreParams } = useGenerationStore();
 
     const currentModel = MODEL_DEFINITIONS.find(m => m.id === model);
-    const supportsImageInput = (currentModel?.maxReferenceImages ?? 0) > 0;
+    const supportsImageInput = currentModel?.supportsReferenceFile === true;
 
     const [contextMenu, setContextMenu] = React.useState<ContextMenuState>(null);
     const [headerMenuAnchor, setHeaderMenuAnchor] = React.useState<HTMLElement | null>(null);
@@ -105,14 +116,21 @@ export default function HistoryPanel() {
     const [panelHeight, setPanelHeight] = React.useState(300);
     const resizeRef = React.useRef<{ startY: number; startHeight: number } | null>(null);
 
-    // Build unique model list for filter dropdown, ordered by MODEL_DEFINITIONS
+    // Build unique model list for the filter dropdown. The list is narrowed by
+    // the active provider and mediaType filters so the user only sees models
+    // they can still pick after the other filters are applied.
     const modelOptions = React.useMemo(() => {
         const usedModels = new Set(entries.map(e => e.model));
-        return MODEL_DEFINITIONS.filter(m => usedModels.has(m.id)).map(m => ({
+        return MODEL_DEFINITIONS.filter(m => {
+            if (!usedModels.has(m.id)) return false;
+            if (filterProvider !== 'all' && m.provider !== filterProvider) return false;
+            if (filterMediaType !== 'all' && m.mediaType !== filterMediaType) return false;
+            return true;
+        }).map(m => ({
             id: m.id,
             name: m.displayName.replace(/\s*\(.*\)$/, ''),
         }));
-    }, [entries]);
+    }, [entries, filterProvider, filterMediaType]);
 
     // Listen for export progress events
     React.useEffect(() => {
@@ -217,16 +235,26 @@ export default function HistoryPanel() {
     const handleRestoreParams = () => {
         if (contextMenu?.entry) {
             const e = contextMenu.entry;
+            // Restore per-provider sub-objects symmetrically; restoreParams in
+            // the generation store merges the values into its own sub-state.
             restoreParams({
+                provider: e.provider,
                 model: e.model,
                 prompt: e.prompt,
-                negativePrompt: e.negativePrompt,
-                aspectRatio: e.aspectRatio,
-                quality: e.quality,
                 numberOfImages: e.numberOfImages,
-                duration: e.videoDuration,
-                resolution: e.videoResolution,
-                seed: e.seed,
+                editMode: e.editMode,
+                gemini: e.gemini
+                    ? {
+                          negativePrompt: e.gemini.negativePrompt,
+                          aspectRatio: e.gemini.aspectRatio,
+                          quality: e.gemini.quality,
+                          duration: e.gemini.videoDuration,
+                          resolution: e.gemini.videoResolution,
+                          styleInstruction: e.gemini.styleInstruction,
+                          voice: e.gemini.voice,
+                      }
+                    : undefined,
+                openai: e.openai ? { ...e.openai } : undefined,
             });
         }
         handleCloseContextMenu();
@@ -295,14 +323,14 @@ export default function HistoryPanel() {
                             items: [entry.prompt],
                         });
                     }
-                    if (entry.audioTexts && entry.audioTexts.length > 0) {
+                    if (entry.gemini?.audioTexts && entry.gemini.audioTexts.length > 0) {
                         sections.push({
                             label: t('audioPlayer.section.apiText'),
-                            items: entry.audioTexts,
+                            items: entry.gemini.audioTexts,
                         });
                     }
-                } else if (entry.audioTexts && entry.audioTexts.length > 0) {
-                    sections.push({ items: entry.audioTexts });
+                } else if (entry.gemini?.audioTexts && entry.gemini.audioTexts.length > 0) {
+                    sections.push({ items: entry.gemini.audioTexts });
                 }
                 window.imaginai.openAudioPlayer(
                     entry.generatedImagePaths[i],
@@ -348,6 +376,75 @@ export default function HistoryPanel() {
                 <IconButton size='small' onClick={e => setHeaderMenuAnchor(e.currentTarget)}>
                     <MoreHorizIcon fontSize='small' />
                 </IconButton>
+
+                {/* Provider filter — ProviderIcon-marked toggle group */}
+                <ToggleButtonGroup
+                    size='small'
+                    exclusive
+                    value={filterProvider}
+                    onChange={(_e, v) => v && setFilterProvider(v)}
+                    sx={{ ml: 1, flexShrink: 0, '& .MuiToggleButton-root': { py: 0.25, px: 0.75 } }}
+                >
+                    <ToggleButton value='all'>
+                        <Tooltip title={t('history.filter.allProviders')}>
+                            <Typography variant='caption' sx={{ fontSize: '0.7rem' }}>
+                                {t('history.filter.all')}
+                            </Typography>
+                        </Tooltip>
+                    </ToggleButton>
+                    <ToggleButton value='gemini'>
+                        <Tooltip title={t('provider.gemini')}>
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                <ProviderIcon provider='gemini' fontSize='small' />
+                            </Box>
+                        </Tooltip>
+                    </ToggleButton>
+                    <ToggleButton value='openai'>
+                        <Tooltip title={t('provider.openai')}>
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                <ProviderIcon provider='openai' fontSize='small' />
+                            </Box>
+                        </Tooltip>
+                    </ToggleButton>
+                </ToggleButtonGroup>
+
+                {/* MediaType filter — mediaType-icon toggle group */}
+                <ToggleButtonGroup
+                    size='small'
+                    exclusive
+                    value={filterMediaType}
+                    onChange={(_e, v) => v && setFilterMediaType(v)}
+                    sx={{ flexShrink: 0, '& .MuiToggleButton-root': { py: 0.25, px: 0.75 } }}
+                >
+                    <ToggleButton value='all'>
+                        <Tooltip title={t('history.filter.allMediaTypes')}>
+                            <Typography variant='caption' sx={{ fontSize: '0.7rem' }}>
+                                {t('history.filter.all')}
+                            </Typography>
+                        </Tooltip>
+                    </ToggleButton>
+                    <ToggleButton value='image'>
+                        <Tooltip title={t('history.filter.mediaType.image')}>
+                            <ImageIcon sx={{ fontSize: 16 }} />
+                        </Tooltip>
+                    </ToggleButton>
+                    <ToggleButton value='video'>
+                        <Tooltip title={t('history.filter.mediaType.video')}>
+                            <VideocamIcon sx={{ fontSize: 16 }} />
+                        </Tooltip>
+                    </ToggleButton>
+                    <ToggleButton value='music'>
+                        <Tooltip title={t('history.filter.mediaType.music')}>
+                            <MusicNoteIcon sx={{ fontSize: 16 }} />
+                        </Tooltip>
+                    </ToggleButton>
+                    <ToggleButton value='voice'>
+                        <Tooltip title={t('history.filter.mediaType.voice')}>
+                            <RecordVoiceOverIcon sx={{ fontSize: 16 }} />
+                        </Tooltip>
+                    </ToggleButton>
+                </ToggleButtonGroup>
+
                 <FormControl size='small' sx={{ minWidth: 140, ml: 'auto', flexShrink: 0 }}>
                     <Select
                         value={filterModel}
@@ -468,6 +565,40 @@ export default function HistoryPanel() {
                                                 }}
                                             />
                                         )}
+                                        {/* Provider badge — top-left corner of thumbnail */}
+                                        <Box
+                                            sx={{
+                                                position: 'absolute',
+                                                top: 4,
+                                                left: 4,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                width: 18,
+                                                height: 18,
+                                                borderRadius: '50%',
+                                                bgcolor: 'rgba(0,0,0,0.55)',
+                                                color: 'white',
+                                            }}
+                                        >
+                                            <ProviderIcon provider={entry.provider} sx={{ fontSize: 12 }} />
+                                        </Box>
+                                        {/* Edit-mode badge — to the right of the provider badge */}
+                                        {entry.editMode && (
+                                            <Chip
+                                                size='small'
+                                                color='primary'
+                                                label={t('history.editBadge')}
+                                                sx={{
+                                                    position: 'absolute',
+                                                    top: 4,
+                                                    left: 26,
+                                                    height: 16,
+                                                    fontSize: '0.6rem',
+                                                    '& .MuiChip-label': { px: 0.5 },
+                                                }}
+                                            />
+                                        )}
                                     </Box>
                                     <Box sx={{ p: 0.75 }}>
                                         <Typography
@@ -492,9 +623,9 @@ export default function HistoryPanel() {
                                                     <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>
                                                         {(entry.generatedImagePaths[0]?.toLowerCase().split('.').pop() ?? 'mp3').toUpperCase()}
                                                     </Typography>
-                                                ) : entry.mediaType === 'video' && entry.videoDuration ? (
+                                                ) : entry.mediaType === 'video' && entry.gemini?.videoDuration ? (
                                                     <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>
-                                                        {entry.videoDuration}s {entry.videoResolution ?? ''}
+                                                        {entry.gemini.videoDuration}s {entry.gemini.videoResolution ?? ''}
                                                     </Typography>
                                                 ) : entry.imageWidth && entry.imageHeight ? (
                                                     <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>

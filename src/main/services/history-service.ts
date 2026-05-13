@@ -2,12 +2,14 @@ import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import archiver from 'archiver';
-import type { HistoryEntry, GenerationParams } from '../../shared/types';
-import { THUMBNAIL_SIZE, THUMBNAIL_DIR_NAME, HISTORY_IMAGES_DIR, MODEL_DEFINITIONS } from '../../shared/constants';
-import { loadSettings, ensureHistoryDir } from './settings-service';
+import type { ApiProvider, GenerationParams, HistoryEntry, MediaType } from '../../shared/types';
+import { HISTORY_IMAGES_DIR, MODEL_DEFINITIONS, THUMBNAIL_DIR_NAME, THUMBNAIL_SIZE } from '../../shared/constants';
+import { ensureHistoryDir, loadSettings } from './settings-service';
 import { extractVideoThumbnail } from './ffmpeg-service';
 
-// --- Directory helpers ---
+// =============================================================================
+// Directory helpers
+// =============================================================================
 
 function getHistoryDir(): string {
     return ensureHistoryDir();
@@ -28,18 +30,99 @@ function ensureDirs(): void {
     if (!fs.existsSync(thumbDir)) fs.mkdirSync(thumbDir, { recursive: true });
 }
 
-// --- Metadata helpers ---
+// =============================================================================
+// Migration helpers (legacy flat schema -> new per-provider sub-object schema)
+// =============================================================================
+
+// Derive mediaType from a model id when an older record is missing the field.
+function inferMediaTypeFromModelId(modelId: string): MediaType {
+    if (modelId.startsWith('veo-')) return 'video';
+    if (modelId.startsWith('lyria-')) return 'music';
+    if (modelId.includes('-tts')) return 'voice';
+    return 'image';
+}
+
+// Derive provider from a model id when an older record is missing the field.
+// Legacy data is always Gemini; the prefix-based check is a defense in depth.
+function inferProviderFromModelId(modelId: string): ApiProvider {
+    if (modelId.startsWith('gpt-image-')) return 'openai';
+    return 'gemini';
+}
+
+// Migrate one history entry from the legacy flat schema into the new per-provider
+// sub-object schema. Returns { entry, migrated } so the caller can decide
+// whether to rewrite the JSON file on disk.
+function migrateHistoryEntry(raw: unknown): { entry: HistoryEntry; migrated: boolean } {
+    const r = (raw ?? {}) as Record<string, unknown>;
+    const hasNewShape = typeof r.provider === 'string' && (r.gemini !== undefined || r.openai !== undefined);
+    if (hasNewShape) {
+        return { entry: r as unknown as HistoryEntry, migrated: false };
+    }
+
+    const model = typeof r.model === 'string' ? r.model : '';
+    const provider = inferProviderFromModelId(model);
+    const mediaType = (typeof r.mediaType === 'string' ? r.mediaType : inferMediaTypeFromModelId(model)) as MediaType;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const legacyGemini: any = {
+        negativePrompt: typeof r.negativePrompt === 'string' ? r.negativePrompt : '',
+        aspectRatio: r.aspectRatio,
+        quality: r.quality,
+    };
+    if (r.videoDuration !== undefined) legacyGemini.videoDuration = r.videoDuration;
+    if (r.videoResolution !== undefined) legacyGemini.videoResolution = r.videoResolution;
+    if (r.seed !== undefined) legacyGemini.seed = r.seed;
+    if (Array.isArray(r.audioTexts)) legacyGemini.audioTexts = r.audioTexts;
+    if (typeof r.styleInstruction === 'string') legacyGemini.styleInstruction = r.styleInstruction;
+    if (typeof r.voice === 'string') legacyGemini.voice = r.voice;
+
+    const entry: HistoryEntry = {
+        id: typeof r.id === 'string' ? r.id : uuidv4(),
+        createdAt: typeof r.createdAt === 'string' ? r.createdAt : new Date().toISOString(),
+        updatedAt: typeof r.updatedAt === 'string' ? r.updatedAt : new Date().toISOString(),
+        provider,
+        model,
+        modelDisplayName: typeof r.modelDisplayName === 'string' ? r.modelDisplayName : model,
+        mediaType,
+        prompt: typeof r.prompt === 'string' ? r.prompt : '',
+        numberOfImages: typeof r.numberOfImages === 'number' ? r.numberOfImages : 1,
+        referenceImagePaths: Array.isArray(r.referenceImagePaths) ? (r.referenceImagePaths as string[]) : [],
+        generatedImagePaths: Array.isArray(r.generatedImagePaths) ? (r.generatedImagePaths as string[]) : [],
+        imageWidth: typeof r.imageWidth === 'number' ? r.imageWidth : undefined,
+        imageHeight: typeof r.imageHeight === 'number' ? r.imageHeight : undefined,
+        fileSize: typeof r.fileSize === 'number' ? r.fileSize : undefined,
+        elapsedMs: typeof r.elapsedMs === 'number' ? r.elapsedMs : undefined,
+        editMode: false,
+    };
+    if (provider === 'gemini') {
+        entry.gemini = legacyGemini;
+    }
+    return { entry, migrated: true };
+}
+
+// =============================================================================
+// Metadata read / write
+// =============================================================================
 
 function readMetadata(jsonPath: string): HistoryEntry | null {
     try {
-        if (fs.existsSync(jsonPath)) {
-            const raw = fs.readFileSync(jsonPath, 'utf-8');
-            return JSON.parse(raw) as HistoryEntry;
+        if (!fs.existsSync(jsonPath)) return null;
+        const raw = fs.readFileSync(jsonPath, 'utf-8');
+        const parsed = JSON.parse(raw);
+        const { entry, migrated } = migrateHistoryEntry(parsed);
+        if (migrated) {
+            // Persist the upgraded shape so we only pay the migration cost once.
+            try {
+                fs.writeFileSync(jsonPath, JSON.stringify(entry, null, 2), 'utf-8');
+            } catch (writeErr) {
+                console.warn(`Failed to persist migrated history entry ${jsonPath}:`, writeErr);
+            }
         }
+        return entry;
     } catch (err) {
         console.error(`Failed to read metadata from ${jsonPath}:`, err);
+        return null;
     }
-    return null;
 }
 
 function writeMetadata(id: string, entry: HistoryEntry): void {
@@ -48,16 +131,16 @@ function writeMetadata(id: string, entry: HistoryEntry): void {
     fs.writeFileSync(metaPath, JSON.stringify(entry, null, 2), 'utf-8');
 }
 
-// --- Public API ---
+// =============================================================================
+// Cache and queries
+// =============================================================================
 
-// Cached sorted entries (invalidated on create/delete)
 let cachedEntries: HistoryEntry[] | null = null;
 
 function invalidateCache(): void {
     cachedEntries = null;
 }
 
-// Load and sort all entries (uses cache if available)
 function loadAllEntries(): HistoryEntry[] {
     if (cachedEntries) return cachedEntries;
 
@@ -81,51 +164,140 @@ function loadAllEntries(): HistoryEntry[] {
     return entries;
 }
 
-// Get all history entries sorted by updatedAt descending
 export function getAllHistory(): HistoryEntry[] {
     return loadAllEntries();
 }
 
-// Get a page of history entries (offset-based pagination)
 export function getHistoryPage(offset: number, limit: number): { entries: HistoryEntry[]; total: number } {
     const all = loadAllEntries();
-    return {
-        entries: all.slice(offset, offset + limit),
-        total: all.length,
-    };
+    return { entries: all.slice(offset, offset + limit), total: all.length };
 }
 
-// Get total history count (fast, uses cache)
 export function getHistoryCount(): number {
     return loadAllEntries().length;
 }
 
-// Create history entries from generation result (one entry per image)
+// =============================================================================
+// Entry creation (image / video / audio)
+// =============================================================================
+
+function buildBaseFields(
+    params: GenerationParams,
+    modelDisplayName: string
+): Pick<
+    HistoryEntry,
+    'provider' | 'model' | 'modelDisplayName' | 'prompt' | 'numberOfImages' | 'referenceImagePaths' | 'editMode'
+> {
+    return {
+        provider: params.provider,
+        model: params.model,
+        modelDisplayName,
+        prompt: params.prompt,
+        numberOfImages: params.numberOfImages,
+        referenceImagePaths: params.referenceImagePaths,
+        editMode: params.editMode,
+    };
+}
+
+// Pull provider-specific sub-object from generation params straight into the
+// history entry. Keeps history rehydration straightforward: same shape both ways.
+function pickProviderSubObject(params: GenerationParams): Pick<HistoryEntry, 'gemini' | 'openai'> {
+    if (params.provider === 'gemini' && params.gemini) {
+        const g = params.gemini;
+        return {
+            gemini: {
+                negativePrompt: g.negativePrompt,
+                aspectRatio: g.aspectRatio,
+                quality: g.quality,
+                videoDuration: g.duration,
+                videoResolution: g.resolution,
+                // `seed` is intentionally omitted: the renderer never collects
+                // one, and Veo's response (current SDK types) doesn't expose
+                // one either. If a future SDK release surfaces a seed on the
+                // response, it can be merged in at the call site.
+                styleInstruction: g.styleInstruction,
+                voice: g.voice,
+            },
+        };
+    }
+    if (params.provider === 'openai' && params.openai) {
+        return { openai: { ...params.openai } };
+    }
+    return {};
+}
+
+// Merge per-buffer response metadata into the gemini/openai sub-object that
+// pickProviderSubObject just built. The dispatcher hands us a tagged shape
+// (`{ gemini }` or `{ openai }`) per buffer; we spread it onto the matching
+// branch so the rest of the entry stays intact.
+function mergePerItemMeta(
+    sub: Pick<HistoryEntry, 'gemini' | 'openai'>,
+    itemMeta?: {
+        gemini?: Partial<NonNullable<HistoryEntry['gemini']>>;
+        openai?: Partial<NonNullable<HistoryEntry['openai']>>;
+    }
+): Pick<HistoryEntry, 'gemini' | 'openai'> {
+    if (!itemMeta) return sub;
+    const out: Pick<HistoryEntry, 'gemini' | 'openai'> = { ...sub };
+    if (itemMeta.gemini && out.gemini) {
+        out.gemini = { ...out.gemini, ...itemMeta.gemini };
+    }
+    if (itemMeta.openai && out.openai) {
+        out.openai = { ...out.openai, ...itemMeta.openai };
+    }
+    return out;
+}
+
+function extToMime(ext: string): string {
+    if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+    if (ext === 'webp') return 'image/webp';
+    return 'image/png';
+}
+
+function imageExtensionFromMime(mimeType: string): string {
+    const m = mimeType.toLowerCase();
+    if (m.includes('jpeg')) return 'jpg';
+    if (m.includes('webp')) return 'webp';
+    return 'png';
+}
+
+// Tagged per-buffer response metadata. Either `gemini` or `openai` is set
+// depending on the active provider. Defined here (rather than imported from
+// generation-service) so this module stays free of cross-imports between
+// services.
+export type HistoryItemMeta = {
+    gemini?: Partial<NonNullable<HistoryEntry['gemini']>>;
+    openai?: Partial<NonNullable<HistoryEntry['openai']>>;
+};
+
+// Create one history entry per generated image. Filename extension is derived
+// from the response mimeType so OpenAI's JPEG/WebP outputs aren't mis-labeled
+// as PNG (which the legacy implementation always assumed). `perItemMeta[i]` is
+// merged onto entry[i] so response-side fields (usage, finishReason,
+// enhancedPrompt, etc.) survive to the JSON file.
 export function createHistoryEntries(
     params: GenerationParams,
     modelDisplayName: string,
     imageBuffers: Buffer[],
-    _mimeType: string,
-    elapsedMs?: number
+    mimeType: string,
+    elapsedMs?: number,
+    perItemMeta?: HistoryItemMeta[]
 ): HistoryEntry[] {
     invalidateCache();
     const now = new Date().toISOString();
     const entries: HistoryEntry[] = [];
 
     ensureDirs();
+    const ext = imageExtensionFromMime(mimeType);
 
     for (let i = 0; i < imageBuffers.length; i++) {
         const id = uuidv4();
-
-        // Save image as PNG
-        const imagePath = path.join(getImagesDir(), `${id}.png`);
+        const imagePath = path.join(getImagesDir(), `${id}.${ext}`);
         fs.writeFileSync(imagePath, imageBuffers[i]);
 
-        // Generate thumbnail as JPEG
         const thumbPath = path.join(getThumbDir(), `${id}.jpg`);
         generateThumbnail(imageBuffers[i], thumbPath);
 
-        // Get image dimensions
         let imageWidth = 0;
         let imageHeight = 0;
         try {
@@ -139,38 +311,34 @@ export function createHistoryEntries(
             // Ignore dimension read errors
         }
 
+        const sub = mergePerItemMeta(pickProviderSubObject(params), perItemMeta?.[i]);
+
         const entry: HistoryEntry = {
             id,
             createdAt: now,
             updatedAt: now,
-            model: params.model,
-            modelDisplayName,
-            prompt: params.prompt,
-            negativePrompt: params.negativePrompt,
-            aspectRatio: params.aspectRatio,
-            quality: params.quality,
-            numberOfImages: params.numberOfImages,
-            referenceImagePaths: params.referenceImagePaths,
+            ...buildBaseFields(params, modelDisplayName),
+            mediaType: 'image',
             generatedImagePaths: [imagePath],
             imageWidth,
             imageHeight,
             fileSize: imageBuffers[i].length,
             elapsedMs,
+            ...sub,
         };
 
         writeMetadata(id, entry);
         entries.push(entry);
     }
-
     return entries;
 }
 
-// Create history entry from video generation result
 export function createVideoHistoryEntry(
     params: GenerationParams,
     modelDisplayName: string,
     videoBuffer: Buffer,
-    elapsedMs?: number
+    elapsedMs?: number,
+    itemMeta?: HistoryItemMeta
 ): HistoryEntry {
     invalidateCache();
     const now = new Date().toISOString();
@@ -178,40 +346,31 @@ export function createVideoHistoryEntry(
 
     ensureDirs();
 
-    // Save video as MP4
     const videoPath = path.join(getImagesDir(), `${id}.mp4`);
     fs.writeFileSync(videoPath, videoBuffer);
 
-    // Generate thumbnail from the video using ffmpeg
     const thumbPath = path.join(getThumbDir(), `${id}.jpg`);
     extractVideoThumbnail(videoPath, thumbPath, THUMBNAIL_SIZE);
+
+    const sub = mergePerItemMeta(pickProviderSubObject(params), itemMeta);
 
     const entry: HistoryEntry = {
         id,
         createdAt: now,
         updatedAt: now,
-        model: params.model,
-        modelDisplayName,
-        prompt: params.prompt,
-        negativePrompt: params.negativePrompt,
-        aspectRatio: params.aspectRatio,
-        quality: params.quality,
+        ...buildBaseFields(params, modelDisplayName),
         numberOfImages: 1,
-        referenceImagePaths: params.referenceImagePaths,
+        mediaType: 'video',
         generatedImagePaths: [videoPath],
         fileSize: videoBuffer.length,
-        mediaType: 'video',
-        videoDuration: params.duration,
-        videoResolution: params.resolution,
-        seed: params.seed,
         elapsedMs,
+        ...sub,
     };
 
     writeMetadata(id, entry);
     return entry;
 }
 
-// Map an audio mimeType to a file extension. Falls back to mp3 for safety.
 function audioExtensionFromMime(mimeType: string): string {
     const m = mimeType.toLowerCase();
     if (m.includes('wav') || m.includes('wave') || m.includes('x-wav')) return 'wav';
@@ -223,14 +382,14 @@ function audioExtensionFromMime(mimeType: string): string {
     return 'mp3';
 }
 
-// Create history entry from audio generation result
 export function createAudioHistoryEntry(
     params: GenerationParams,
     modelDisplayName: string,
     audioBuffer: Buffer,
     mimeType: string,
     audioTexts?: string[],
-    elapsedMs?: number
+    elapsedMs?: number,
+    itemMeta?: HistoryItemMeta
 ): HistoryEntry {
     invalidateCache();
     const now = new Date().toISOString();
@@ -238,37 +397,41 @@ export function createAudioHistoryEntry(
 
     ensureDirs();
 
-    // Save audio with extension derived from the API/post-process mimeType
     const ext = audioExtensionFromMime(mimeType);
     const audioPath = path.join(getImagesDir(), `${id}.${ext}`);
     fs.writeFileSync(audioPath, audioBuffer);
 
-    const entry: HistoryEntry = {
+    const inferredMediaType = MODEL_DEFINITIONS.find(m => m.id === params.model)?.mediaType;
+    const mediaType: MediaType = inferredMediaType === 'voice' ? 'voice' : 'music';
+
+    const sub = mergePerItemMeta(pickProviderSubObject(params), itemMeta);
+
+    const baseEntry: HistoryEntry = {
         id,
         createdAt: now,
         updatedAt: now,
-        model: params.model,
-        modelDisplayName,
-        prompt: params.prompt,
-        negativePrompt: '',
-        aspectRatio: params.aspectRatio,
-        quality: params.quality,
+        ...buildBaseFields(params, modelDisplayName),
         numberOfImages: 1,
-        referenceImagePaths: params.referenceImagePaths,
+        mediaType,
         generatedImagePaths: [audioPath],
         fileSize: audioBuffer.length,
-        mediaType: MODEL_DEFINITIONS.find(m => m.id === params.model)?.mediaType === 'voice' ? 'voice' : 'music',
-        audioTexts,
         elapsedMs,
-        styleInstruction: params.styleInstruction,
-        voice: params.voice,
+        ...sub,
     };
 
-    writeMetadata(id, entry);
-    return entry;
+    // audioTexts only applies to the gemini sub-object; merge it in.
+    if (audioTexts && audioTexts.length > 0 && baseEntry.gemini) {
+        baseEntry.gemini = { ...baseEntry.gemini, audioTexts };
+    }
+
+    writeMetadata(id, baseEntry);
+    return baseEntry;
 }
 
-// Generate a thumbnail using Electron nativeImage (JPEG, max long side THUMBNAIL_SIZE px)
+// =============================================================================
+// Thumbnails and viewers
+// =============================================================================
+
 function generateThumbnail(imageBuffer: Buffer, thumbPath: string): void {
     try {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -276,14 +439,12 @@ function generateThumbnail(imageBuffer: Buffer, thumbPath: string): void {
         const img = nativeImage.createFromBuffer(imageBuffer);
         const size = img.getSize();
 
-        // Scale so that the long side = THUMBNAIL_SIZE, maintaining aspect ratio
         const longSide = Math.max(size.width, size.height);
         const scale = longSide > THUMBNAIL_SIZE ? THUMBNAIL_SIZE / longSide : 1;
         const width = Math.round(size.width * scale);
         const height = Math.round(size.height * scale);
 
         const resized = img.resize({ width, height, quality: 'good' });
-        // Always save as JPEG
         fs.writeFileSync(thumbPath, resized.toJPEG(60));
     } catch (err) {
         console.error('Failed to generate thumbnail:', err);
@@ -291,10 +452,8 @@ function generateThumbnail(imageBuffer: Buffer, thumbPath: string): void {
     }
 }
 
-// Get thumbnail data as base64 data URL
 export function getThumbnailDataUrl(imagePath: string): string {
     try {
-        // Derive thumbnail path: same uuid, .jpg in thumbnails dir
         const baseName = path.basename(imagePath, path.extname(imagePath));
         const thumbPath = path.join(getThumbDir(), `${baseName}.jpg`);
 
@@ -302,8 +461,6 @@ export function getThumbnailDataUrl(imagePath: string): string {
             const data = fs.readFileSync(thumbPath);
             return `data:image/jpeg;base64,${data.toString('base64')}`;
         }
-
-        // Fallback: read original image
         return getImageDataUrl(imagePath);
     } catch (err) {
         console.error('Failed to read thumbnail:', err);
@@ -311,24 +468,19 @@ export function getThumbnailDataUrl(imagePath: string): string {
     }
 }
 
-// Get image data as base64 data URL
 export function getImageDataUrl(imagePath: string): string {
     try {
-        if (fs.existsSync(imagePath)) {
-            const data = fs.readFileSync(imagePath);
-            const ext = path.extname(imagePath).toLowerCase();
-            let mime = 'image/png';
-            if (ext === '.jpg' || ext === '.jpeg') mime = 'image/jpeg';
-            else if (ext === '.mp4') mime = 'video/mp4';
-            return `data:${mime};base64,${data.toString('base64')}`;
-        }
+        if (!fs.existsSync(imagePath)) return '';
+        const data = fs.readFileSync(imagePath);
+        const ext = path.extname(imagePath).toLowerCase().replace('.', '');
+        const mime = ext === 'mp4' ? 'video/mp4' : extToMime(ext);
+        return `data:${mime};base64,${data.toString('base64')}`;
     } catch (err) {
         console.error('Failed to read image:', err);
+        return '';
     }
-    return '';
 }
 
-// Get file path for video playback (returns file:// URL)
 export function getVideoFileUrl(videoPath: string): string {
     if (fs.existsSync(videoPath)) {
         return `file://${videoPath}`;
@@ -336,25 +488,42 @@ export function getVideoFileUrl(videoPath: string): string {
     return '';
 }
 
-// Delete a single history entry
+// =============================================================================
+// Mutations (delete / bulk delete / move / export)
+// =============================================================================
+
 export function deleteHistoryEntry(id: string): void {
     invalidateCache();
-    const pngPath = path.join(getImagesDir(), `${id}.png`);
-    const mp4Path = path.join(getImagesDir(), `${id}.mp4`);
-    const mp3Path = path.join(getImagesDir(), `${id}.mp3`);
-    const jsonPath = path.join(getImagesDir(), `${id}.json`);
+    const imagesDir = getImagesDir();
     const thumbPath = path.join(getThumbDir(), `${id}.jpg`);
 
-    for (const p of [pngPath, mp4Path, mp3Path, jsonPath, thumbPath]) {
-        try {
-            if (fs.existsSync(p)) fs.unlinkSync(p);
-        } catch (err) {
-            console.error(`Failed to delete ${p}:`, err);
+    // The generated file extension varies per provider/media type, so glob the
+    // directory for any file whose basename matches the id and remove all of them.
+    try {
+        if (fs.existsSync(imagesDir)) {
+            const files = fs.readdirSync(imagesDir);
+            for (const f of files) {
+                if (path.basename(f, path.extname(f)) === id) {
+                    try {
+                        fs.unlinkSync(path.join(imagesDir, f));
+                    } catch (err) {
+                        console.error(`Failed to delete ${f}:`, err);
+                    }
+                }
+            }
         }
+        if (fs.existsSync(thumbPath)) {
+            try {
+                fs.unlinkSync(thumbPath);
+            } catch (err) {
+                console.error(`Failed to delete thumbnail ${thumbPath}:`, err);
+            }
+        }
+    } catch (err) {
+        console.error('Failed to enumerate images dir during delete:', err);
     }
 }
 
-// Delete all history entries
 export function deleteAllHistory(): void {
     invalidateCache();
     const imagesDir = getImagesDir();
@@ -374,7 +543,6 @@ export function deleteAllHistory(): void {
     }
 }
 
-// Export all history to a ZIP file
 export function exportAllHistory(outputPath: string, onProgress?: (percent: number) => void): Promise<void> {
     return new Promise((resolve, reject) => {
         const historyDir = getHistoryDir();
@@ -399,7 +567,6 @@ export function exportAllHistory(outputPath: string, onProgress?: (percent: numb
     });
 }
 
-// Move history directory
 export function moveHistoryDir(newDir: string): void {
     invalidateCache();
     const settings = loadSettings();
