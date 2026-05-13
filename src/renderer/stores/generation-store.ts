@@ -398,17 +398,45 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
             openai = { ...state.openai, ...params.openai };
         }
 
+        // Restore reference images: only swap when the source entry actually
+        // carried them. The model may not accept references — setModel-style
+        // clamping happens here so the new state never violates the model cap.
+        const incomingRefs = params.referenceImagePaths ?? state.referenceImagePaths;
+        const modelDef = MODEL_DEFINITIONS.find(m => m.id === model);
+        const supportsRefs = modelDef?.supportsReferenceFile === true;
+        const modelMax = modelDef?.maxReferenceImages ?? 0;
+        const requestedEditMode = params.editMode ?? state.editMode;
+        // Edit mode forces a single-slot behavior regardless of the model cap.
+        const cap = !supportsRefs ? 0 : requestedEditMode ? 1 : modelMax;
+        const referenceImagePaths = incomingRefs.slice(0, cap);
+        const referenceImageThumbnails = new Map<string, string>();
+        for (const p of referenceImagePaths) {
+            const existing = state.referenceImageThumbnails.get(p);
+            if (existing) referenceImageThumbnails.set(p, existing);
+        }
+        // editMode requires both the model to support it AND at least one ref.
+        const editMode = requestedEditMode && referenceImagePaths.length > 0 && Boolean(modelDef?.supportsImageEdit);
+
         set({
             provider,
             model,
             prompt: params.prompt ?? state.prompt,
             numberOfImages: params.numberOfImages ?? state.numberOfImages,
-            referenceImagePaths: [],
-            referenceImageThumbnails: new Map(),
-            editMode: false,
+            referenceImagePaths,
+            referenceImageThumbnails,
+            editMode,
             gemini,
             openai,
         });
+
+        // Fetch any thumbnails we don't already have cached so the restored
+        // attachments render in the panel after restore completes.
+        for (const p of referenceImagePaths) {
+            if (referenceImageThumbnails.has(p)) continue;
+            window.imaginai.getThumbnail(p).then(dataUrl => {
+                if (dataUrl) get().setReferenceImageThumbnail(p, dataUrl);
+            });
+        }
     },
 
     generate: async () => {

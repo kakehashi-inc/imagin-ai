@@ -546,11 +546,32 @@ export function deleteAllHistory(): void {
 export function exportAllHistory(outputPath: string, onProgress?: (percent: number) => void): Promise<void> {
     return new Promise((resolve, reject) => {
         const historyDir = getHistoryDir();
+        if (!fs.existsSync(historyDir)) {
+            return reject(new Error(`History directory does not exist: ${historyDir}`));
+        }
+
         const output = fs.createWriteStream(outputPath);
         const archive = archiver('zip', { zlib: { level: 6 } });
 
-        output.on('close', () => resolve());
-        archive.on('error', (err: Error) => reject(err));
+        // Guard against double-settle: terminal events can fire on both the
+        // write stream and the archive in quick succession.
+        let settled = false;
+        const finish = (err?: Error) => {
+            if (settled) return;
+            settled = true;
+            if (err) reject(err);
+            else resolve();
+        };
+
+        // Surface write-stream failures (invalid path, permission denied, disk
+        // full) instead of letting the Promise hang as a stuck "0%" dialog.
+        output.on('close', () => finish());
+        output.on('error', (err: Error) => finish(err));
+        archive.on('error', (err: Error) => finish(err));
+        archive.on('warning', (err: archiver.ArchiverError) => {
+            // ENOENT is non-fatal per archiver docs; everything else aborts.
+            if (err.code !== 'ENOENT') finish(err);
+        });
 
         if (onProgress) {
             archive.on('progress', (progress: { entries: { total: number; processed: number } }) => {
@@ -561,9 +582,15 @@ export function exportAllHistory(outputPath: string, onProgress?: (percent: numb
             });
         }
 
-        archive.pipe(output);
-        archive.directory(historyDir, false);
-        archive.finalize();
+        // Synchronous archiver setup can throw — route it through finish()
+        // rather than letting it crash the main process.
+        try {
+            archive.pipe(output);
+            archive.directory(historyDir, false);
+            archive.finalize();
+        } catch (err) {
+            finish(err as Error);
+        }
     });
 }
 

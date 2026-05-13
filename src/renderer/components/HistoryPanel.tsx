@@ -25,7 +25,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useHistoryStore } from '../stores/history-store';
 import { useGenerationStore } from '../stores/generation-store';
-import type { HistoryEntry } from '../../shared/types';
+import type { HistoryEntry, MediaType } from '../../shared/types';
 import { MODEL_DEFINITIONS } from '../../shared/constants';
 import ProviderIcon from './ProviderIcon';
 import ImageIcon from '@mui/icons-material/Image';
@@ -118,7 +118,8 @@ export default function HistoryPanel() {
 
     // Build unique model list for the filter dropdown. The list is narrowed by
     // the active provider and mediaType filters so the user only sees models
-    // they can still pick after the other filters are applied.
+    // they can still pick after the other filters are applied. provider /
+    // mediaType ride along so the row renderer can show matching icons.
     const modelOptions = React.useMemo(() => {
         const usedModels = new Set(entries.map(e => e.model));
         return MODEL_DEFINITIONS.filter(m => {
@@ -129,8 +130,25 @@ export default function HistoryPanel() {
         }).map(m => ({
             id: m.id,
             name: m.displayName.replace(/\s*\(.*\)$/, ''),
+            provider: m.provider,
+            mediaType: m.mediaType,
         }));
     }, [entries, filterProvider, filterMediaType]);
+
+    const renderMediaTypeIcon = (mediaType: MediaType) => {
+        const sx = { fontSize: 16, color: 'text.secondary', flexShrink: 0 };
+        switch (mediaType) {
+            case 'video':
+                return <VideocamIcon sx={sx} />;
+            case 'music':
+                return <MusicNoteIcon sx={sx} />;
+            case 'voice':
+                return <RecordVoiceOverIcon sx={sx} />;
+            case 'image':
+            default:
+                return <ImageIcon sx={sx} />;
+        }
+    };
 
     // Listen for export progress events
     React.useEffect(() => {
@@ -451,11 +469,29 @@ export default function HistoryPanel() {
                         onChange={e => setFilterModel(e.target.value)}
                         displayEmpty
                         sx={{ fontSize: '0.8rem' }}
+                        renderValue={value => {
+                            if (!value) return t('history.allModels');
+                            const opt = modelOptions.find(m => m.id === value);
+                            if (!opt) return value;
+                            return (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <ProviderIcon provider={opt.provider} sx={{ fontSize: 16 }} />
+                                    {renderMediaTypeIcon(opt.mediaType)}
+                                    <Typography variant='caption' sx={{ fontSize: '0.8rem' }}>
+                                        {opt.name}
+                                    </Typography>
+                                </Box>
+                            );
+                        }}
                     >
                         <MenuItem value=''>{t('history.allModels')}</MenuItem>
                         {modelOptions.map(m => (
                             <MenuItem key={m.id} value={m.id} sx={{ fontSize: '0.8rem' }}>
-                                {m.name}
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <ProviderIcon provider={m.provider} sx={{ fontSize: 16 }} />
+                                    {renderMediaTypeIcon(m.mediaType)}
+                                    <span>{m.name}</span>
+                                </Box>
                             </MenuItem>
                         ))}
                     </Select>
