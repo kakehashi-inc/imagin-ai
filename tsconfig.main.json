@@ -6,6 +6,6 @@
     "outDir": "./dist",
     "rootDir": "./src"
   },
-  "include": ["src/main/**/*", "src/shared/**/*", "src/preload/**/*"],
-  "exclude": ["node_modules", "dist", "release", "src/renderer/**/*"]
+  "include": ["./src/main/**/*", "./src/shared/**/*", "./src/preload/**/*"],
+  "exclude": ["./node_modules", "./dist", "./release", "./src/renderer/**/*"]
 }
