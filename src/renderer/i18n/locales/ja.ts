@@ -255,6 +255,10 @@ export default {
     // 画像編集モード (両プロバイダ共通トグル)
     'parameter.editMode.label': '画像編集モード',
 
+    // 参考料金の折りたたみリンク
+    'parameter.cost.expand': '展開',
+    'parameter.cost.collapse': '折りたたむ',
+
     // 生成枚数
     'numberOfImages.label': '生成枚数',
     'numberOfImages.warning': '枚数が多いほどAPI消費量が増加します。',

@@ -260,6 +260,7 @@ export default function HistoryPanel() {
                 model: e.model,
                 prompt: e.prompt,
                 numberOfImages: e.numberOfImages,
+                referenceImagePaths: e.referenceImagePaths,
                 editMode: e.editMode,
                 gemini: e.gemini
                     ? {

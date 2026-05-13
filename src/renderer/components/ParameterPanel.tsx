@@ -1,8 +1,10 @@
 import {
     Box,
     Chip,
+    Collapse,
     FormControl,
     InputLabel,
+    Link,
     ListSubheader,
     MenuItem,
     Select,
@@ -10,7 +12,7 @@ import {
     Tooltip,
     Typography,
 } from '@mui/material';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useGenerationStore } from '../stores/generation-store';
 import { useAppStore } from '../stores/app-store';
@@ -98,6 +100,7 @@ export default function ParameterPanel() {
     } = useGenerationStore();
     const activeKeyInfo = useAppStore(s => s.activeKeyInfo);
     const isFreeTierKey = Boolean(activeKeyInfo?.isFreeTier);
+    const [costExpanded, setCostExpanded] = useState(false);
 
     // Sync provider with the active API key. Switching the API key in the
     // title bar should immediately filter the model list to that provider.
@@ -264,42 +267,78 @@ export default function ParameterPanel() {
                 </Box>
             ) : (
                 currentModel?.costLabel &&
-                currentModel.costLabel.length > 0 && (
-                    <Box sx={{ mt: -2, ml: 0.5 }}>
-                        {currentModel.costLabel.map((line, i) => {
-                            // OpenAI cost entries are emitted as label/price pairs
-                            // (two adjacent array rows), so a match at row `n`
-                            // should also highlight `n + 1` as the price line.
-                            const highlighted =
-                                isOpenAI && highlightedCostRowIndex >= 0
-                                    ? i === highlightedCostRowIndex || i === highlightedCostRowIndex + 1
-                                    : i === highlightedCostRowIndex;
-                            return (
-                                <Typography
-                                    key={i}
-                                    variant='caption'
-                                    color={highlighted ? 'primary.main' : 'text.secondary'}
+                currentModel.costLabel.length > 0 &&
+                (() => {
+                    const rows = currentModel.costLabel;
+                    // OpenAI cost entries are emitted as label/price pairs
+                    // (two adjacent array rows), so a match at row `n`
+                    // should also highlight `n + 1` as the price line.
+                    const isRowHighlighted = (i: number): boolean =>
+                        isOpenAI && highlightedCostRowIndex >= 0
+                            ? i === highlightedCostRowIndex || i === highlightedCostRowIndex + 1
+                            : i === highlightedCostRowIndex;
+                    const COLLAPSED_LIMIT = 5;
+                    const collapsible = rows.length > COLLAPSED_LIMIT;
+                    // Auto-expand when the currently highlighted row is hidden,
+                    // so the active price is always visible without clicking.
+                    const highlightInTail =
+                        collapsible &&
+                        highlightedCostRowIndex >= COLLAPSED_LIMIT &&
+                        (isOpenAI
+                            ? highlightedCostRowIndex < rows.length
+                            : highlightedCostRowIndex < rows.length);
+                    const expanded = !collapsible || costExpanded || highlightInTail;
+                    const head = rows.slice(0, COLLAPSED_LIMIT);
+                    const tail = rows.slice(COLLAPSED_LIMIT);
+                    const renderRow = (line: string, i: number) => (
+                        <Typography
+                            key={i}
+                            variant='caption'
+                            color={isRowHighlighted(i) ? 'primary.main' : 'text.secondary'}
+                            sx={{
+                                display: 'block',
+                                lineHeight: 1.4,
+                                fontWeight: isRowHighlighted(i) ? 600 : 400,
+                                fontFamily: isOpenAI ? 'monospace' : 'inherit',
+                            }}
+                        >
+                            {line}
+                        </Typography>
+                    );
+                    return (
+                        <Box sx={{ mt: -2, ml: 0.5 }}>
+                            {head.map((line, i) => renderRow(line, i))}
+                            {collapsible && (
+                                <Collapse in={expanded} unmountOnExit>
+                                    <Box>{tail.map((line, j) => renderRow(line, j + COLLAPSED_LIMIT))}</Box>
+                                </Collapse>
+                            )}
+                            {collapsible && !highlightInTail && (
+                                <Link
+                                    component='button'
+                                    type='button'
+                                    underline='hover'
+                                    onClick={() => setCostExpanded(v => !v)}
                                     sx={{
                                         display: 'block',
+                                        fontSize: '0.75rem',
                                         lineHeight: 1.4,
-                                        fontWeight: highlighted ? 600 : 400,
-                                        // Cost tables are aligned; render in mono so columns line up.
-                                        fontFamily: isOpenAI ? 'monospace' : 'inherit',
+                                        mt: 0.25,
                                     }}
                                 >
-                                    {line}
-                                </Typography>
-                            );
-                        })}
-                        <Typography
-                            variant='caption'
-                            color='text.secondary'
-                            sx={{ display: 'block', lineHeight: 1.4 }}
-                        >
-                            ({COST_REFERENCE_DATE})
-                        </Typography>
-                    </Box>
-                )
+                                    {expanded ? t('parameter.cost.collapse') : t('parameter.cost.expand')}
+                                </Link>
+                            )}
+                            <Typography
+                                variant='caption'
+                                color='text.secondary'
+                                sx={{ display: 'block', lineHeight: 1.4 }}
+                            >
+                                ({COST_REFERENCE_DATE})
+                            </Typography>
+                        </Box>
+                    );
+                })()
             )}
             {currentModel?.noteKey && (
                 <Typography variant='caption' color='text.secondary' sx={{ mt: -1, ml: 0.5, whiteSpace: 'pre-line' }}>

@@ -7,20 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v0.6.0] - 2026-05-13
+
 ### Added
 
-- OpenAI image generation support: gpt-image-2, gpt-image-1.5, and gpt-image-1. Select size, quality (low/medium/high), output format (PNG/JPEG/WebP), background (opaque/transparent), input fidelity, and image count from the Parameter panel. The per-image cost row matching the current size and quality is highlighted; gpt-image-2 also offers experimental 2K and 4K outputs.
-- OpenAI API keys configuration in Settings (default key + up to 5 named custom keys), and a provider-grouped API key picker in the title bar so you can switch between Google AI Studio and OpenAI keys at any time.
-- Image edit mode: when a reference image is attached and the active model supports editing, a toggle appears next to the prompt label. With it on, your prompt is treated as editing instructions for the attached image and the resulting entry is marked with an "Edit" badge in the history.
-- History filters by provider (Google AI Studio / OpenAI) and by media type (image / video / music / voice), and a provider-brand badge on each thumbnail.
-- Usage notes dialog now covers both Google AI Studio and OpenAI side-by-side.
-- Auto-update via the in-app updater. A notification appears in the lower-right when a new version is available, with a progress indicator while downloading and installing. "Later" silences the prompt for the current session. Auto-update is disabled in development builds.
-- Windows portable distribution is now shipped as a `.zip` archive instead of a bare `.exe`, reducing browser and antivirus warnings on download.
+- OpenAI image generation as a second provider alongside Google AI Studio. GPT Image 2, GPT Image 1.5, and GPT Image 1 are available, with controls for size (GPT Image 2 also offers 2K and 4K), quality (Low / Medium / High), output format (PNG / JPEG / WebP), background (Opaque / Transparent where supported), negative prompt, and image count. OpenAI API keys are managed in Settings the same way as Gemini keys (default + up to five named custom keys), and the title-bar key picker groups all keys by provider so switching between Google AI Studio and OpenAI takes one click. Usage Notes now cover OpenAI policies side-by-side with Google AI Studio. The history panel mixes both providers, with a brand badge on each thumbnail and filters for provider, media type, and model; the model dropdown shows provider and media-type icons.
+- Image edit mode. When a reference image is attached and the active model supports editing, an "Image Edit Mode" checkbox appears next to "Attach images". With it on, the prompt is treated as an editing instruction applied to the attached image. Works for both Google AI Studio (Nano Banana family) and OpenAI (GPT Image family). Entries created in edit mode are tagged with an "Edit" badge in history.
+- In-app auto-update for installer builds. A notification appears in the lower-right when a new version is available, with a progress indicator while downloading and installing. "Later" silences the prompt for the current session. Auto-update is intentionally disabled in development and portable ZIP builds.
 
 ### Changed
 
-- On first launch, existing API keys and history entries are silently migrated to the new provider-aware format. The original encrypted API keys file is preserved as `api-keys.enc.bak.v1` next to the active file so you can roll back manually if needed.
-- Updated reference pricing date in the Parameter panel to 2026-05-13 after re-verifying prices across both providers.
+- On first launch after upgrading, existing API keys and history entries are silently migrated to the new provider-aware format. The encrypted API keys file is preserved as `api-keys.enc.bak.v1` next to the active file in case manual rollback is needed.
+- Reviewed and updated reference pricing for all Google AI Studio models (Nano Banana, Imagen 4, Veo 3.1, Lyria 3, Gemini TTS) against the current official price tables. Reference pricing date in the panel is now 2026-05-13.
+- Windows portable distribution is now shipped as a `.zip` archive instead of a bare `.exe`, reducing browser and antivirus warnings on download.
+
+### Fixed
+
+- "Restore parameters" from a history entry now also restores the reference images and the edit-mode toggle. Previously both were cleared even when the source entry had them.
 
 ## [v0.5.1] - 2026-04-19
 

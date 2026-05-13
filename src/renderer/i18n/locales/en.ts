@@ -247,6 +247,10 @@ export default {
     // Image edit mode (shared toggle, both providers)
     'parameter.editMode.label': 'Image Edit Mode',
 
+    // Reference cost collapse toggle
+    'parameter.cost.expand': 'Show more',
+    'parameter.cost.collapse': 'Show less',
+
     // Number of images/videos
     'numberOfImages.label': 'Number of Images',
     'numberOfImages.warning': 'More images increase API usage.',
