@@ -11,6 +11,12 @@ const isPortable = !!process.env.PORTABLE_EXECUTABLE_FILE;
 let initialized = false;
 let startupCheckScheduled = false;
 let autoInstallOnDownloaded = false;
+// autoUpdater.on('error') is global: startup/background check failures (e.g. offline)
+// and user-initiated download failures all arrive at the same handler. This flag
+// distinguishes them. It is set true when downloadUpdate() starts and cleared on
+// completion or failure, so the error handler only surfaces an error to the UI when
+// the user actually requested a download. Background-check failures stay silent.
+let downloadRequested = false;
 let state: UpdateState = { status: 'idle' };
 
 function broadcast(): void {
@@ -52,6 +58,7 @@ export function initUpdater(): void {
     });
 
     autoUpdater.on('update-downloaded', info => {
+        downloadRequested = false;
         state = { status: 'downloaded', version: info?.version ?? state.version };
         broadcast();
         if (autoInstallOnDownloaded) {
@@ -62,7 +69,18 @@ export function initUpdater(): void {
     autoUpdater.on('error', err => {
         console.error('[updater] error:', err);
         autoInstallOnDownloaded = false;
-        state = { status: 'idle' };
+        if (downloadRequested) {
+            // Failure during a user-initiated download: surface it so the user can retry.
+            downloadRequested = false;
+            state = {
+                status: 'error',
+                version: state.version,
+                error: err?.message ?? String(err),
+            };
+        } else {
+            // Startup/background check failure (e.g. offline): return to idle silently.
+            state = { status: 'idle' };
+        }
         broadcast();
     });
 }
@@ -82,12 +100,25 @@ export async function checkForUpdates(): Promise<void> {
 
 export async function downloadUpdate(): Promise<void> {
     if (isDev || isPortable || !initialized) return;
+    downloadRequested = true;
     autoInstallOnDownloaded = true;
     try {
         await autoUpdater.downloadUpdate();
     } catch (err) {
-        autoInstallOnDownloaded = false;
+        // electron-updater also emits the 'error' event, which owns the user-facing
+        // error state and clears the flags. Guard here in case no event fired so the
+        // UI never gets stuck without feedback.
         console.error('[updater] downloadUpdate failed:', err);
+        if (downloadRequested) {
+            downloadRequested = false;
+            autoInstallOnDownloaded = false;
+            state = {
+                status: 'error',
+                version: state.version,
+                error: err instanceof Error ? err.message : String(err),
+            };
+            broadcast();
+        }
     }
 }
 

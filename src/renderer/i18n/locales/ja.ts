@@ -429,4 +429,7 @@ export default {
     'updater.later': '後で',
     'updater.downloading': 'ダウンロード中… {{progress}}%',
     'updater.installing': 'アップデートを適用しています…',
+    'updater.error': 'アップデートのダウンロードに失敗しました。',
+    'updater.retry': '再試行',
+    'updater.close': '閉じる',
 };

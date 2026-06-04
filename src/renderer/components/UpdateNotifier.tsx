@@ -24,6 +24,7 @@ export default function UpdateNotifier() {
     }, []);
 
     const handleUpdate = React.useCallback(() => {
+        setDismissed(false);
         window.imaginai.updater.download().catch(() => {
             // Errors are surfaced via state events, no-op here.
         });
@@ -36,7 +37,8 @@ export default function UpdateNotifier() {
     const showAvailable = state.status === 'available' && !dismissed;
     const showDownloading = state.status === 'downloading';
     const showDownloaded = state.status === 'downloaded';
-    const open = showAvailable || showDownloading || showDownloaded;
+    const showError = state.status === 'error' && !dismissed;
+    const open = showAvailable || showDownloading || showDownloaded || showError;
 
     if (!open) return null;
 
@@ -44,9 +46,7 @@ export default function UpdateNotifier() {
     if (showAvailable) {
         content = (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 320 }}>
-                <Typography variant='body2'>
-                    {t('updater.confirm', { version: state.version ?? '' })}
-                </Typography>
+                <Typography variant='body2'>{t('updater.confirm', { version: state.version ?? '' })}</Typography>
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
                     <Button size='small' onClick={handleLater} color='inherit'>
                         {t('updater.later')}
@@ -70,6 +70,27 @@ export default function UpdateNotifier() {
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 320 }}>
                 <Typography variant='body2'>{t('updater.installing')}</Typography>
                 <LinearProgress />
+            </Box>
+        );
+    } else if (showError) {
+        content = (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 320 }}>
+                <Typography variant='body2' color='error'>
+                    {t('updater.error')}
+                </Typography>
+                {state.error ? (
+                    <Typography variant='caption' color='text.secondary'>
+                        {state.error}
+                    </Typography>
+                ) : null}
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                    <Button size='small' onClick={handleLater} color='inherit'>
+                        {t('updater.close')}
+                    </Button>
+                    <Button size='small' onClick={handleUpdate} variant='contained'>
+                        {t('updater.retry')}
+                    </Button>
+                </Box>
             </Box>
         );
     }

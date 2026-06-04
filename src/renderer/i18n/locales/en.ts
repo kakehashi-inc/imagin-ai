@@ -423,4 +423,7 @@ export default {
     'updater.later': 'Later',
     'updater.downloading': 'Downloading... {{progress}}%',
     'updater.installing': 'Applying update...',
+    'updater.error': 'Failed to download the update.',
+    'updater.retry': 'Retry',
+    'updater.close': 'Close',
 };
