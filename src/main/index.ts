@@ -3,7 +3,7 @@ import { app, BrowserWindow, nativeTheme, ipcMain, shell } from 'electron';
 import { setupConsoleBridge, setMainWindow } from './utils/console-bridge';
 import { registerIpcHandlers } from './ipc/index';
 import { loadSettings, mergeSettings, ensureHistoryDir } from './services/settings-service';
-import { initUpdater, scheduleStartupCheck } from './services/updater-service';
+import { initUpdater, scheduleStartupCheck, isInstalling } from './services/updater-service';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -140,6 +140,10 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
+    // While an update is installing, electron-updater drives the quit/relaunch.
+    // Calling app.quit() here would race that shutdown (notably on macOS, where the
+    // native updater stages and relaunches asynchronously) and abort the update.
+    if (isInstalling()) return;
     app.quit();
 });
 

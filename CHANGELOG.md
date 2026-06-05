@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v0.6.1] - 2026-06-05
+
 ### Fixed
 
-- In-app auto-update on macOS now works. Previously the update could not be downloaded and the app appeared to do nothing after pressing "Update". (Note: this fix takes effect only from a release that ships the new macOS build, so existing macOS users need to install the next version manually once; updates are automatic afterward.)
+- In-app auto-update on macOS now works end to end. Previously pressing "Update" appeared to do nothing: the update either could not be downloaded, or downloaded successfully but was never applied after the app restarted. Both problems are fixed, so a new version now downloads and installs automatically. (Note: this fix takes effect only from a release that ships the new macOS build, so existing macOS users need to install the next version manually once; updates are automatic afterward.)
 - When a download fails, the update notification now shows an error message with "Retry" and "Close" buttons instead of silently disappearing. Failures of the automatic background update check (for example when offline) stay quiet and no longer interrupt you.
 
 ## [v0.6.0] - 2026-05-13

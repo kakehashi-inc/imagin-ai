@@ -11,6 +11,10 @@ const isPortable = !!process.env.PORTABLE_EXECUTABLE_FILE;
 let initialized = false;
 let startupCheckScheduled = false;
 let autoInstallOnDownloaded = false;
+// Set true while quitAndInstall() is handing the shutdown to electron-updater.
+// On macOS the native updater orchestrates quit/relaunch, so the window-all-closed
+// handler must not race it with its own app.quit(). See isInstalling().
+let installing = false;
 // autoUpdater.on('error') is global: startup/background check failures (e.g. offline)
 // and user-initiated download failures all arrive at the same handler. This flag
 // distinguishes them. It is set true when downloadUpdate() starts and cleared on
@@ -32,7 +36,12 @@ export function initUpdater(): void {
     initialized = true;
 
     autoUpdater.autoDownload = false;
-    autoUpdater.autoInstallOnAppQuit = false;
+    // Must stay true (the library default). On macOS this makes electron-updater
+    // stage the downloaded update into the native Squirrel.Mac updater as soon as
+    // the download finishes. With it false, staging is deferred to quitAndInstall()
+    // time as an async checkForUpdates(), which races the app shutdown and the
+    // process exits before the update is applied (download succeeds, update is lost).
+    autoUpdater.autoInstallOnAppQuit = true;
     autoUpdater.logger = console;
 
     autoUpdater.on('checking-for-update', () => {
@@ -122,14 +131,19 @@ export async function downloadUpdate(): Promise<void> {
     }
 }
 
+export function isInstalling(): boolean {
+    return installing;
+}
+
 export function quitAndInstall(): void {
     if (isDev || isPortable || !initialized) return;
+    installing = true;
+    // Do not close/destroy windows here. electron-updater owns the quit/relaunch:
+    // on macOS it quits via the native updater so the staged update is applied, and
+    // on Windows/Linux it spawns the installer then quits. Destroying windows would
+    // trigger window-all-closed -> app.quit() and kill the process before the
+    // updater finishes, which is the bug this code path previously had.
     setImmediate(() => {
-        for (const win of BrowserWindow.getAllWindows()) {
-            if (!win.isDestroyed()) {
-                win.destroy();
-            }
-        }
         autoUpdater.quitAndInstall(false, true);
     });
 }
