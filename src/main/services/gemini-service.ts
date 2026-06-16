@@ -2,7 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { GoogleGenAI } from '@google/genai';
-import type { Image as GenAiImage, GeneratedImage, GenerateVideosOperation, Part } from '@google/genai';
+import type { Image as GenAiImage, GenerateVideosOperation, Part } from '@google/genai';
 import type {
     ApiErrorDetail,
     GeminiQuality,
@@ -260,8 +260,8 @@ export function setGenerationProgressCallback(cb: ((progress: GenerationProgress
 // Top-level entry point (Gemini only — provider dispatch lives in generation-service.ts)
 // =============================================================================
 
-// Dispatches by mediaType. For images, the model id prefix disambiguates Imagen
-// (`imagen-*`, predict / generateImages) from Gemini image generateContent.
+// Dispatches by mediaType. All supported image models use the Gemini image
+// generateContent path (the Imagen predict API models were retired and removed).
 // `perItemMeta` is parallel to `buffers` — one metadata bag per generated
 // artifact, persisted onto the corresponding history entry. The metadata is a
 // partial of HistoryEntry.gemini so history-service can spread it directly.
@@ -288,9 +288,7 @@ export async function generateWithGemini(
                 return await generateSpeech(ai, params);
             case 'image':
             default:
-                return params.model.startsWith('imagen-')
-                    ? await generateImagen(ai, params)
-                    : await generateGeminiImage(ai, params);
+                return await generateGeminiImage(ai, params);
         }
     } catch (err) {
         throw asGeminiApiError(err);
@@ -298,7 +296,7 @@ export async function generateWithGemini(
 }
 
 // =============================================================================
-// Imagen (text-to-image, predict API via SDK's generateImages)
+// Gemini Image (Nano Banana — generateContent API via SDK)
 // =============================================================================
 
 function mapGeminiQualityToSdkImageSize(q: GeminiQuality | undefined): string | undefined {
@@ -309,78 +307,6 @@ function mapGeminiQualityToSdkImageSize(q: GeminiQuality | undefined): string | 
     if (q === '4k') return '4K';
     return undefined;
 }
-
-async function generateImagen(
-    ai: GoogleGenAI,
-    params: GenerationParams
-): Promise<{ buffers: Buffer[]; mimeType: string; perItemMeta: GeminiResponseMeta[] }> {
-    const g = params.gemini;
-    if (!g) throw appError('INVALID_PARAMS', 'Gemini params missing for Imagen request');
-
-    const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
-    const apiNegative = modelDef?.apiNegativePrompt ?? false;
-
-    let promptText = params.prompt;
-    if (g.negativePrompt && !apiNegative) {
-        promptText += `\n\nDo not include: ${g.negativePrompt}`;
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const config: any = {
-        numberOfImages: params.numberOfImages,
-        aspectRatio: g.aspectRatio,
-    };
-    if ((modelDef?.gemini?.supportedQualities?.length ?? 0) > 0) {
-        const sdkImageSize = mapGeminiQualityToSdkImageSize(g.quality);
-        if (sdkImageSize) config.imageSize = sdkImageSize;
-    }
-    if (apiNegative && g.negativePrompt) {
-        config.negativePrompt = g.negativePrompt;
-    }
-
-    const response = await ai.models.generateImages({
-        model: params.model,
-        prompt: promptText,
-        config,
-    });
-
-    const generated = response.generatedImages ?? [];
-    if (generated.length === 0) {
-        throw appError('NO_IMAGES_GENERATED');
-    }
-
-    // Walk the response in order. For each entry that yielded image bytes we
-    // produce one buffer and one metadata bag so they stay index-aligned for
-    // history-service. Entries that came back without bytes (e.g. RAI-filtered
-    // ones) contribute only to filterReasons used in the "all filtered" path.
-    const buffers: Buffer[] = [];
-    const perItemMeta: GeminiResponseMeta[] = [];
-    const filterReasons: string[] = [];
-    generated.forEach((g: GeneratedImage, i: number) => {
-        const bytes = g.image?.imageBytes;
-        if (bytes) {
-            buffers.push(Buffer.from(bytes, 'base64'));
-            const meta: GeminiResponseMeta = {};
-            if (typeof g.enhancedPrompt === 'string' && g.enhancedPrompt.length > 0) {
-                meta.enhancedPrompt = g.enhancedPrompt;
-            }
-            if (typeof g.raiFilteredReason === 'string' && g.raiFilteredReason.length > 0) {
-                meta.raiFilteredReason = g.raiFilteredReason;
-            }
-            perItemMeta.push(meta);
-        } else if (g.raiFilteredReason) {
-            filterReasons.push(`prediction[${i}].raiFilteredReason: ${g.raiFilteredReason}`);
-        }
-    });
-    if (buffers.length === 0) {
-        throw appError('NO_IMAGES_GENERATED', filterReasons.join('\n'));
-    }
-    return { buffers, mimeType: 'image/png', perItemMeta };
-}
-
-// =============================================================================
-// Gemini Image (Nano Banana — generateContent API via SDK)
-// =============================================================================
 
 async function generateGeminiImage(
     ai: GoogleGenAI,

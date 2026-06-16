@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v0.6.2] - 2026-06-16
+
+### Changed
+
+- Nano Banana 2 and Nano Banana Pro now use their stable (GA) versions. Their preview versions are scheduled for shutdown on 2026/6/25, so new generations automatically use the stable models. Names, quality options, and pricing are unchanged. Older history entries created on the preview versions remain fully available for browsing, filtering, and parameter restore; restoring one switches the model to the matching stable version.
+
+### Removed
+
+- The Imagen 4 image models (Imagen 4 Fast / Imagen 4 / Imagen 4 Ultra) are no longer available for new generations ahead of their shutdown on 2026/6/24. They have been removed from the model picker. Existing history entries created with Imagen 4 remain fully available: you can still browse them, filter the history by these models, and restore their parameters. When you restore parameters from an Imagen 4 entry, the prompt and settings are carried over to Nano Banana 2, the recommended replacement.
+
 ## [v0.6.1] - 2026-06-05
 
 ### Fixed

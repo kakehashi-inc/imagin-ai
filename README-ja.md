@@ -4,11 +4,11 @@
 
 ## 1. システム概要
 
-ImaginAIは、AI画像・動画・音楽・音声生成APIを専用GUIで操作するデスクトップアプリケーションです。**Google AI Studio**（画像: Nano Banana / Imagen 4、動画: Veo 3.1、音楽: Lyria 3、音声: Gemini TTS）と **OpenAI**（画像: GPT Image 2 / 1.5 / 1）の両プロバイダに対応し、将来的に他のAI生成APIの追加にも対応できる拡張性を備えています。
+ImaginAIは、AI画像・動画・音楽・音声生成APIを専用GUIで操作するデスクトップアプリケーションです。**Google AI Studio**（画像: Nano Banana、動画: Veo 3.1、音楽: Lyria 3、音声: Gemini TTS）と **OpenAI**（画像: GPT Image 2 / 1.5 / 1）の両プロバイダに対応し、将来的に他のAI生成APIの追加にも対応できる拡張性を備えています。
 
 主な機能:
 
-- **画像生成**: 両プロバイダでテキストプロンプトから画像を生成（Nano Banana / Imagen 4 / GPT Image）
+- **画像生成**: 両プロバイダでテキストプロンプトから画像を生成（Nano Banana / GPT Image）
 - **画像編集モード**: 添付した参照画像に対するプロンプトを編集指示として扱います（Nano Banana と GPT Image で対応）
 - **動画生成**: Veo 3.1 によるテキストまたは画像からの動画生成
 - **音楽生成**: Lyria 3 によるテキストまたは画像からの音楽生成

@@ -26,7 +26,7 @@ import { useTranslation } from 'react-i18next';
 import { useHistoryStore } from '../stores/history-store';
 import { useGenerationStore } from '../stores/generation-store';
 import type { HistoryEntry, MediaType } from '../../shared/types';
-import { MODEL_DEFINITIONS } from '../../shared/constants';
+import { ALL_MODEL_DEFINITIONS, MODEL_DEFINITIONS } from '../../shared/constants';
 import ProviderIcon from './ProviderIcon';
 import ImageIcon from '@mui/icons-material/Image';
 import VideocamIcon from '@mui/icons-material/Videocam';
@@ -122,14 +122,18 @@ export default function HistoryPanel() {
     // mediaType ride along so the row renderer can show matching icons.
     const modelOptions = React.useMemo(() => {
         const usedModels = new Set(entries.map(e => e.model));
-        return MODEL_DEFINITIONS.filter(m => {
+        // Merge active + retired definitions, then narrow to models that
+        // actually appear in the history. Retired models (e.g. Imagen 4) stay
+        // selectable as a filter so past entries remain reachable, but only when
+        // such entries exist — the `usedModels` gate keeps the list honest.
+        return ALL_MODEL_DEFINITIONS.filter(m => {
             if (!usedModels.has(m.id)) return false;
             if (filterProvider !== 'all' && m.provider !== filterProvider) return false;
             if (filterMediaType !== 'all' && m.mediaType !== filterMediaType) return false;
             return true;
         }).map(m => ({
             id: m.id,
-            name: m.displayName.replace(/\s*\(.*\)$/, ''),
+            name: m.displayName,
             provider: m.provider,
             mediaType: m.mediaType,
         }));
@@ -654,7 +658,7 @@ export default function HistoryPanel() {
                                         <Box sx={{ mt: 0.5, display: 'flex', justifyContent: 'space-between' }}>
                                             <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                                                 <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>
-                                                    {entry.modelDisplayName.replace(/\s*\(.*\)$/, '')}
+                                                    {entry.modelDisplayName}
                                                 </Typography>
                                                 {entry.mediaType === 'music' || entry.mediaType === 'voice' ? (
                                                     <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.6rem', lineHeight: 1.3 }}>

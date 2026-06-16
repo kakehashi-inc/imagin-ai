@@ -74,8 +74,8 @@ export default {
     'model.freeTierUnavailable': 'No free tier',
     'gemini.model.note.lyriaClip': 'Fixed 30-second clip',
     'gemini.model.note.lyriaPro': 'Up to 3 min (specify duration in prompt)',
-    'gemini.model.note.imagenShutdown': 'Shutdown: 2026/6/24',
     'gemini.model.note.nanoBananaShutdown': 'Shutdown: 2026/10/2',
+    'openai.model.note.gptImageShutdown': 'Shutdown: 2026/12/1',
     'gemini.model.freeTier.ttsFlash':
         'Free tier:\n3 RPM / 10K TPM\nUp to 3 requests/min, ~6 minutes of audio per minute total',
 

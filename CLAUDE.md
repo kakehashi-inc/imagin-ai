@@ -67,5 +67,6 @@ CRITICAL: You MUST read [README.md](README.md) BEFORE taking any action.
 - **`src/main/` MUST NOT import from `src/renderer/`**. i18n is renderer-only.
 - When adding or changing user-visible text, update all locale files under `src/renderer/i18n/locales/`.
 - When making notable changes, update `CHANGELOG.md` following the [Keep a Changelog](https://keepachangelog.com/) format. Entries must be written in English. `CHANGELOG.md` is for end users: describe each change concisely from the user's perspective (what they can now do or what visibly changes), not the implementation. Do NOT include internal details such as file paths, IPC channel/function names, internal data structures, or code-level mechanics. Record those developer-facing details in `Documents/システム仕様.md` instead.
+- This app uses **Google AI Studio (Gemini Developer API)** and does **NOT** depend on Vertex AI / Google Cloud in any way. Judge Gemini/Veo/Lyria/TTS model ids, pricing, and availability only from `ai.google.dev`.
 </development_rules>
 </project_details>

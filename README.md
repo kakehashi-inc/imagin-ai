@@ -4,11 +4,11 @@
 
 ## 1. Overview
 
-ImaginAI is a desktop application for controlling AI image/video/music/speech generation APIs through a dedicated GUI. It supports both **Google AI Studio** (Nano Banana for image, Imagen 4 for image, Veo 3.1 for video, Lyria 3 for music, Gemini TTS for speech) and **OpenAI** (GPT Image 2 / 1.5 / 1 for image), with an extensible architecture designed to accommodate additional AI generation APIs in the future.
+ImaginAI is a desktop application for controlling AI image/video/music/speech generation APIs through a dedicated GUI. It supports both **Google AI Studio** (Nano Banana for image, Veo 3.1 for video, Lyria 3 for music, Gemini TTS for speech) and **OpenAI** (GPT Image 2 / 1.5 / 1 for image), with an extensible architecture designed to accommodate additional AI generation APIs in the future.
 
 Key features:
 
-- **Image Generation**: Generate images from text prompts on either provider (Nano Banana / Imagen 4 / GPT Image)
+- **Image Generation**: Generate images from text prompts on either provider (Nano Banana / GPT Image)
 - **Image Edit Mode**: Treat the prompt as an editing instruction applied to an attached reference image (supported on Nano Banana and GPT Image)
 - **Video Generation**: Text-to-video and image-to-video with Veo 3.1
 - **Music Generation**: Text-to-music and image-to-music with Lyria 3

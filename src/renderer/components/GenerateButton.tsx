@@ -110,7 +110,9 @@ export default function GenerateButton() {
     const isVideoModel = currentModel?.mediaType === 'video';
     const isMusicModel = currentModel?.mediaType === 'music';
     const isVoiceModel = currentModel?.mediaType === 'voice';
-    const freeTierBlocked = !!activeKeyInfo?.isFreeTier && currentModel?.freeTierAvailable === false;
+    // freeTierAvailable defaults to false (only `true` is declared in constants),
+    // so a free-tier key is blocked on any model that is not explicitly free.
+    const freeTierBlocked = !!activeKeyInfo?.isFreeTier && currentModel?.freeTierAvailable !== true;
     const { loadHistory, isOverLimit } = useHistoryStore();
     const overLimit = isOverLimit();
     const [diskWarning, setDiskWarning] = React.useState(false);

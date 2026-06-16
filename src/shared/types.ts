@@ -107,10 +107,18 @@ export type ModelDefinition = {
     // Edit mode is always fixed to exactly one reference image.
     supportsImageEdit?: boolean;
     costLabel?: string[];
-    // Default: false
+    // Whether the model is usable on a Gemini free-tier API key. Default: false.
+    // Declare ONLY `true` here; omit the field for free-tier-unavailable models.
+    // UI must test `=== true` / `!== true` (never `=== false`) so an omitted
+    // field is correctly treated as unavailable.
     freeTierAvailable?: boolean;
     freeTierNoteKey?: string;
     noteKey?: string;
+    // Set only on entries in RETIRED_MODEL_DEFINITIONS. The id of the model that
+    // replaces this retired one. When a history entry that used a retired model
+    // is restored, the generation store substitutes this id so the user lands on
+    // the supported successor. Generic across future retirements.
+    replacementModelId?: string;
     // Whether to show the negative-prompt UI for this model. Default: false.
     // For models without a native parameter, the service prepends a
     // "Do not include: ..." instruction to the prompt instead.

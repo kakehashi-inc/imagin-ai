@@ -74,8 +74,8 @@ export default {
     'model.freeTierUnavailable': '無料枠不可',
     'gemini.model.note.lyriaClip': '30秒固定',
     'gemini.model.note.lyriaPro': 'プロンプトで3分までの長さを指示可能',
-    'gemini.model.note.imagenShutdown': 'サポート終了: 2026/6/24',
     'gemini.model.note.nanoBananaShutdown': 'サポート終了: 2026/10/2',
+    'openai.model.note.gptImageShutdown': 'サポート終了: 2026/12/1',
     'gemini.model.freeTier.ttsFlash':
         '無料枠:\n3 RPM / 10K TPM\n1分あたり最大3リクエスト、合計で約6分程度の音声生成が目安',
 

@@ -92,7 +92,7 @@ export const DEFAULT_GEMINI_ASPECT_RATIO: GeminiAspectRatio = '16:9';
 export const DEFAULT_GEMINI_QUALITY: GeminiQuality = '1k';
 export const DEFAULT_GEMINI_VIDEO_DURATION: GeminiVideoDuration = 4;
 export const DEFAULT_GEMINI_VIDEO_RESOLUTION: GeminiVideoResolution = '720p';
-export const DEFAULT_GEMINI_MODEL_ID = 'gemini-3.1-flash-image-preview';
+export const DEFAULT_GEMINI_MODEL_ID = 'gemini-3.1-flash-image';
 
 // --- Default values (OpenAI) ---
 // Landscape + Low is the cheapest combination on the default model (gpt-image-2).
@@ -106,8 +106,8 @@ export const DEFAULT_OPENAI_MODEL_ID = 'gpt-image-2';
 // Source: https://ai.google.dev/gemini-api/docs/pricing,
 // https://ai.google.dev/gemini-api/docs/deprecations, and
 // https://developers.openai.com/api/docs/guides/image-generation#calculating-costs
-// (verified May 2026). Both providers' costLabel values were captured on this date.
-export const COST_REFERENCE_DATE = '2026.5.13';
+// (verified June 2026). Both providers' costLabel values were captured on this date.
+export const COST_REFERENCE_DATE = '2026.6.16';
 
 // --- Duration options (Gemini video) ---
 export const GEMINI_VIDEO_DURATION_OPTIONS: { value: GeminiVideoDuration; labelKey: string }[] = [
@@ -216,7 +216,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         },
     },
     {
-        id: 'gemini-3.1-flash-image-preview',
+        id: 'gemini-3.1-flash-image',
         displayName: 'Nano Banana 2',
         provider: 'gemini',
         mediaType: 'image',
@@ -246,7 +246,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         },
     },
     {
-        id: 'gemini-3-pro-image-preview',
+        id: 'gemini-3-pro-image',
         displayName: 'Nano Banana Pro',
         provider: 'gemini',
         mediaType: 'image',
@@ -273,55 +273,6 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
                 '1:8',
             ],
             supportedQualities: ['1k', '2k', '4k'],
-        },
-    },
-    // -------------------------------------------------------------------------
-    // Gemini Imagen 4 family (fast -> standard -> ultra)
-    // predict API: text-to-image only, negative prompt embedded in text prompt.
-    // Imagen does not support image edit.
-    // All Imagen 4 models will shut down on 2026/6/24. Recommended migration:
-    // Nano Banana 2 (gemini-3.1-flash-image-preview).
-    // -------------------------------------------------------------------------
-    {
-        id: 'imagen-4.0-fast-generate-001',
-        displayName: 'Imagen 4 Fast',
-        provider: 'gemini',
-        mediaType: 'image',
-        maxImages: 4,
-        costLabel: ['$0.02/image'],
-        noteKey: 'gemini.model.note.imagenShutdown',
-        supportsNegativePrompt: true,
-        gemini: {
-            supportedAspectRatios: ['1:1', '4:3', '16:9', '3:4', '9:16'],
-            supportedQualities: [],
-        },
-    },
-    {
-        id: 'imagen-4.0-generate-001',
-        displayName: 'Imagen 4',
-        provider: 'gemini',
-        mediaType: 'image',
-        maxImages: 4,
-        costLabel: ['$0.04/image'],
-        noteKey: 'gemini.model.note.imagenShutdown',
-        supportsNegativePrompt: true,
-        gemini: {
-            supportedAspectRatios: ['1:1', '4:3', '16:9', '3:4', '9:16'],
-            supportedQualities: ['1k', '2k'],
-        },
-    },
-    {
-        id: 'imagen-4.0-ultra-generate-001',
-        displayName: 'Imagen 4 Ultra',
-        provider: 'gemini',
-        mediaType: 'image',
-        maxImages: 4,
-        costLabel: ['$0.06/image'],
-        noteKey: 'gemini.model.note.imagenShutdown',
-        supportsNegativePrompt: true,
-        gemini: {
-            supportedAspectRatios: ['1:1', '4:3', '16:9', '3:4', '9:16'],
-            supportedQualities: ['1k', '2k'],
         },
     },
     // -------------------------------------------------------------------------
@@ -458,6 +409,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
             '< 1024x1536, 1536x1024 >',
             '$0.016(Low) / $0.063(Med) / $0.250(High)',
         ],
+        noteKey: 'openai.model.note.gptImageShutdown',
         supportsNegativePrompt: true,
         openai: {
             supportedSizes: ['1024x1024', '1024x1536', '1536x1024'],
@@ -479,6 +431,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
             '< 1024x1536, 1536x1024 >',
             '$0.013(Low) / $0.050(Med) / $0.200(High)',
         ],
+        noteKey: 'openai.model.note.gptImageShutdown',
         supportsNegativePrompt: true,
         openai: {
             supportedSizes: ['1024x1024', '1024x1536', '1536x1024'],
@@ -518,6 +471,145 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         },
     },
 ];
+
+// --- Retired model definitions ---
+// Models that have been shut down by the provider and removed from the
+// generation model list. They are NOT selectable for new generations: the
+// generation UI and provider dispatch only ever look at MODEL_DEFINITIONS.
+//
+// These entries exist purely so that PAST history entries created with these
+// models remain fully usable — the history filter dropdown can still list them
+// (merged with MODEL_DEFINITIONS and narrowed to models actually present in the
+// history), and restoring a retired entry maps its model to `replacementModelId`
+// so the prompt/filters carry over onto the supported successor.
+//
+// This list is the single, generic place to retire any future model: move its
+// definition here and set `replacementModelId` to the migration target.
+export const RETIRED_MODEL_DEFINITIONS: ModelDefinition[] = [
+    // Imagen 4 family (fast -> standard -> ultra). Shut down 2026/6/24.
+    // Migration target: Nano Banana 2 (gemini-3.1-flash-image, GA).
+    {
+        id: 'imagen-4.0-fast-generate-001',
+        displayName: 'Imagen 4 Fast',
+        provider: 'gemini',
+        mediaType: 'image',
+        maxImages: 4,
+        supportsNegativePrompt: true,
+        replacementModelId: 'gemini-3.1-flash-image',
+        gemini: {
+            supportedAspectRatios: ['1:1', '4:3', '16:9', '3:4', '9:16'],
+            supportedQualities: [],
+        },
+    },
+    {
+        id: 'imagen-4.0-generate-001',
+        displayName: 'Imagen 4',
+        provider: 'gemini',
+        mediaType: 'image',
+        maxImages: 4,
+        supportsNegativePrompt: true,
+        replacementModelId: 'gemini-3.1-flash-image',
+        gemini: {
+            supportedAspectRatios: ['1:1', '4:3', '16:9', '3:4', '9:16'],
+            supportedQualities: ['1k', '2k'],
+        },
+    },
+    {
+        id: 'imagen-4.0-ultra-generate-001',
+        displayName: 'Imagen 4 Ultra',
+        provider: 'gemini',
+        mediaType: 'image',
+        maxImages: 4,
+        supportsNegativePrompt: true,
+        replacementModelId: 'gemini-3.1-flash-image',
+        gemini: {
+            supportedAspectRatios: ['1:1', '4:3', '16:9', '3:4', '9:16'],
+            supportedQualities: ['1k', '2k'],
+        },
+    },
+    // Nano Banana 2 / Pro preview model ids. These were the pre-GA ids that
+    // shipped before 2026/5/28; the provider shuts them down on 2026/6/25. The
+    // GA equivalents (gemini-3.1-flash-image / gemini-3-pro-image) are the
+    // active generation models. Keeping the preview ids here lets history made
+    // on them stay filterable, and restores map onto the matching GA id.
+    {
+        id: 'gemini-3.1-flash-image-preview',
+        displayName: 'Nano Banana 2 (Preview)',
+        provider: 'gemini',
+        mediaType: 'image',
+        supportsReferenceFile: true,
+        maxReferenceImages: 10,
+        supportsImageEdit: true,
+        supportsNegativePrompt: true,
+        replacementModelId: 'gemini-3.1-flash-image',
+        gemini: {
+            supportedAspectRatios: [
+                '1:1',
+                '4:3',
+                '3:2',
+                '5:4',
+                '16:9',
+                '21:9',
+                '4:1',
+                '8:1',
+                '3:4',
+                '2:3',
+                '4:5',
+                '9:16',
+                '1:4',
+                '1:8',
+            ],
+            supportedQualities: ['512px', '1k', '2k', '4k'],
+        },
+    },
+    {
+        id: 'gemini-3-pro-image-preview',
+        displayName: 'Nano Banana Pro (Preview)',
+        provider: 'gemini',
+        mediaType: 'image',
+        supportsReferenceFile: true,
+        maxReferenceImages: 10,
+        supportsImageEdit: true,
+        supportsNegativePrompt: true,
+        replacementModelId: 'gemini-3-pro-image',
+        gemini: {
+            supportedAspectRatios: [
+                '1:1',
+                '4:3',
+                '3:2',
+                '5:4',
+                '16:9',
+                '21:9',
+                '4:1',
+                '8:1',
+                '3:4',
+                '2:3',
+                '4:5',
+                '9:16',
+                '1:4',
+                '1:8',
+            ],
+            supportedQualities: ['1k', '2k', '4k'],
+        },
+    },
+];
+
+// All model definitions, active plus retired. Use this ONLY for read-only,
+// history-facing lookups (filter dropdowns, display-name resolution) where a
+// past entry may reference a retired model. NEVER use it to populate the
+// generation model selector or to dispatch a generation request — those paths
+// must stay on MODEL_DEFINITIONS so retired models can never be generated.
+export const ALL_MODEL_DEFINITIONS: ModelDefinition[] = [...MODEL_DEFINITIONS, ...RETIRED_MODEL_DEFINITIONS];
+
+// Resolve the id a model should map to when restoring a history entry. For an
+// active model this is the id itself; for a retired model it is its
+// `replacementModelId` (falling back to the id if none is declared). Generic so
+// callers don't need to special-case any particular retired model.
+export function resolveRestoreModelId(modelId: string): string {
+    const retired = RETIRED_MODEL_DEFINITIONS.find(m => m.id === modelId);
+    if (retired) return retired.replacementModelId ?? retired.id;
+    return modelId;
+}
 
 // --- TTS presets ---
 // The list of style presets (with localized name/effect + English instruction) and voice

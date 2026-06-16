@@ -29,6 +29,7 @@ import {
     GEMINI_TTS_DEFAULT_VOICE,
     GEMINI_TTS_STYLE_CUSTOM_ID,
     MODEL_DEFINITIONS,
+    resolveRestoreModelId,
 } from '../../shared/constants';
 import i18n from '../i18n/config';
 
@@ -371,16 +372,36 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     restoreParams: (params: Partial<GenerationParams>) => {
         const state = get();
         const provider = params.provider ?? state.provider;
-        const model = params.model ?? state.model;
+        // A restored entry may reference a retired model (e.g. Imagen 4, which
+        // shut down). Retired models are not selectable for generation, so map
+        // them to their declared successor (Nano Banana 2 for Imagen 4). For
+        // active models this is a no-op. Provider follows the resolved model.
+        const requestedModel = params.model ?? state.model;
+        const model = resolveRestoreModelId(requestedModel);
+        const modelDef = MODEL_DEFINITIONS.find(m => m.id === model);
+        const resolvedProvider = modelDef?.provider ?? provider;
 
         let gemini = state.gemini;
         if (params.gemini) {
             const g = params.gemini;
+            // Clamp aspect ratio / quality against the resolved model so a
+            // retired-model entry restored onto its successor never carries an
+            // unsupported value. The successor may not expose the original
+            // option set (no-op when it does).
+            const gd = modelDef?.gemini;
+            const aspectRatio =
+                g.aspectRatio && (!gd?.supportedAspectRatios || gd.supportedAspectRatios.includes(g.aspectRatio))
+                    ? g.aspectRatio
+                    : (gd?.supportedAspectRatios?.[0] ?? state.gemini.aspectRatio);
+            const quality =
+                g.quality && (!gd?.supportedQualities || gd.supportedQualities.includes(g.quality))
+                    ? g.quality
+                    : (gd?.supportedQualities?.[0] ?? state.gemini.quality);
             gemini = {
                 ...state.gemini,
                 negativePrompt: g.negativePrompt ?? state.gemini.negativePrompt,
-                aspectRatio: g.aspectRatio ?? state.gemini.aspectRatio,
-                quality: g.quality ?? state.gemini.quality,
+                aspectRatio,
+                quality,
                 duration: g.duration ?? state.gemini.duration,
                 resolution: g.resolution ?? state.gemini.resolution,
                 styleInstruction: g.styleInstruction ?? state.gemini.styleInstruction,
@@ -402,7 +423,6 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         // carried them. The model may not accept references — setModel-style
         // clamping happens here so the new state never violates the model cap.
         const incomingRefs = params.referenceImagePaths ?? state.referenceImagePaths;
-        const modelDef = MODEL_DEFINITIONS.find(m => m.id === model);
         const supportsRefs = modelDef?.supportsReferenceFile === true;
         const modelMax = modelDef?.maxReferenceImages ?? 0;
         const requestedEditMode = params.editMode ?? state.editMode;
@@ -417,11 +437,16 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         // editMode requires both the model to support it AND at least one ref.
         const editMode = requestedEditMode && referenceImagePaths.length > 0 && Boolean(modelDef?.supportsImageEdit);
 
+        // Clamp the image count to the resolved model's cap (the successor of a
+        // retired model may allow fewer than the original).
+        const requestedCount = params.numberOfImages ?? state.numberOfImages;
+        const numberOfImages = Math.min(requestedCount, modelDef?.maxImages ?? 1);
+
         set({
-            provider,
+            provider: resolvedProvider,
             model,
             prompt: params.prompt ?? state.prompt,
-            numberOfImages: params.numberOfImages ?? state.numberOfImages,
+            numberOfImages,
             referenceImagePaths,
             referenceImageThumbnails,
             editMode,

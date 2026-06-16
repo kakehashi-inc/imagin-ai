@@ -202,7 +202,9 @@ export default function ParameterPanel() {
                     onChange={e => setModel(e.target.value)}
                     renderValue={value => {
                         const m = MODEL_DEFINITIONS.find(x => x.id === value);
-                        const unavailable = isFreeTierKey && m?.freeTierAvailable === false;
+                        // freeTierAvailable defaults to false (only `true` is declared
+                        // in constants), so treat "not true" as unavailable.
+                        const unavailable = isFreeTierKey && m?.freeTierAvailable !== true;
                         return (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                 <MediaTypeIcon mediaType={m?.mediaType} />
@@ -223,7 +225,7 @@ export default function ParameterPanel() {
                     }}
                 >
                     {filteredModels.map(m => {
-                        const unavailable = isFreeTierKey && m.freeTierAvailable === false;
+                        const unavailable = isFreeTierKey && m.freeTierAvailable !== true;
                         return (
                             <MenuItem key={m.id} value={m.id}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
