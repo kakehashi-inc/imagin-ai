@@ -114,6 +114,13 @@ export type ModelDefinition = {
     freeTierAvailable?: boolean;
     freeTierNoteKey?: string;
     noteKey?: string;
+    // Provider-announced shutdown / end-of-support date for this model, as a
+    // display string (e.g. '2026/10/2'). Set only when the provider has published
+    // a concrete date. When present the UI shows it as an annotation both in the
+    // model dropdown (a warning chip at selection time) and below the selector.
+    // Distinct from `noteKey`, which carries capability notes (e.g. Lyria clip
+    // length) unrelated to retirement.
+    shutdownDate?: string;
     // Set only on entries in RETIRED_MODEL_DEFINITIONS. The id of the model that
     // replaces this retired one. When a history entry that used a retired model
     // is restored, the generation store substitutes this id so the user lands on

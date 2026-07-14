@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v0.6.3] - 2026-07-14
+
+### Added
+
+- Nano Banana 2 Lite, a new Google AI Studio image model, is now selectable. It is the fastest and lowest-cost tier of the Nano Banana family, generating images in about four seconds at roughly $0.034 per image. It outputs at 1K resolution across the standard aspect ratios and can take reference images, but it does not offer image edit mode or 2K/4K output.
+- Models with a provider-announced end-of-support date are now marked with an "Ending" label in the model dropdown, so you can tell at a glance which models are being retired while choosing one. The exact end date is shown as a note beneath the model selector once such a model is selected.
+
+### Changed
+
+- Reviewed reference pricing and availability for all Google AI Studio and OpenAI models against the current official price and deprecation tables. Prices and shutdown dates are unchanged; the reference pricing date in the panel is now 2026-07-14.
+
 ## [v0.6.2] - 2026-06-16
 
 ### Changed

@@ -106,8 +106,8 @@ export const DEFAULT_OPENAI_MODEL_ID = 'gpt-image-2';
 // Source: https://ai.google.dev/gemini-api/docs/pricing,
 // https://ai.google.dev/gemini-api/docs/deprecations, and
 // https://developers.openai.com/api/docs/guides/image-generation#calculating-costs
-// (verified June 2026). Both providers' costLabel values were captured on this date.
-export const COST_REFERENCE_DATE = '2026.6.16';
+// (re-verified July 2026). Both providers' costLabel values were captured on this date.
+export const COST_REFERENCE_DATE = '2026.7.14';
 
 // --- Duration options (Gemini video) ---
 export const GEMINI_VIDEO_DURATION_OPTIONS: { value: GeminiVideoDuration; labelKey: string }[] = [
@@ -180,9 +180,11 @@ export const OPENAI_BACKGROUND_OPTIONS: OpenAIBackground[] = ['opaque', 'transpa
 
 export const MODEL_DEFINITIONS: ModelDefinition[] = [
     // -------------------------------------------------------------------------
-    // Gemini Nano Banana family (flash -> flash 2 -> pro)
+    // Gemini Nano Banana family (flash -> flash 2 lite -> flash 2 -> pro)
     // generateContent API: 1 image/req, negative prompt embedded in text prompt.
-    // All three support image edit (reference image + edit-intent prompt).
+    // The legacy flash, flash 2, and pro tiers support image edit (reference
+    // image + edit-intent prompt); flash 2 lite is text-to-image only (reference
+    // objects supported, but no dedicated image-edit mode per ai.google.dev).
     // -------------------------------------------------------------------------
     {
         id: 'gemini-2.5-flash-image',
@@ -193,7 +195,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         maxReferenceImages: 10,
         supportsImageEdit: true,
         costLabel: ['$0.039/image'],
-        noteKey: 'gemini.model.note.nanoBananaShutdown',
+        shutdownDate: '2026/10/2',
         supportsNegativePrompt: true,
         gemini: {
             supportedAspectRatios: [
@@ -213,6 +215,26 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
                 '1:8',
             ],
             supportedQualities: [],
+        },
+    },
+    {
+        // Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image). GA on 2026/6/30.
+        // Fastest/cheapest tier (~4s/image). Per ai.google.dev it only outputs
+        // 1K resolution, supports 10 standard aspect ratios (no ultra-wide/tall
+        // 4:1/8:1/1:4/1:8), and accepts up to 14 reference "object" images but
+        // has no image-edit mode and no 2K/4K.
+        id: 'gemini-3.1-flash-lite-image',
+        displayName: 'Nano Banana 2 Lite',
+        provider: 'gemini',
+        mediaType: 'image',
+        supportsReferenceFile: true,
+        maxReferenceImages: 14,
+        supportsImageEdit: false,
+        costLabel: ['1K: $0.034/image'],
+        supportsNegativePrompt: true,
+        gemini: {
+            supportedAspectRatios: ['1:1', '4:3', '3:2', '5:4', '16:9', '21:9', '3:4', '2:3', '4:5', '9:16'],
+            supportedQualities: ['1k'],
         },
     },
     {
@@ -409,7 +431,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
             '< 1024x1536, 1536x1024 >',
             '$0.016(Low) / $0.063(Med) / $0.250(High)',
         ],
-        noteKey: 'openai.model.note.gptImageShutdown',
+        shutdownDate: '2026/12/1',
         supportsNegativePrompt: true,
         openai: {
             supportedSizes: ['1024x1024', '1024x1536', '1536x1024'],
@@ -431,7 +453,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
             '< 1024x1536, 1536x1024 >',
             '$0.013(Low) / $0.050(Med) / $0.200(High)',
         ],
-        noteKey: 'openai.model.note.gptImageShutdown',
+        shutdownDate: '2026/12/1',
         supportsNegativePrompt: true,
         openai: {
             supportedSizes: ['1024x1024', '1024x1536', '1536x1024'],

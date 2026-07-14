@@ -242,6 +242,15 @@ export default function ParameterPanel() {
                                             sx={{ height: 18, fontSize: '0.65rem' }}
                                         />
                                     )}
+                                    {m.shutdownDate && (
+                                        <Chip
+                                            size='small'
+                                            color='warning'
+                                            variant='outlined'
+                                            label={t('model.shutdownChip')}
+                                            sx={{ height: 18, fontSize: '0.65rem' }}
+                                        />
+                                    )}
                                 </Box>
                             </MenuItem>
                         );
@@ -341,6 +350,11 @@ export default function ParameterPanel() {
                         </Box>
                     );
                 })()
+            )}
+            {currentModel?.shutdownDate && (
+                <Typography variant='caption' color='warning.main' sx={{ mt: -1, ml: 0.5, whiteSpace: 'pre-line' }}>
+                    {t('model.shutdownDate', { date: currentModel.shutdownDate })}
+                </Typography>
             )}
             {currentModel?.noteKey && (
                 <Typography variant='caption' color='text.secondary' sx={{ mt: -1, ml: 0.5, whiteSpace: 'pre-line' }}>
