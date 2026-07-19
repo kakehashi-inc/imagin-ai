@@ -301,7 +301,7 @@ export function createHistoryEntries(
         let imageWidth = 0;
         let imageHeight = 0;
         try {
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy require so electron is only loaded when actually running in the main process
             const { nativeImage } = require('electron');
             const img = nativeImage.createFromBuffer(imageBuffers[i]);
             const size = img.getSize();
@@ -434,7 +434,7 @@ export function createAudioHistoryEntry(
 
 function generateThumbnail(imageBuffer: Buffer, thumbPath: string): void {
     try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy require so electron is only loaded when actually running in the main process
         const { nativeImage } = require('electron');
         const img = nativeImage.createFromBuffer(imageBuffer);
         const size = img.getSize();

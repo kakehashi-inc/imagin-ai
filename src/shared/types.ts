@@ -140,6 +140,11 @@ export type ModelDefinition = {
         supportedDurations?: GeminiVideoDuration[];
         supportedResolutions?: GeminiVideoResolution[];
         supportsAudioTags?: boolean;
+        // Which API a video model is served through. Omitted (default) means
+        // the Veo predictLongRunning path (generateVideos + LRO polling).
+        // 'interactions' routes to the Interactions API (interactions.create),
+        // used by Gemini Omni Flash. Only meaningful when mediaType === 'video'.
+        videoApi?: 'interactions';
     };
     // OpenAI-only block (set when provider === 'openai')
     openai?: {
@@ -246,6 +251,10 @@ export type HistoryEntry = {
         // Imagen-specific.
         enhancedPrompt?: string;
         raiFilteredReason?: string;
+        // Interactions API (Gemini Omni Flash). The interaction id returned by
+        // interactions.create — recorded so a future conversational-edit flow
+        // could reference it via previous_interaction_id.
+        interactionId?: string;
         // Veo-specific. Stored as-is for forward compatibility (e.g. future
         // metadata.seed). The shape is intentionally untyped because the
         // server may add fields the SDK doesn't model yet.

@@ -91,7 +91,7 @@ app.whenReady().then(async () => {
 
     // App info IPC
     ipcMain.handle('app:getInfo', async () => {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        // eslint-disable-next-line @typescript-eslint/no-require-imports -- runtime require keeps package.json out of the compiled bundle graph
         const pkg = require('../../package.json');
         const currentSettings = loadSettings();
         return {

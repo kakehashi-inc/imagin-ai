@@ -349,6 +349,33 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         },
     },
     // -------------------------------------------------------------------------
+    // Gemini Omni Flash (video generation / conversational editing)
+    // Interactions API (interactions.create), NOT the Veo predictLongRunning
+    // path — declared via gemini.videoApi. Public preview since 2026/6/30.
+    // Output is fixed at 720p/24fps, 3-10 seconds; clip length and audio are
+    // controlled through the prompt (no duration/resolution API parameters),
+    // so supportedDurations/supportedResolutions are intentionally omitted and
+    // the corresponding selectors stay hidden. Negative prompt is unsupported
+    // by the API. Billed per output-video token (5,792 tok/sec at $17.50/1M),
+    // which works out to ~$0.10/sec per ai.google.dev pricing.
+    // -------------------------------------------------------------------------
+    {
+        id: 'gemini-omni-flash-preview',
+        displayName: 'Gemini Omni Flash',
+        provider: 'gemini',
+        mediaType: 'video',
+        supportsReferenceFile: true,
+        // ai.google.dev demonstrates multi-image reference input but documents
+        // no explicit cap; keep to the 2 images shown in official examples.
+        maxReferenceImages: 2,
+        costLabel: ['720p: 約$0.10/sec'],
+        noteKey: 'gemini.model.note.omniFlash',
+        gemini: {
+            supportedAspectRatios: ['16:9', '9:16'],
+            videoApi: 'interactions',
+        },
+    },
+    // -------------------------------------------------------------------------
     // Gemini Lyria 3 family (clip -> pro)
     // generateContent API: text-to-music, image-to-music, lyrics generation.
     // Output: MP3, 48kHz stereo, SynthID watermarked.

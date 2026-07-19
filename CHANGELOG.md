@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v0.6.4] - 2026-07-19
+
+### Added
+
+- Gemini Omni Flash, a new Google AI Studio video model, is now selectable. It generates 3-10 second videos at 720p / 24fps with automatically generated audio, at roughly $0.10 per second of video. Clip length and background music / sound effects are controlled through the prompt, and you can attach up to two reference images for image-to-video generation. The aspect ratio can be set to landscape (16:9) or portrait (9:16).
+
 ## [v0.6.3] - 2026-07-14
 
 ### Added

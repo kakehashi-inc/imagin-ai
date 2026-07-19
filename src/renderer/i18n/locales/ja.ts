@@ -76,6 +76,8 @@ export default {
     'model.shutdownDate': 'サポート終了: {{date}}',
     'gemini.model.note.lyriaClip': '30秒固定',
     'gemini.model.note.lyriaPro': 'プロンプトで3分までの長さを指示可能',
+    'gemini.model.note.omniFlash':
+        '出力は720p・24fps固定、長さは3〜10秒。動画の長さやBGM・効果音はプロンプトで指示します（例:「8秒の動画。穏やかなBGM付き」）',
     'gemini.model.freeTier.ttsFlash':
         '無料枠:\n3 RPM / 10K TPM\n1分あたり最大3リクエスト、合計で約6分程度の音声生成が目安',
 

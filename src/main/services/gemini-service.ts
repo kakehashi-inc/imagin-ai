@@ -224,7 +224,7 @@ function extractContentResponseMeta(response: any): GeminiResponseMeta {
 function prepareReferenceImage(imgPath: string): { mimeType: string; base64: string } | null {
     try {
         const raw = fs.readFileSync(imgPath);
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy require so electron is only loaded when actually running in the main process
         const { nativeImage } = require('electron');
         let img = nativeImage.createFromBuffer(raw);
         if (img.isEmpty()) return null;
@@ -281,6 +281,13 @@ export async function generateWithGemini(
     try {
         switch (modelDef.mediaType) {
             case 'video':
+                // Video models are served by two different APIs: Veo goes
+                // through generateVideos + LRO polling, Gemini Omni Flash goes
+                // through the synchronous Interactions API. The model
+                // definition declares which one applies.
+                if (modelDef.gemini?.videoApi === 'interactions') {
+                    return await generateOmniVideo(ai, params, apiKey);
+                }
                 return await generateVideo(ai, params);
             case 'music':
                 return await generateMusic(ai, params);
@@ -755,4 +762,133 @@ async function generateVideo(
     const perItemMeta: GeminiResponseMeta[] = buffers.map(() => veoMeta);
 
     return { buffers, mimeType: 'video/mp4', perItemMeta };
+}
+
+// =============================================================================
+// Gemini Omni Flash video (Interactions API via SDK)
+// =============================================================================
+
+// interactions.create is a single synchronous HTTP call that can run for
+// minutes; there is no LRO to poll, so a local timer drives the elapsed-time
+// progress feedback instead.
+const OMNI_PROGRESS_TICK_MS = 5000;
+
+// Minimal view of the Interaction resource limited to the fields this app
+// consumes. The SDK's own response type is a broad union (streaming vs not),
+// so we narrow through this instead of casting to any at each access site.
+type OmniInteractionView = {
+    id?: string;
+    status?: string;
+    output_text?: string;
+    output_video?: { data?: string; mime_type?: string; uri?: string };
+    usage?: {
+        total_input_tokens?: number;
+        total_output_tokens?: number;
+        total_tokens?: number;
+    };
+};
+
+async function generateOmniVideo(
+    ai: GoogleGenAI,
+    params: GenerationParams,
+    apiKey: string
+): Promise<{ buffers: Buffer[]; mimeType: string; perItemMeta: GeminiResponseMeta[] }> {
+    const g = params.gemini;
+    if (!g) throw appError('INVALID_PARAMS', 'Gemini params missing for video request');
+
+    const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
+    const maxRefs = modelDef?.supportsReferenceFile ? (modelDef.maxReferenceImages ?? 0) : 0;
+
+    // Interactions content blocks: reference images first, then the prompt,
+    // mirroring the order shown in the official image-to-video examples.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const contents: any[] = [];
+    if (maxRefs > 0 && params.referenceImagePaths.length > 0) {
+        const capped = params.referenceImagePaths.slice(0, maxRefs);
+        if (params.referenceImagePaths.length > maxRefs) {
+            console.warn(
+                `Omni video reference images truncated from ${params.referenceImagePaths.length} to ${maxRefs}`
+            );
+        }
+        for (const imgPath of capped) {
+            const prepared = prepareReferenceImage(imgPath);
+            if (!prepared) continue;
+            contents.push({ type: 'image', data: prepared.base64, mime_type: prepared.mimeType });
+        }
+    }
+    contents.push({ type: 'text', text: params.prompt });
+
+    // The API only accepts 16:9 / 9:16; the model definition and the store's
+    // clamping already restrict the UI, this is a final defensive narrowing.
+    const aspectRatio = g.aspectRatio === '9:16' ? '9:16' : '16:9';
+
+    // Drive the renderer's "generating Xs" feedback with a local timer since
+    // this request has no polling loop to hook into.
+    const startTime = Date.now();
+    const progressTimer = setInterval(() => {
+        if (progressCallback) {
+            progressCallback({ status: 'generating', elapsedSeconds: Math.round((Date.now() - startTime) / 1000) });
+        }
+    }, OMNI_PROGRESS_TICK_MS);
+
+    let interaction: OmniInteractionView;
+    try {
+        interaction = (await ai.interactions.create({
+            model: params.model,
+            input: contents,
+            response_format: { type: 'video', aspect_ratio: aspectRatio },
+        })) as OmniInteractionView;
+    } finally {
+        clearInterval(progressTimer);
+    }
+
+    const video = interaction.output_video;
+    if (interaction.status !== 'completed' || !video) {
+        const diag = [
+            `interaction.status: ${interaction.status ?? 'unknown'}`,
+            interaction.output_text ? `output_text: ${interaction.output_text}` : '',
+        ]
+            .filter(Boolean)
+            .join('\n');
+        throw appError('NO_VIDEO_GENERATED', diag);
+    }
+
+    const buffers: Buffer[] = [];
+    if (video.data) {
+        // Inline (base64) delivery — the default for responses under ~4MB.
+        buffers.push(Buffer.from(video.data, 'base64'));
+    } else if (video.uri) {
+        // URI delivery for larger videos. The download URL is served by the
+        // Gemini API and accepts the same API key as the generation call.
+        const res = await fetch(video.uri, { headers: { 'x-goog-api-key': apiKey } });
+        if (!res.ok) {
+            throw appError('NO_VIDEO_GENERATED', `Failed to download video from URI: HTTP ${res.status}`);
+        }
+        buffers.push(Buffer.from(await res.arrayBuffer()));
+    }
+
+    if (buffers.length === 0) {
+        throw appError('NO_VIDEO_GENERATED', 'Interaction completed but contained no video data');
+    }
+
+    const omniMeta: GeminiResponseMeta = {};
+    if (typeof interaction.id === 'string' && interaction.id.length > 0) {
+        omniMeta.interactionId = interaction.id;
+    }
+    const u = interaction.usage;
+    if (
+        u &&
+        (typeof u.total_input_tokens === 'number' ||
+            typeof u.total_output_tokens === 'number' ||
+            typeof u.total_tokens === 'number')
+    ) {
+        omniMeta.usageTokens = {
+            promptTokens: typeof u.total_input_tokens === 'number' ? u.total_input_tokens : undefined,
+            candidatesTokens: typeof u.total_output_tokens === 'number' ? u.total_output_tokens : undefined,
+            totalTokens: typeof u.total_tokens === 'number' ? u.total_tokens : undefined,
+        };
+    }
+    const perItemMeta: GeminiResponseMeta[] = buffers.map(() => omniMeta);
+
+    return { buffers, mimeType: video.mime_type ?? 'video/mp4', perItemMeta };
 }

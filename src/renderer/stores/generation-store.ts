@@ -486,12 +486,17 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
             let geminiSub: GenerationParams['gemini'] | undefined;
             if (state.provider === 'gemini') {
                 const isVoiceModel = modelDef?.mediaType === 'voice';
+                // Duration/resolution only apply to video models that actually
+                // expose them (Veo). Omni Flash has no such API parameters —
+                // omitting them keeps the request and the history entry honest.
+                const hasDuration = isVideo && (modelDef?.gemini?.supportedDurations?.length ?? 0) > 0;
+                const hasResolution = isVideo && (modelDef?.gemini?.supportedResolutions?.length ?? 0) > 0;
                 geminiSub = {
                     negativePrompt: state.gemini.negativePrompt,
                     aspectRatio: state.gemini.aspectRatio,
                     quality: state.gemini.quality,
-                    duration: isVideo ? state.gemini.duration : undefined,
-                    resolution: isVideo ? state.gemini.resolution : undefined,
+                    duration: hasDuration ? state.gemini.duration : undefined,
+                    resolution: hasResolution ? state.gemini.resolution : undefined,
                     styleInstruction: isVoiceModel ? state.gemini.styleInstruction : undefined,
                     voice: isVoiceModel ? state.gemini.voice : undefined,
                 };

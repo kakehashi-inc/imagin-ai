@@ -61,7 +61,7 @@ function appError(statusKey: string, diagnostic?: string): OpenAIApiError {
 function prepareReferenceImageBuffer(imgPath: string): { mimeType: string; buffer: Buffer } | null {
     try {
         const raw = fs.readFileSync(imgPath);
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy require so electron is only loaded when actually running in the main process
         const { nativeImage } = require('electron');
         let img = nativeImage.createFromBuffer(raw);
         if (img.isEmpty()) return null;

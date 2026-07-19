@@ -6,7 +6,7 @@ import fs from 'fs';
 function findFfmpegPath(): string | null {
     // Try ffmpeg-static package
     try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        // eslint-disable-next-line @typescript-eslint/no-require-imports -- optional dependency resolved at runtime; a static import would crash when absent
         const ffmpegStatic = require('ffmpeg-static') as string;
         if (ffmpegStatic && fs.existsSync(ffmpegStatic)) {
             return ffmpegStatic;

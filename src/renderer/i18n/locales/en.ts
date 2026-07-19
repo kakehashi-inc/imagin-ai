@@ -76,6 +76,8 @@ export default {
     'model.shutdownDate': 'Support ends: {{date}}',
     'gemini.model.note.lyriaClip': 'Fixed 30-second clip',
     'gemini.model.note.lyriaPro': 'Up to 3 min (specify duration in prompt)',
+    'gemini.model.note.omniFlash':
+        'Fixed 720p / 24fps output, 3-10 seconds long. Specify clip length and background music / sound effects in the prompt (e.g. "An 8-second video with calm background music")',
     'gemini.model.freeTier.ttsFlash':
         'Free tier:\n3 RPM / 10K TPM\nUp to 3 requests/min, ~6 minutes of audio per minute total',
 

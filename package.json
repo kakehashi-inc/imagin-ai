@@ -1,6 +1,6 @@
 {
   "name": "imagin-ai",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "A desktop application for controlling AI image/video/music generation APIs through a dedicated GUI.",
   "main": "dist/main/index.js",
   "engines": {
@@ -58,14 +58,14 @@
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
-    "@google/genai": "^2.11.0",
+    "@google/genai": "^2.12.0",
     "@mui/icons-material": "^9.2.0",
     "@mui/material": "^9.2.0",
     "archiver": "^7.0.1",
     "electron-updater": "^6.8.9",
     "ffmpeg-static": "^5.3.0",
     "i18next": "^26.3.6",
-    "openai": "^6.46.0",
+    "openai": "^6.48.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-i18next": "^17.0.9",
