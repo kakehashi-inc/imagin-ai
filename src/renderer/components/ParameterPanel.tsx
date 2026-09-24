@@ -134,7 +134,7 @@ export default function ParameterPanel() {
     const showNumberOfImages = maxImages > 1;
 
     // OpenAI capability flag. supportsBackground === false hides the
-    // background selector entirely (e.g. gpt-image-2).
+    // background selector entirely.
     const showOpenAIBackground = isOpenAI && currentModel?.openai?.supportsBackground === true;
 
     const groupedAspectRatioItems = useMemo(() => {
@@ -160,13 +160,16 @@ export default function ParameterPanel() {
         return items;
     }, [currentModel, t]);
 
-    // OpenAI sizes are filtered per model (gpt-image-2 alone supports 2K/4K).
+    // OpenAI sizes are filtered per model (only some models accept 2K/4K).
     // In edit mode, additionally narrow to `supportedEditSizes` when the model
     // declares one — anything outside that list is shown disabled so the user
     // can see *why* it's unavailable rather than having options silently vanish.
     const supportedOpenAISizes = currentModel?.openai?.supportedSizes ?? [];
     const editAllowedSizes = currentModel?.openai?.supportedEditSizes ?? supportedOpenAISizes;
     const visibleSizeOptions = OPENAI_SIZE_OPTIONS.filter(o => supportedOpenAISizes.includes(o.value));
+    // Quality tiers are also per model: xhigh / max exist on GPT Image 2.5 only.
+    const supportedOpenAIQualities = currentModel?.openai?.supportedQualities ?? [];
+    const visibleQualityOptions = OPENAI_QUALITY_OPTIONS.filter(v => supportedOpenAIQualities.includes(v));
     const isSizeAllowed = (value: OpenAIImageSize): boolean =>
         editMode ? editAllowedSizes.includes(value) : true;
 
@@ -281,13 +284,21 @@ export default function ParameterPanel() {
                 currentModel.costLabel.length > 0 &&
                 (() => {
                     const rows = currentModel.costLabel;
-                    // OpenAI cost entries are emitted as label/price pairs
-                    // (two adjacent array rows), so a match at row `n`
-                    // should also highlight `n + 1` as the price line.
-                    const isRowHighlighted = (i: number): boolean =>
-                        isOpenAI && highlightedCostRowIndex >= 0
-                            ? i === highlightedCostRowIndex || i === highlightedCostRowIndex + 1
-                            : i === highlightedCostRowIndex;
+                    // OpenAI cost entries are grouped as a `< WIDTHxHEIGHT >`
+                    // section header followed by one or more price lines (models
+                    // with five quality tiers split them over two lines), so a
+                    // match at the header highlights every line up to the next
+                    // header.
+                    const isRowHighlighted = (i: number): boolean => {
+                        if (!isOpenAI || highlightedCostRowIndex < 0) return i === highlightedCostRowIndex;
+                        if (i < highlightedCostRowIndex) return false;
+                        if (i === highlightedCostRowIndex) return true;
+                        // Walk forward from the header: stop at the next header.
+                        for (let k = highlightedCostRowIndex + 1; k <= i; k++) {
+                            if (rows[k].startsWith('<')) return false;
+                        }
+                        return true;
+                    };
                     const COLLAPSED_LIMIT = 5;
                     const collapsible = rows.length > COLLAPSED_LIMIT;
                     // Auto-expand when the currently highlighted row is hidden,
@@ -468,11 +479,11 @@ export default function ParameterPanel() {
                 <FormControl size='small' fullWidth>
                     <InputLabel>{t('openai.parameter.quality.label')}</InputLabel>
                     <Select
-                        value={openai.quality}
+                        value={visibleQualityOptions.includes(openai.quality) ? openai.quality : ''}
                         label={t('openai.parameter.quality.label')}
                         onChange={e => setOpenAIQuality(e.target.value as OpenAIImageQuality)}
                     >
-                        {OPENAI_QUALITY_OPTIONS.map(v => (
+                        {visibleQualityOptions.map(v => (
                             <MenuItem key={v} value={v}>
                                 {t(`openai.quality.${v}`)}
                             </MenuItem>

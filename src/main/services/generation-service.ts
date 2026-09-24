@@ -1,4 +1,4 @@
-import type { GenerationParams, HistoryEntry } from '../../shared/types';
+import type { GenerationParams, HistoryEntry, ReservedMediaFile } from '../../shared/types';
 import { getActiveApiKey, getActiveProvider } from './api-key-service';
 import { GeminiApiError, generateWithGemini } from './gemini-service';
 import { OpenAIApiError, generateWithOpenAI } from './openai-service';
@@ -23,6 +23,9 @@ export type GenerationItemMeta = {
 // edit for OpenAI) and own their error normalization.
 export async function generateImages(params: GenerationParams): Promise<{
     buffers: Buffer[];
+    // Artifacts the provider already wrote to their final location (Veo's
+    // URI-delivered videos). When present they replace `buffers` for that call.
+    reservedFiles?: ReservedMediaFile[];
     mimeType: string;
     audioTexts?: string[];
     perItemMeta?: GenerationItemMeta[];
@@ -54,6 +57,7 @@ export async function generateImages(params: GenerationParams): Promise<{
     const result = await generateWithGemini(params, apiKey);
     return {
         buffers: result.buffers,
+        reservedFiles: result.reservedFiles,
         mimeType: result.mimeType,
         audioTexts: result.audioTexts,
         perItemMeta: result.perItemMeta?.map(meta => ({ gemini: meta })),

@@ -273,6 +273,7 @@ export default function HistoryPanel() {
                           quality: e.gemini.quality,
                           duration: e.gemini.videoDuration,
                           resolution: e.gemini.videoResolution,
+                          videoReferenceMode: e.gemini.videoReferenceMode,
                           styleInstruction: e.gemini.styleInstruction,
                           voice: e.gemini.voice,
                       }

@@ -58,9 +58,10 @@ function TagList({ items }: { items: TagEntry[] }) {
 export default function AudioTagsDialog({ open, onClose }: Props) {
     const { t } = useTranslation();
 
-    const expressions = t('audioTags.section.expressions.items', { returnObjects: true }) as TagEntry[];
-    const prosody = t('audioTags.section.prosody.items', { returnObjects: true }) as TagEntry[];
-    const pause = t('audioTags.section.pause.items', { returnObjects: true }) as TagEntry[];
+    // Two sections, matching how the model itself splits direction: what is
+    // written inline in the transcript, and what belongs in the style field.
+    const inlineItems = t('audioTags.section.inline.items', { returnObjects: true }) as TagEntry[];
+    const styleItems = t('audioTags.section.style.items', { returnObjects: true }) as TagEntry[];
 
     return (
         <Dialog open={open} onClose={onClose} maxWidth='md' fullWidth scroll='paper'>
@@ -79,27 +80,18 @@ export default function AudioTagsDialog({ open, onClose }: Props) {
 
                 <Box>
                     <Typography variant='subtitle1' sx={{ fontWeight: 600, mb: 0.5 }}>
-                        {t('audioTags.section.expressions.title')}
+                        {t('audioTags.section.inline.title')}
                     </Typography>
-                    <TagList items={expressions} />
+                    <TagList items={inlineItems} />
                 </Box>
 
                 <Divider sx={{ my: 2 }} />
 
                 <Box>
                     <Typography variant='subtitle1' sx={{ fontWeight: 600, mb: 0.5 }}>
-                        {t('audioTags.section.prosody.title')}
+                        {t('audioTags.section.style.title')}
                     </Typography>
-                    <TagList items={prosody} />
-                </Box>
-
-                <Divider sx={{ my: 2 }} />
-
-                <Box>
-                    <Typography variant='subtitle1' sx={{ fontWeight: 600, mb: 0.5 }}>
-                        {t('audioTags.section.pause.title')}
-                    </Typography>
-                    <TagList items={pause} />
+                    <TagList items={styleItems} />
                 </Box>
             </DialogContent>
             <DialogActions>

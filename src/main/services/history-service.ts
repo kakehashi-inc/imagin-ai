@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import archiver from 'archiver';
-import type { ApiProvider, GenerationParams, HistoryEntry, MediaType } from '../../shared/types';
+import type { ApiProvider, GenerationParams, HistoryEntry, MediaType, ReservedMediaFile } from '../../shared/types';
 import { HISTORY_IMAGES_DIR, MODEL_DEFINITIONS, THUMBNAIL_DIR_NAME, THUMBNAIL_SIZE } from '../../shared/constants';
 import { ensureHistoryDir, loadSettings } from './settings-service';
 import { extractVideoThumbnail } from './ffmpeg-service';
@@ -71,6 +71,9 @@ function migrateHistoryEntry(raw: unknown): { entry: HistoryEntry; migrated: boo
     };
     if (r.videoDuration !== undefined) legacyGemini.videoDuration = r.videoDuration;
     if (r.videoResolution !== undefined) legacyGemini.videoResolution = r.videoResolution;
+    if (r.videoReferenceMode === 'firstFrame' || r.videoReferenceMode === 'reference') {
+        legacyGemini.videoReferenceMode = r.videoReferenceMode;
+    }
     if (r.seed !== undefined) legacyGemini.seed = r.seed;
     if (Array.isArray(r.audioTexts)) legacyGemini.audioTexts = r.audioTexts;
     if (typeof r.styleInstruction === 'string') legacyGemini.styleInstruction = r.styleInstruction;
@@ -211,6 +214,7 @@ function pickProviderSubObject(params: GenerationParams): Pick<HistoryEntry, 'ge
                 quality: g.quality,
                 videoDuration: g.duration,
                 videoResolution: g.resolution,
+                videoReferenceMode: g.videoReferenceMode,
                 // `seed` is intentionally omitted: the renderer never collects
                 // one, and Veo's response (current SDK types) doesn't expose
                 // one either. If a future SDK release surfaces a seed on the
@@ -275,6 +279,28 @@ export type HistoryItemMeta = {
 // as PNG (which the legacy implementation always assumed). `perItemMeta[i]` is
 // merged onto entry[i] so response-side fields (usage, finishReason,
 // enhancedPrompt, etc.) survive to the JSON file.
+// Hand out a destination inside the history directory before the bytes exist, so
+// a large download can be streamed straight to its final location. The caller
+// MUST either pass the result to a create*HistoryEntry function on success or
+// hand it to discardReservedMedia on failure — a reserved file with no metadata
+// JSON is invisible to the app and would just sit on disk.
+export function reserveMediaPath(ext: string): ReservedMediaFile {
+    ensureDirs();
+    const id = uuidv4();
+    return { id, path: path.join(getImagesDir(), `${id}.${ext}`) };
+}
+
+// Deletes a reserved file that never became a history entry. Safe to call when
+// the download never started, so failure paths don't need to track how far they
+// got.
+export function discardReservedMedia(reserved: ReservedMediaFile): void {
+    try {
+        if (fs.existsSync(reserved.path)) fs.unlinkSync(reserved.path);
+    } catch (err) {
+        console.warn(`Failed to discard reserved media file ${reserved.path}:`, err);
+    }
+}
+
 export function createHistoryEntries(
     params: GenerationParams,
     modelDisplayName: string,
@@ -333,21 +359,26 @@ export function createHistoryEntries(
     return entries;
 }
 
+// `video` is either the bytes to write, or a file already written to the
+// location reserveMediaPath handed out (the Veo URI-delivery path streams
+// straight there, so there is nothing left to copy).
 export function createVideoHistoryEntry(
     params: GenerationParams,
     modelDisplayName: string,
-    videoBuffer: Buffer,
+    video: Buffer | ReservedMediaFile,
     elapsedMs?: number,
     itemMeta?: HistoryItemMeta
 ): HistoryEntry {
     invalidateCache();
     const now = new Date().toISOString();
-    const id = uuidv4();
+    const reserved = Buffer.isBuffer(video) ? null : video;
+    const id = reserved ? reserved.id : uuidv4();
 
     ensureDirs();
 
-    const videoPath = path.join(getImagesDir(), `${id}.mp4`);
-    fs.writeFileSync(videoPath, videoBuffer);
+    const videoPath = reserved ? reserved.path : path.join(getImagesDir(), `${id}.mp4`);
+    if (!reserved) fs.writeFileSync(videoPath, video as Buffer);
+    const fileSize = reserved ? fs.statSync(videoPath).size : (video as Buffer).length;
 
     const thumbPath = path.join(getThumbDir(), `${id}.jpg`);
     extractVideoThumbnail(videoPath, thumbPath, THUMBNAIL_SIZE);
@@ -362,7 +393,7 @@ export function createVideoHistoryEntry(
         numberOfImages: 1,
         mediaType: 'video',
         generatedImagePaths: [videoPath],
-        fileSize: videoBuffer.length,
+        fileSize,
         elapsedMs,
         ...sub,
     };

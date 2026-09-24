@@ -2,7 +2,13 @@ import fs from 'fs';
 import OpenAI, { toFile } from 'openai';
 import type { Images as OpenAIImagesNs } from 'openai/resources/images';
 import type { ApiErrorDetail, GenerationParams, HistoryEntry } from '../../shared/types';
-import { MODEL_DEFINITIONS, REFERENCE_IMAGE_JPEG_QUALITY, REFERENCE_IMAGE_MAX_LONG_EDGE } from '../../shared/constants';
+import {
+    MODEL_DEFINITIONS,
+    OPENAI_QUALITY_OPTIONS,
+    OPENAI_SIZE_OPTIONS,
+    REFERENCE_IMAGE_JPEG_QUALITY,
+    REFERENCE_IMAGE_MAX_LONG_EDGE,
+} from '../../shared/constants';
 
 // Per-call OpenAI response metadata that the history layer persists as-is.
 // Shaped as a partial of HistoryEntry.openai so history-service can spread it
@@ -181,8 +187,8 @@ async function runGenerate(
         output_format: outputFormat,
         n: params.numberOfImages,
     };
-    // Only send background when the model accepts it (gpt-image-2 rejects
-    // background entirely; it does not support transparent backgrounds).
+    // Only send background when the model accepts it — some models reject the
+    // parameter outright rather than ignoring it.
     if (supportsBg) {
         body.background = o.background;
     }
@@ -271,10 +277,12 @@ function extractBuffers(
     ) {
         baseMeta.apiAppliedOutputFormat = responseAny.output_format;
     }
-    if (responseAny.quality === 'low' || responseAny.quality === 'medium' || responseAny.quality === 'high') {
+    // Accept every value the app can request, so an echoed 'xhigh' / 'max' or a
+    // 2K / 4K size is recorded instead of being silently dropped.
+    if (OPENAI_QUALITY_OPTIONS.includes(responseAny.quality)) {
         baseMeta.apiAppliedQuality = responseAny.quality;
     }
-    if (responseAny.size === '1024x1024' || responseAny.size === '1024x1536' || responseAny.size === '1536x1024') {
+    if (OPENAI_SIZE_OPTIONS.some(o => o.value === responseAny.size)) {
         baseMeta.apiAppliedSize = responseAny.size;
     }
     const usage = responseAny.usage;

@@ -75,11 +75,11 @@ export default {
     'model.shutdownChip': 'Ending',
     'model.shutdownDate': 'Support ends: {{date}}',
     'gemini.model.note.lyriaClip': 'Fixed 30-second clip',
-    'gemini.model.note.lyriaPro': 'Up to 3 min (specify duration in prompt)',
+    'gemini.model.note.lyria': 'Full-length song (a couple of minutes). Steer length and structure in the prompt',
     'gemini.model.note.omniFlash':
-        'Fixed 720p / 24fps output, 3-10 seconds long. Specify clip length and background music / sound effects in the prompt (e.g. "An 8-second video with calm background music")',
-    'gemini.model.freeTier.ttsFlash':
-        'Free tier:\n3 RPM / 10K TPM\nUp to 3 requests/min, ~6 minutes of audio per minute total',
+        '3-10 seconds long, set in the prompt (e.g. "An 8-second video with calm background music"). Background music and sound effects are prompt-controlled too. 1080p / 4K are produced by upscaling',
+    'gemini.model.freeTier.tts':
+        'Free tier available:\nRate limits depend on your project usage tier. Check the rate limits page in Google AI Studio for your actual limits',
 
     // Gemini TTS style / voice
     'gemini.tts.style.label': 'Style',
@@ -160,7 +160,6 @@ export default {
 
     // Audio Tags dialog
     'audioTags.button.label': 'Audio Tags reference',
-    'audioTags.button.tooltip': 'Show the Audio Tags reference',
 
     // Audio player window
     'audioPlayer.section.spokenText': 'Read-aloud text',
@@ -168,25 +167,62 @@ export default {
     'audioTags.dialog.title': 'Audio Tags reference',
     'audioTags.dialog.close': 'Close',
     'audioTags.dialog.description':
-        'Tags embedded in the prompt that control speech delivery. Supported only by Gemini 3.1 Flash TTS.',
-    'audioTags.section.expressions.title': 'Expressions',
-    'audioTags.section.expressions.items': [
-        { tag: '[laughing]', desc: 'Inserts natural laughter or blends laughter into the tone.' },
-        { tag: '[sigh]', desc: 'Inserts a deep sigh that expresses disappointment or relief.' },
-        { tag: '[uhm]', desc: 'Inserts a natural filler word (e.g., "um", "uh").' },
-        { tag: '[whispering]', desc: 'Switches to a whispered voice with reduced volume and more breath.' },
-        { tag: '[shouting]', desc: 'Switches to a louder, shouting-like delivery.' },
+        'Your text is read out exactly as written. To add a momentary sound - a laugh, a sigh, a pause - put a tag such as <laugh> inside the text. To set the pace and mood of the whole read, use the Style field above. To change the pace or mood part-way through, split the text and generate each part separately. Tags and style text are written in English even when your text is not.',
+    'audioTags.section.inline.title': 'Written inside the text (sounds and pauses)',
+    'audioTags.section.inline.items': [
+        { tag: '<argh>', desc: 'Inserts an exasperated or pained argh.' },
+        { tag: '<breath>', desc: 'Inserts an audible breath.' },
+        { tag: '<heavy breath>', desc: 'Inserts heavy, out-of-breath breathing.' },
+        { tag: '<exhales>', desc: 'Inserts an outward breath.' },
+        { tag: '<cackle>', desc: 'Inserts a cackling laugh.' },
+        { tag: '<cheer>', desc: 'Inserts a cheer.' },
+        { tag: '<chuckle> / <chuckles>', desc: 'Inserts a low, contained laugh.' },
+        { tag: '<cough>', desc: 'Inserts a cough.' },
+        { tag: '<cry>', desc: 'Inserts crying.' },
+        { tag: '<gasp>', desc: 'Inserts a sharp intake of breath for surprise.' },
+        { tag: '<giggle>', desc: 'Inserts a light giggle.' },
+        { tag: '<groan>', desc: 'Inserts a pained groan.' },
+        { tag: '<growl>', desc: 'Inserts a low, threatening growl.' },
+        { tag: '<grunt>', desc: 'Inserts a short, low grunt.' },
+        { tag: '<grr>', desc: 'Inserts a growling vocalization.' },
+        { tag: '<hiss>', desc: 'Inserts a sharp hiss.' },
+        { tag: '<laugh> / <laughter>', desc: 'Inserts laughter.' },
+        { tag: '<moan>', desc: 'Inserts a moan.' },
+        { tag: '<pant>', desc: 'Inserts breathless panting.' },
+        { tag: '<pff> / <phew>', desc: 'Inserts an exasperated or relieved breath.' },
+        { tag: '<scream>', desc: 'Inserts a scream.' },
+        { tag: '<shout>', desc: 'Inserts a shout.' },
+        { tag: '<shriek>', desc: 'Inserts a shriek.' },
+        { tag: '<sigh> / <sighs>', desc: 'Inserts a sigh.' },
+        { tag: '<sneeze>', desc: 'Inserts a sneeze.' },
+        { tag: '<snicker>', desc: 'Inserts a snicker.' },
+        { tag: '<snort>', desc: 'Inserts a snort.' },
+        { tag: '<sob>', desc: 'Inserts a sob.' },
+        { tag: '<throat-clearing>', desc: 'Inserts a throat-clearing sound.' },
+        { tag: '<tsk>', desc: 'Inserts a tongue click.' },
+        { tag: '<whimper>', desc: 'Inserts a faint whimper.' },
+        { tag: '<whispers> / <whispering>', desc: 'Whispers the marked part of the transcript.' },
+        { tag: '<yawn>', desc: 'Inserts a yawn.' },
+        { tag: '<short pause>', desc: 'Inserts a short break.' },
+        { tag: '<long pause>', desc: 'Inserts a long pause before a scene change or a key line.' },
+        {
+            tag: ', / -- / ...',
+            desc: 'Punctuation, dashes and ellipses also produce natural hesitation and breathing.',
+        },
+        { tag: 'VERY (capitals)', desc: 'Capitalize a word to place natural stress on it.' },
     ],
-    'audioTags.section.prosody.title': 'Prosody',
-    'audioTags.section.prosody.items': [
-        { tag: '[extremely fast] / [extremely slow]', desc: 'Speaks the marked segment very quickly or very slowly.' },
-        { tag: '[pitch:high] / [pitch:low]', desc: 'Temporarily raises or lowers the pitch of the voice.' },
-    ],
-    'audioTags.section.pause.title': 'Pause',
-    'audioTags.section.pause.items': [
-        { tag: '[short pause]', desc: 'Inserts a natural ~0.2-0.5 sec pause.' },
-        { tag: '[medium pause]', desc: 'Inserts a clear ~1 sec pause as a sentence break.' },
-        { tag: '[long pause]', desc: 'Inserts a 2+ sec dramatic pause before scene changes or key moments.' },
+    'audioTags.section.style.title': 'Set in the Style field (pace and tone)',
+    'audioTags.section.style.items': [
+        { tag: 'speaking rapidly', desc: 'Reads at a fast pace.' },
+        { tag: 'speaking slowly', desc: 'Reads at a slow pace.' },
+        { tag: 'high pitch', desc: 'Raises the pitch of the voice.' },
+        { tag: 'monotone and flat', desc: 'Reads in a flat, monotone delivery.' },
+        { tag: 'cheerful and excited inflection', desc: 'Adds a bright, excited inflection.' },
+        { tag: 'angry tone', desc: 'Reads in an angry tone.' },
+        { tag: 'sarcastic', desc: 'Reads sarcastically.' },
+        { tag: 'whispering', desc: 'Whispers the whole read.' },
+        { tag: 'out of breath', desc: 'Reads as if out of breath.' },
+        { tag: 'muttering', desc: 'Reads as if muttering under the breath.' },
     ],
 
     // Gemini aspect ratio
@@ -224,6 +260,7 @@ export default {
 
     // Gemini Resolution (video)
     'gemini.resolution.label': 'Video Resolution',
+    'gemini.resolution.360p': '360p',
     'gemini.resolution.720p': '720p (HD)',
     'gemini.resolution.1080p': '1080p (Full HD)',
     'gemini.resolution.4k': '4K (Ultra HD)',
@@ -243,6 +280,8 @@ export default {
     'openai.quality.low': 'Low',
     'openai.quality.medium': 'Medium',
     'openai.quality.high': 'High',
+    'openai.quality.xhigh': 'XHigh',
+    'openai.quality.max': 'Max',
     'openai.background.opaque': 'Opaque',
     'openai.background.transparent': 'Transparent',
 
@@ -272,6 +311,9 @@ export default {
     'prompt.required': 'Prompt is required',
     'prompt.charCount': '{{count}} characters',
     'prompt.startingFrame': 'Starting frame (video uses 1 image)',
+    'prompt.subjectReference': 'Subject reference images (up to {{count}}, duration fixed at 8s)',
+    'prompt.referenceMode.firstFrame': 'Starting frame',
+    'prompt.referenceMode.reference': 'Subject reference',
 
     // Negative prompt
     'negativePrompt.label': 'Negative Prompt',
@@ -292,6 +334,8 @@ export default {
     'generation.generatingSpeech': 'Generating speech...',
     'generation.generatingVideoProgress': 'Generating video... ({{elapsed}}s)',
     'generation.videoDurationConstraint': '1080p/4K resolution requires a duration of 8 seconds.',
+    'generation.videoReferenceDurationConstraint':
+        'Subject reference images require a duration of 8 seconds.',
     'generation.historyLimitExceeded':
         'History limit ({{limit}} entries) exceeded. Please clean up history before generating.',
     'generation.error': 'Generation failed: {{message}}',

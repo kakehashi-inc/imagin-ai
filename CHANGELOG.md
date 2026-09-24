@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v0.7.0] - 2026-09-24
+
+### Added
+
+- **Lyria 3.5** (music) is now selectable. It generates full-length songs of a couple of minutes with vocals and lyrics for $0.08 per song, and you can steer the length and structure from the prompt.
+- **Gemini 3.8 Flash TTS** and **Gemini 3.8 Flash-Lite TTS** (speech) are now selectable, at $0.0135 and $0.009 per minute of audio - both cheaper than the previous generation. Flash TTS covers 130 languages and Flash-Lite 101, and both work on a free-tier key. These are introductory prices that double on 1 January 2027, which the note under the model selector states.
+- **GPT Image 2.5 Flare** and **GPT Image 2.5 Sunburst** (image) are now the OpenAI models on offer - Flare for fast everyday work, Sunburst for editing precision. They cost the same as each other, from $0.005 per image. Both add two quality steps above High (XHigh and Max) and support transparent backgrounds; the quality choices in the panel follow the selected model, so you are never offered a step the model cannot do.
+- **Veo 3.1** and **Veo 3.1 Fast** accept up to three subject reference images. A toggle next to "Attach images" switches between "Starting frame" (one image the video animates out of, as before) and "Subject reference" (up to three images whose subject is carried into the video; this needs an 8-second clip).
+- **Gemini Omni Flash** can now output 360p, 720p, 1080p or 4K, so the video resolution selector appears for it as it does for Veo. 1080p and 4K are produced by upscaling the 720p generation.
+
+### Changed
+
+- Model capabilities now match what the providers currently support: Nano Banana 2 Lite offers image edit mode, the Nano Banana 2 / 2 Lite / Pro models accept up to 14 reference images, Lyria accepts up to 10, and Nano Banana Pro no longer lists the ultra-wide and ultra-tall ratios (4:1, 8:1, 1:4, 1:8) it cannot produce.
+- Speech generation now reads your text exactly as written, with the style you pick applied as separate direction instead of being mixed into the spoken text. The audio tag help has been rewritten in plain language and split into the tags you write inside the text and the pace and tone you set in the Style field.
+- Gemini Omni Flash now uses its stable version, as the preview version shuts down on 2026/9/30.
+- Corrected the reference prices for OpenAI images at 2K and 4K, which were far too high (4K at High quality showed about $1.69 where it actually costs $0.400). Cost does not grow in proportion to pixels, so a wide 4K frame is cheaper than a 2K square. Prices for every other model were re-checked against the official tables and are unchanged; the reference date shown under the price list is now 2026.9.24.
+
+### Removed
+
+- Nano Banana, ahead of its shutdown on 2026/10/2. Successor: Nano Banana 2.
+- Lyria 3 Pro, superseded by Lyria 3.5 at the same price.
+- Gemini 3.1 Flash TTS and Gemini 2.5 Flash / Pro TTS, all superseded by the cheaper Gemini 3.8 TTS models. Google also limits access to the Gemini 2.5 models to projects that already used them, so a new API key could not reach the 2.5 speech models at all.
+- GPT Image 2, GPT Image 1.5 and GPT Image 1 (the latter two shut down on 2026/12/1). Successor: GPT Image 2.5 Flare.
+- In every case above, existing history entries stay fully usable: you can browse them, filter the history by those models, and restore their parameters. Restoring an entry carries the prompt and settings over to the successor named above.
+
 ## [v0.6.4] - 2026-07-19
 
 ### Added

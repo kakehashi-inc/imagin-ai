@@ -56,8 +56,17 @@ export type GeminiQuality = '512px' | '1k' | '2k' | '4k';
 // Video duration (Veo)
 export type GeminiVideoDuration = 4 | 6 | 8;
 
-// Video resolution (Veo)
-export type GeminiVideoResolution = '720p' | '1080p' | '4k';
+// Video resolution (Veo / Gemini Omni Flash)
+// '360p' is Gemini Omni Flash only; Veo starts at 720p. Per-model availability
+// is declared via ModelDefinition.gemini.supportedResolutions.
+export type GeminiVideoResolution = '360p' | '720p' | '1080p' | '4k';
+
+// How attached images are used by a Veo request.
+// 'firstFrame': the single attached image becomes the video's starting frame
+//   (image-to-video). This is the default and the only mode Veo 3.1 Lite has.
+// 'reference': up to 3 attached images guide the subject's appearance
+//   (`referenceImages`, Veo 3.1 / Veo 3.1 Fast only). Requires an 8s duration.
+export type GeminiVideoReferenceMode = 'firstFrame' | 'reference';
 
 // Aspect ratio grouping for UI (Gemini)
 export type GeminiAspectRatioGroup = 'square' | 'landscape' | 'portrait';
@@ -67,7 +76,10 @@ export type GeminiAspectRatioGroup = 'square' | 'landscape' | 'portrait';
 // =============================================================================
 
 // Image size. `auto` is intentionally not exposed; user always picks explicit size.
-// Sizes beyond the three "standard" entries are `gpt-image-2` only.
+// The three "standard" entries are OpenAI's recommended sizes; the 2K / 4K
+// entries are custom dimensions that satisfy the documented constraints
+// (multiples of 16, aspect ratio within 1:3-3:1, max edge 3840px, 655,360 to
+// 8,294,400 pixels).
 export type OpenAIImageSize =
     | '1024x1024' // Square (1:1)
     | '1024x1536' // Portrait (2:3)
@@ -77,7 +89,10 @@ export type OpenAIImageSize =
     | '3840x2160' // 4K Landscape (16:9)
     | '2160x3840'; // 4K Portrait (9:16)
 
-export type OpenAIImageQuality = 'low' | 'medium' | 'high';
+// Image quality. 'xhigh' / 'max' are GPT Image 2.5 (Sunburst / Flare) only;
+// earlier GPT Image models stop at 'high'. Per-model availability is declared
+// via ModelDefinition.openai.supportedQualities.
+export type OpenAIImageQuality = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type OpenAIOutputFormat = 'png' | 'jpeg' | 'webp';
 export type OpenAIBackground = 'transparent' | 'opaque';
 
@@ -139,23 +154,36 @@ export type ModelDefinition = {
         supportedQualities?: GeminiQuality[];
         supportedDurations?: GeminiVideoDuration[];
         supportedResolutions?: GeminiVideoResolution[];
+        // Cap on `referenceImages` (subject references) for a Veo model. Declared
+        // only by models that accept them — Veo 3.1 and Veo 3.1 Fast. Distinct
+        // from the top-level `maxReferenceImages`, which stays at 1 because the
+        // default starting-frame mode is a single slot. Declaring this is what
+        // makes the reference-mode toggle appear.
+        maxSubjectReferenceImages?: number;
         supportsAudioTags?: boolean;
         // Which API a video model is served through. Omitted (default) means
         // the Veo predictLongRunning path (generateVideos + LRO polling).
         // 'interactions' routes to the Interactions API (interactions.create),
-        // used by Gemini Omni Flash. Only meaningful when mediaType === 'video'.
+        // used by Gemini Omni Flash. Only meaningful when mediaType === 'video'
+        // — image, music and voice models are always served by Interactions.
         videoApi?: 'interactions';
     };
     // OpenAI-only block (set when provider === 'openai')
     openai?: {
         supportedSizes: OpenAIImageSize[];
+        // Quality tiers the model accepts. Declared on every OpenAI model so
+        // the selector never offers a tier the API would reject (only the
+        // GPT Image 2.5 models accept 'xhigh' / 'max').
+        supportedQualities: OpenAIImageQuality[];
         // Sizes available when the image edit endpoint is used. When omitted,
         // edit mode reuses `supportedSizes` (i.e. no narrowing vs. generate).
-        // Declare only when the edit endpoint accepts a strict subset — e.g.
-        // gpt-image-2 supports 2K/4K on generate but only the three standard
-        // sizes on edits per the OpenAI API spec.
+        // Declare only when the edit endpoint accepts a strict subset — OpenAI
+        // documents only the three recommended sizes for edits, while generate
+        // additionally takes custom 2K / 4K dimensions.
         supportedEditSizes?: OpenAIImageSize[];
-        supportsBackground: boolean; // false for gpt-image-2 (transparent unsupported)
+        // Whether the model accepts `background` (i.e. transparent output).
+        // Declared false on models that reject the parameter outright.
+        supportsBackground: boolean;
     };
 };
 
@@ -176,6 +204,9 @@ export type GenerationParams = {
         quality: GeminiQuality;
         duration?: GeminiVideoDuration;
         resolution?: GeminiVideoResolution;
+        // Video models only: how the attached images are used (starting frame
+        // vs subject references). Omitted for every other media type.
+        videoReferenceMode?: GeminiVideoReferenceMode;
         // Note: no `seed` field here. The current @google/genai SDK rejects a
         // user-provided seed in Developer API mode, so the renderer never
         // collects one. If the server returns a seed in the response it is
@@ -193,6 +224,16 @@ export type GenerationParams = {
         // prompt augmentation. Mirrors gemini.negativePrompt.
         negativePrompt: string;
     };
+};
+
+// A destination inside the history directory that was handed out before the
+// bytes existed, so a download can be streamed straight to its final location
+// instead of going through a temporary file. `id` becomes the history entry id
+// so the file name and the entry stay in step. Used by the Veo URI-delivery
+// path; every other generator still returns buffers.
+export type ReservedMediaFile = {
+    id: string;
+    path: string;
 };
 
 // =============================================================================
@@ -222,6 +263,7 @@ export type HistoryEntry = {
         quality: GeminiQuality;
         videoDuration?: GeminiVideoDuration;
         videoResolution?: GeminiVideoResolution;
+        videoReferenceMode?: GeminiVideoReferenceMode;
         // Populated only when the server returns a seed in the response (e.g.
         // future Veo releases). Never set from the renderer.
         seed?: number;
@@ -288,8 +330,8 @@ export type HistoryEntry = {
         // currently send auto.
         apiAppliedBackground?: 'transparent' | 'opaque';
         apiAppliedOutputFormat?: 'png' | 'jpeg' | 'webp';
-        apiAppliedQuality?: 'low' | 'medium' | 'high';
-        apiAppliedSize?: '1024x1024' | '1024x1536' | '1536x1024';
+        apiAppliedQuality?: OpenAIImageQuality;
+        apiAppliedSize?: OpenAIImageSize;
         // Token usage (GPT image models). The breakdown matches OpenAI's
         // billing dimensions so cost can be recomputed exactly from history.
         usage?: {

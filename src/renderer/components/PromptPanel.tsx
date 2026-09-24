@@ -11,6 +11,8 @@ import {
     MenuItem,
     Select,
     TextField,
+    ToggleButton,
+    ToggleButtonGroup,
     Typography,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
@@ -39,6 +41,7 @@ export default function PromptPanel() {
         setOpenAINegativePrompt,
         setGeminiStyleSelection,
         setGeminiStyleInstruction,
+        setGeminiVideoReferenceMode,
         setEditMode,
     } = useGenerationStore();
 
@@ -54,6 +57,11 @@ export default function PromptPanel() {
     const isMusicModel = currentModel?.mediaType === 'music';
     const isVoiceModel = currentModel?.mediaType === 'voice';
     const isVideoModel = currentModel?.mediaType === 'video';
+    // Veo 3.1 / Fast can take attached images either as the starting frame or as
+    // subject references; models without a declared cap only do the former.
+    const maxSubjectReferences = currentModel?.gemini?.maxSubjectReferenceImages ?? 0;
+    const supportsSubjectReferences = isVideoModel && maxSubjectReferences > 0;
+    const referenceMode = gemini.videoReferenceMode;
 
     const promptRef = React.useRef<HTMLTextAreaElement>(null);
     const [hasApiKey, setHasApiKey] = React.useState(true);
@@ -215,7 +223,12 @@ export default function PromptPanel() {
                     ))}
                     {isVideoModel && (
                         <Typography variant='caption' color='text.secondary' sx={{ ml: 0.5 }}>
-                            {t('prompt.startingFrame')}
+                            {t(
+                                referenceMode === 'reference'
+                                    ? 'prompt.subjectReference'
+                                    : 'prompt.startingFrame',
+                                { count: maxSubjectReferences }
+                            )}
                         </Typography>
                     )}
                 </Box>
@@ -261,6 +274,24 @@ export default function PromptPanel() {
                                 }
                                 sx={{ m: 0 }}
                             />
+                        )}
+                        {supportsSubjectReferences && (
+                            <ToggleButtonGroup
+                                size='small'
+                                exclusive
+                                value={referenceMode}
+                                onChange={(_e, v) => {
+                                    if (v === 'firstFrame' || v === 'reference') setGeminiVideoReferenceMode(v);
+                                }}
+                                sx={{ '& .MuiToggleButton-root': { py: 0.25, px: 1, fontSize: '0.75rem' } }}
+                            >
+                                <ToggleButton value='firstFrame'>
+                                    {t('prompt.referenceMode.firstFrame')}
+                                </ToggleButton>
+                                <ToggleButton value='reference'>
+                                    {t('prompt.referenceMode.reference')}
+                                </ToggleButton>
+                            </ToggleButtonGroup>
                         )}
                         {supportsImageInput && (
                             <Button

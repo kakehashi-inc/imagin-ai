@@ -21,12 +21,13 @@ import {
     createHistoryEntries,
     createVideoHistoryEntry,
     createAudioHistoryEntry,
+    discardReservedMedia,
     getThumbnailDataUrl,
     getImageDataUrl,
     moveHistoryDir,
 } from '../services/history-service';
 import { getUpdateState, checkForUpdates, downloadUpdate, quitAndInstall } from '../services/updater-service';
-import type { ApiKeysData, ApiProvider, GenerationParams } from '../../shared/types';
+import type { ApiKeysData, ApiProvider, GenerationParams, ReservedMediaFile } from '../../shared/types';
 
 /**
  * Register all application IPC handlers
@@ -119,11 +120,18 @@ export function registerIpcHandlers() {
                 });
             }
 
+            // Files the provider streamed straight into the history directory.
+            // They only become real history entries once the metadata JSON is
+            // written, so anything still listed here when the handler fails has
+            // to be deleted — otherwise the bytes sit in the history directory
+            // where the app can never see or remove them.
+            let pendingReservedFiles: ReservedMediaFile[] = [];
             try {
                 // Generate images, video, or audio (measure elapsed time)
                 const startTime = Date.now();
                 const result = await generateImages(params);
                 const elapsedMs = Date.now() - startTime;
+                pendingReservedFiles = result.reservedFiles ?? [];
 
                 let entries;
                 if (producesAudioFile) {
@@ -139,8 +147,16 @@ export function registerIpcHandlers() {
                         )
                     );
                 } else if (isVideo) {
-                    entries = result.buffers.map((buf, i) =>
-                        createVideoHistoryEntry(params, modelDisplayName, buf, elapsedMs, result.perItemMeta?.[i])
+                    // A URI-delivered video was streamed straight into the
+                    // history directory, so pass the reserved file through
+                    // instead of bytes. A call returns one form or the other,
+                    // never both.
+                    const videoArtifacts: (Buffer | ReservedMediaFile)[] =
+                        result.reservedFiles && result.reservedFiles.length > 0
+                            ? result.reservedFiles
+                            : result.buffers;
+                    entries = videoArtifacts.map((artifact, i) =>
+                        createVideoHistoryEntry(params, modelDisplayName, artifact, elapsedMs, result.perItemMeta?.[i])
                     );
                 } else {
                     entries = createHistoryEntries(
@@ -152,8 +168,11 @@ export function registerIpcHandlers() {
                         result.perItemMeta
                     );
                 }
+                // Handed over to history entries — no longer this handler's to clean up.
+                pendingReservedFiles = [];
                 return { success: true, entries };
             } catch (err) {
+                for (const reserved of pendingReservedFiles) discardReservedMedia(reserved);
                 console.error('Generation error:', err instanceof Error ? err.message : err);
                 if (isProviderApiError(err)) {
                     return { success: false, error: err.detail };

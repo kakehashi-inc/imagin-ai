@@ -75,11 +75,11 @@ export default {
     'model.shutdownChip': '終了予定',
     'model.shutdownDate': 'サポート終了: {{date}}',
     'gemini.model.note.lyriaClip': '30秒固定',
-    'gemini.model.note.lyriaPro': 'プロンプトで3分までの長さを指示可能',
+    'gemini.model.note.lyria': 'フルレングス楽曲（数分程度）。曲の長さや構成はプロンプトで指示可能',
     'gemini.model.note.omniFlash':
-        '出力は720p・24fps固定、長さは3〜10秒。動画の長さやBGM・効果音はプロンプトで指示します（例:「8秒の動画。穏やかなBGM付き」）',
-    'gemini.model.freeTier.ttsFlash':
-        '無料枠:\n3 RPM / 10K TPM\n1分あたり最大3リクエスト、合計で約6分程度の音声生成が目安',
+        '長さは3〜10秒で、プロンプトで指示します（例:「8秒の動画。穏やかなBGM付き」）。BGM・効果音もプロンプトで指定します。1080p / 4K はアップスケールによる出力です',
+    'gemini.model.freeTier.tts':
+        '無料枠あり:\nレート上限はプロジェクトの利用ティアによって変わります。実際の上限は Google AI Studio のレート制限ページで確認してください',
 
     // Gemini TTS スタイル / ボイス
     'gemini.tts.style.label': 'スタイル',
@@ -168,7 +168,6 @@ export default {
 
     // Audio Tags ダイアログ
     'audioTags.button.label': 'Audio Tags の使い方',
-    'audioTags.button.tooltip': 'Audio Tags の詳細を表示',
 
     // オーディオプレイヤー
     'audioPlayer.section.spokenText': '読み上げテキスト',
@@ -176,25 +175,59 @@ export default {
     'audioTags.dialog.title': 'Audio Tags 詳細解説',
     'audioTags.dialog.close': '閉じる',
     'audioTags.dialog.description':
-        'Gemini 3.1 Flash TTS でのみ利用可能な、プロンプト内に埋め込んで発声を制御するタグです。',
-    'audioTags.section.expressions.title': '感情・表現タグ (Expressions)',
-    'audioTags.section.expressions.items': [
-        { tag: '[laughing]', desc: '自然な笑い声を挿入、または笑いを含んだトーンに変えます。' },
-        { tag: '[sigh]', desc: '失望や安堵を示す、深いため息（排気音）を挿入します。' },
-        { tag: '[uhm]', desc: '「ええと」「あのー」といった自然な言い淀み（フィラー）を挿入します。' },
-        { tag: '[whispering]', desc: '音量を下げ、息漏れを増やした「ささやき声」に切り替えます。' },
-        { tag: '[shouting]', desc: '声量を上げ、張りのある「叫び声」に近い発声にします。' },
+        '入力した文章は、書いたとおりに読み上げられます。笑い声やため息、間といった一瞬の音は、文章の中に <laugh> のようなタグを書いて入れます。声の速さや雰囲気は、上の「スタイル」欄で指定します。読み上げの途中で速さや雰囲気を変えたいときは、文章を分けて別々に生成してください。タグとスタイルは、日本語の文章でも英語のまま書きます。',
+    'audioTags.section.inline.title': '文章の中に書くタグ（発声・間）',
+    'audioTags.section.inline.items': [
+        { tag: '<argh>', desc: '苛立ちや痛みを表す「ああっ」という声を挿入します。' },
+        { tag: '<breath>', desc: '息継ぎの音を挿入します。' },
+        { tag: '<heavy breath>', desc: '息が切れた荒い呼吸を挿入します。' },
+        { tag: '<exhales>', desc: '息を吐く音を挿入します。' },
+        { tag: '<cackle>', desc: 'けたけたという高笑いを挿入します。' },
+        { tag: '<cheer>', desc: '歓声を挿入します。' },
+        { tag: '<chuckle> / <chuckles>', desc: '低く含んだ笑いを挿入します。' },
+        { tag: '<cough>', desc: '咳を挿入します。' },
+        { tag: '<cry>', desc: '泣き声を挿入します。' },
+        { tag: '<gasp>', desc: '驚いて息を呑む音を挿入します。' },
+        { tag: '<giggle>', desc: '軽いくすくす笑いを挿入します。' },
+        { tag: '<groan>', desc: '苦しげなうめき声を挿入します。' },
+        { tag: '<growl>', desc: '低く威嚇するような唸り声を挿入します。' },
+        { tag: '<grunt>', desc: '短く低いうなりを挿入します。' },
+        { tag: '<grr>', desc: '唸るような擬音を挿入します。' },
+        { tag: '<hiss>', desc: 'シューッという鋭い音を挿入します。' },
+        { tag: '<laugh> / <laughter>', desc: '笑い声を挿入します。' },
+        { tag: '<moan>', desc: '呻き声を挿入します。' },
+        { tag: '<pant>', desc: '息を切らした喘ぎを挿入します。' },
+        { tag: '<pff> / <phew>', desc: '呆れや安堵の息を挿入します。' },
+        { tag: '<scream>', desc: '悲鳴を挿入します。' },
+        { tag: '<shout>', desc: '叫び声を挿入します。' },
+        { tag: '<shriek>', desc: '金切り声を挿入します。' },
+        { tag: '<sigh> / <sighs>', desc: 'ため息を挿入します。' },
+        { tag: '<sneeze>', desc: 'くしゃみを挿入します。' },
+        { tag: '<snicker>', desc: '忍び笑いを挿入します。' },
+        { tag: '<snort>', desc: '鼻を鳴らす音を挿入します。' },
+        { tag: '<sob>', desc: '嗚咽を挿入します。' },
+        { tag: '<throat-clearing>', desc: '咳払いを挿入します。' },
+        { tag: '<tsk>', desc: '舌打ちを挿入します。' },
+        { tag: '<whimper>', desc: '弱々しい泣き声を挿入します。' },
+        { tag: '<whispers> / <whispering>', desc: 'その箇所をささやき声にします。' },
+        { tag: '<yawn>', desc: 'あくびを挿入します。' },
+        { tag: '<short pause>', desc: '短い句切りを入れます。' },
+        { tag: '<long pause>', desc: '場面転換や重要な発言の前に、長い溜めを作ります。' },
+        { tag: '、 / -- / ...', desc: '句読点・ダッシュ・三点リーダでも、自然な言い淀みや息継ぎを作れます。' },
+        { tag: 'VERY（大文字）', desc: '強調したい語を大文字で書くと、自然な強勢が付きます。' },
     ],
-    'audioTags.section.prosody.title': '話速・ピッチ制御タグ (Prosody)',
-    'audioTags.section.prosody.items': [
-        { tag: '[extremely fast] / [extremely slow]', desc: '指定した箇所のスピードを極端に速く、または遅くします。' },
-        { tag: '[pitch:high] / [pitch:low]', desc: '声のトーンを一時的に高く、または低く調整します。' },
-    ],
-    'audioTags.section.pause.title': '間 (Pause) タグ',
-    'audioTags.section.pause.items': [
-        { tag: '[short pause]', desc: '約 0.2〜0.5 秒の自然な句切りを入れます。' },
-        { tag: '[medium pause]', desc: '文の区切りとして明確な約 1 秒の間を置きます。' },
-        { tag: '[long pause]', desc: '場面転換や重要な発言の前に、約 2 秒以上の長い溜めを作ります。' },
+    'audioTags.section.style.title': 'スタイル欄で指定するもの（話速・トーン）',
+    'audioTags.section.style.items': [
+        { tag: 'speaking rapidly', desc: '速く読み上げます。' },
+        { tag: 'speaking slowly', desc: 'ゆっくり読み上げます。' },
+        { tag: 'high pitch', desc: '声を高くします。' },
+        { tag: 'monotone and flat', desc: '平板で単調に読み上げます。' },
+        { tag: 'cheerful and excited inflection', desc: '明るく高揚した抑揚をつけます。' },
+        { tag: 'angry tone', desc: '怒った口調にします。' },
+        { tag: 'sarcastic', desc: '皮肉っぽく読み上げます。' },
+        { tag: 'whispering', desc: '読み上げ全体をささやき声にします。' },
+        { tag: 'out of breath', desc: '息が切れた状態で読み上げます。' },
+        { tag: 'muttering', desc: 'ぶつぶつと呟くように読み上げます。' },
     ],
 
     // Gemini アスペクト比
@@ -232,6 +265,7 @@ export default {
 
     // Gemini Resolution (video)
     'gemini.resolution.label': '動画解像度',
+    'gemini.resolution.360p': '360p',
     'gemini.resolution.720p': '720p (HD)',
     'gemini.resolution.1080p': '1080p (Full HD)',
     'gemini.resolution.4k': '4K (Ultra HD)',
@@ -251,6 +285,8 @@ export default {
     'openai.quality.low': 'Low',
     'openai.quality.medium': 'Medium',
     'openai.quality.high': 'High',
+    'openai.quality.xhigh': 'XHigh',
+    'openai.quality.max': 'Max',
     'openai.background.opaque': 'Opaque (不透過)',
     'openai.background.transparent': 'Transparent (透過)',
 
@@ -280,6 +316,9 @@ export default {
     'prompt.required': 'プロンプトは必須です',
     'prompt.charCount': '{{count}}文字',
     'prompt.startingFrame': '開始フレーム（動画は1枚のみ）',
+    'prompt.subjectReference': '被写体の参照画像（最大{{count}}枚・長さは8秒固定）',
+    'prompt.referenceMode.firstFrame': '開始フレーム',
+    'prompt.referenceMode.reference': '被写体参照',
 
     // ネガティブプロンプト
     'negativePrompt.label': 'ネガティブプロンプト',
@@ -300,6 +339,7 @@ export default {
     'generation.generatingSpeech': '読み上げを生成中...',
     'generation.generatingVideoProgress': '動画を生成中... ({{elapsed}}秒)',
     'generation.videoDurationConstraint': '1080p/4K解像度では長さは8秒のみ指定できます。',
+    'generation.videoReferenceDurationConstraint': '被写体参照画像を使う場合、長さは8秒のみ指定できます。',
     'generation.historyLimitExceeded': '履歴が上限({{limit}}件)を超えています。履歴を整理してください。',
     'generation.error': '生成に失敗しました: {{message}}',
     'generation.errorRetry': 'リトライ',
