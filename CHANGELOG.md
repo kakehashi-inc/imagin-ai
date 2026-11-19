@@ -11,22 +11,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- **Gemini Omni Flash** videos can now be 3 to 15 seconds long, chosen with the Duration selector (default 10 seconds).
-- **Gemini Omni Flash** accepts up to six reference images. Describe in the prompt how they should be used - as the starting frame, as the first and last frame, or as the subjects to keep consistent.
-- The model ID shown under the model selector is now the exact provider model the request goes to, and each new history entry records it too.
+- **Gemini Omni Flash**: choose the video length from 3 to 15 seconds with the Duration selector (default 10 seconds).
+- **Gemini Omni Flash**: attach up to six reference images, and describe in the prompt how to use them - as the starting frame, as the first and last frame, or as subjects to keep consistent.
+- **GPT Image 2.6**: a **Complexity** setting (Low / Medium / High, default High) that controls how much the model plans the image.
+- **OpenAI image generation**: a **Moderation** setting, Auto (standard) or Low (less strict).
+- The model ID under the model selector now shows the exact model version the request goes to, and each new history entry records it.
 
 ### Changed
 
-- Image generation on Google AI Studio now uses **Nano Banana 2.1**, which improves image quality and text rendering and is cheaper: $0.0336 (1K), $0.0504 (2K) and $0.113 (4K) per image. The 512px size is no longer offered because Nano Banana 2.1 does not produce it.
-- Video generation now uses **Gemini Omni 1.2 Flash**, which costs about 30% less: from $0.023 per second at 360p and about $0.07 per second at 720p.
-- OpenAI image generation now uses **GPT Image 2.6 Flare** and **GPT Image 2.6 Sunburst**, at the same token rates as before.
-- Models are now grouped by major version. When the provider releases a minor update (such as Nano Banana 2 to 2.1), the app moves to it in place. History entries made under the previous model names appear in the history filter under their own name, and restoring them selects the current version.
+- **Nano Banana 2.1** replaces Nano Banana 2, with better image quality and text rendering at a lower price: $0.0336 (1K), $0.0504 (2K) and $0.113 (4K) per image. The 512px size is no longer offered, as Nano Banana 2.1 does not produce it.
+- **Gemini Omni 1.2 Flash** replaces Gemini Omni 1.1 Flash and costs about 30% less: $0.023 per second at 360p and about $0.07 per second at 720p.
+- **GPT Image 2.6 Flare / Sunburst** replace GPT Image 2.5. High, XHigh and Max cost the same as before, but Low and Medium use more tokens and cost more: Low from $0.020 and Medium from $0.034 per image.
+- When a provider releases a minor update of a model (such as Nano Banana 2 to 2.1), the app now moves to it in place. History made with an earlier version keeps its own name in the history filter, and restoring it selects the current version.
 - Reference prices were re-checked against the providers' current price lists; the reference date is now 2026.11.19.
+
+### Fixed
+
+- WebP images now get a thumbnail in the history and open in a correctly sized viewer window. WebP entries made earlier without a thumbnail show the image itself instead of a blank card.
+- Thumbnails of images with a transparent background now show the transparent areas as a checkerboard, instead of an arbitrary black or white fill.
 
 ### Removed
 
-- **Veo 3.1**, **Veo 3.1 Fast** and **Veo 3.1 Lite**, which Google shut down in the Gemini API on 2026/10/22. Successor: Gemini Omni Flash. The "Starting frame / Subject reference" switch that only Veo used has been removed along with them.
-- Existing Veo history entries stay fully usable: you can browse them, filter the history by these models, and restore their parameters onto Gemini Omni Flash.
+- **Veo 3.1**, **Veo 3.1 Fast** and **Veo 3.1 Lite**, which Google shut down in the Gemini API on 2026/10/22, along with the "Starting frame / Subject reference" switch only they used. Successor: Gemini Omni Flash. Existing Veo history entries stay fully usable: you can browse them, filter the history by these models, and restore their parameters onto Gemini Omni Flash.
 
 ## [0.7.0] - 2026-09-24
 

@@ -26,7 +26,7 @@ import { useTranslation } from 'react-i18next';
 import { useHistoryStore } from '../stores/history-store';
 import { useGenerationStore } from '../stores/generation-store';
 import type { HistoryEntry, MediaType } from '../../shared/types';
-import { ALL_MODEL_DEFINITIONS, MODEL_DEFINITIONS } from '../../shared/constants';
+import { ALL_MODEL_DEFINITIONS, DEFAULT_OPENAI_MODERATION, MODEL_DEFINITIONS } from '../../shared/constants';
 import ProviderIcon from './ProviderIcon';
 import ImageIcon from '@mui/icons-material/Image';
 import VideocamIcon from '@mui/icons-material/Videocam';
@@ -277,7 +277,19 @@ export default function HistoryPanel() {
                           voice: e.gemini.voice,
                       }
                     : undefined,
-                openai: e.openai ? { ...e.openai } : undefined,
+                openai: e.openai
+                    ? {
+                          size: e.openai.size,
+                          quality: e.openai.quality,
+                          outputFormat: e.openai.outputFormat,
+                          background: e.openai.background,
+                          negativePrompt: e.openai.negativePrompt,
+                          // Entries recorded before moderation was selectable
+                          // were generated with the API default.
+                          moderation: e.openai.moderation ?? DEFAULT_OPENAI_MODERATION,
+                          complexity: e.openai.complexity,
+                      }
+                    : undefined,
             });
         }
         handleCloseContextMenu();

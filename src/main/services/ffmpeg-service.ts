@@ -73,6 +73,48 @@ export function extractVideoThumbnail(videoPath: string, outputPath: string, max
     }
 }
 
+// Checkerboard drawn behind transparent areas of image thumbnails: square
+// cells of this size alternating between the two gray levels (0-255).
+const CHECKERBOARD_CELL_PX = 8;
+const CHECKERBOARD_LIGHT = 255;
+const CHECKERBOARD_DARK = 204;
+
+// Convert a still image into a JPEG thumbnail whose long edge fits within
+// maxSize. JPEG has no alpha channel, so the image is laid over a checkerboard
+// first: transparent areas show the conventional "transparent" pattern instead
+// of whatever color the encoder happened to store under them. Also handles
+// formats Electron's nativeImage cannot decode (e.g. WebP).
+export function extractImageThumbnail(imagePath: string, outputPath: string, maxSize: number): boolean {
+    const ffmpeg = getFfmpegPath();
+    if (!ffmpeg) {
+        console.warn('ffmpeg not available, skipping image thumbnail conversion');
+        return false;
+    }
+
+    try {
+        const dir = path.dirname(outputPath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+
+        const cell = `if(mod(floor(X/${CHECKERBOARD_CELL_PX})+floor(Y/${CHECKERBOARD_CELL_PX}),2),${CHECKERBOARD_DARK},${CHECKERBOARD_LIGHT})`;
+        const filter =
+            `[0:v]scale=${maxSize}:${maxSize}:force_original_aspect_ratio=decrease,format=rgba,split[fg][base];` +
+            `[base]format=gbrp,geq=r='${cell}':g='${cell}':b='${cell}'[bg];` +
+            `[bg][fg]overlay=format=auto`;
+
+        execFileSync(ffmpeg, ['-i', imagePath, '-filter_complex', filter, '-frames:v', '1', '-y', outputPath], {
+            stdio: 'ignore',
+            timeout: 30000,
+        });
+
+        return fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0;
+    } catch (err) {
+        console.error('Failed to convert image thumbnail:', err);
+        return false;
+    }
+}
+
 // Check if ffmpeg is available
 export function isFfmpegAvailable(): boolean {
     return getFfmpegPath() !== null;

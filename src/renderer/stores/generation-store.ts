@@ -9,8 +9,10 @@ import type {
     GenerationParams,
     GenerationProgress,
     OpenAIBackground,
+    OpenAIComplexity,
     OpenAIImageQuality,
     OpenAIImageSize,
+    OpenAIModeration,
     OpenAIOutputFormat,
 } from '../../shared/types';
 import {
@@ -21,7 +23,9 @@ import {
     DEFAULT_GEMINI_VIDEO_RESOLUTION,
     DEFAULT_NUMBER_OF_IMAGES,
     DEFAULT_OPENAI_BACKGROUND,
+    DEFAULT_OPENAI_COMPLEXITY,
     DEFAULT_OPENAI_MODEL_ID,
+    DEFAULT_OPENAI_MODERATION,
     DEFAULT_OPENAI_OUTPUT_FORMAT,
     DEFAULT_OPENAI_QUALITY,
     DEFAULT_OPENAI_SIZE,
@@ -79,6 +83,8 @@ type OpenAIParamsState = {
     outputFormat: OpenAIOutputFormat;
     background: OpenAIBackground;
     negativePrompt: string;
+    moderation: OpenAIModeration;
+    complexity: OpenAIComplexity;
 };
 
 type GenerationState = {
@@ -118,6 +124,8 @@ type GenerationState = {
     setOpenAIOutputFormat: (format: OpenAIOutputFormat) => void;
     setOpenAIBackground: (background: OpenAIBackground) => void;
     setOpenAINegativePrompt: (negativePrompt: string) => void;
+    setOpenAIModeration: (moderation: OpenAIModeration) => void;
+    setOpenAIComplexity: (complexity: OpenAIComplexity) => void;
 
     addReferenceImages: (paths: string[]) => void;
     removeReferenceImage: (path: string) => void;
@@ -153,6 +161,8 @@ function initialOpenAI(): OpenAIParamsState {
         outputFormat: DEFAULT_OPENAI_OUTPUT_FORMAT,
         background: DEFAULT_OPENAI_BACKGROUND,
         negativePrompt: '',
+        moderation: DEFAULT_OPENAI_MODERATION,
+        complexity: DEFAULT_OPENAI_COMPLEXITY,
     };
 }
 
@@ -227,8 +237,8 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
             const size = o?.supportedSizes.includes(state.openai.size)
                 ? state.openai.size
                 : (o?.supportedSizes[0] ?? DEFAULT_OPENAI_SIZE);
-            // xhigh / max only exist on GPT Image 2.5; snap back to the model's
-            // cheapest tier when switching to a model that lacks the current one.
+            // Snap back to the model's cheapest tier when switching to a model
+            // that lacks the current one (earlier models stop at high).
             const quality = o?.supportedQualities.includes(state.openai.quality)
                 ? state.openai.quality
                 : (o?.supportedQualities[0] ?? DEFAULT_OPENAI_QUALITY);
@@ -327,6 +337,8 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         });
     },
     setOpenAINegativePrompt: (negativePrompt: string) => set(s => ({ openai: { ...s.openai, negativePrompt } })),
+    setOpenAIModeration: (moderation: OpenAIModeration) => set(s => ({ openai: { ...s.openai, moderation } })),
+    setOpenAIComplexity: (complexity: OpenAIComplexity) => set(s => ({ openai: { ...s.openai, complexity } })),
 
     addReferenceImages: (paths: string[]) => {
         const state = get();
@@ -445,7 +457,17 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
                 params.openai.quality && (!od || od.supportedQualities.includes(params.openai.quality))
                     ? params.openai.quality
                     : (od?.supportedQualities[0] ?? state.openai.quality);
-            openai = { ...state.openai, ...params.openai, size, quality };
+            const p = params.openai;
+            openai = {
+                ...state.openai,
+                negativePrompt: p.negativePrompt ?? state.openai.negativePrompt,
+                background: p.background ?? state.openai.background,
+                size,
+                quality,
+                outputFormat: p.outputFormat ?? state.openai.outputFormat,
+                moderation: p.moderation ?? state.openai.moderation,
+                complexity: p.complexity ?? state.openai.complexity,
+            };
         }
 
         // Restore reference images: only swap when the source entry actually
@@ -528,8 +550,21 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
                     voice: isVoiceModel ? state.gemini.voice : undefined,
                 };
             }
-            const openaiSub: GenerationParams['openai'] | undefined =
-                state.provider === 'openai' ? { ...state.openai } : undefined;
+            // Complexity is sent only to models that accept it, so the request
+            // and the history entry carry exactly what applied.
+            let openaiSub: GenerationParams['openai'] | undefined;
+            if (state.provider === 'openai') {
+                const o = state.openai;
+                openaiSub = {
+                    size: o.size,
+                    quality: o.quality,
+                    outputFormat: o.outputFormat,
+                    background: o.background,
+                    negativePrompt: o.negativePrompt,
+                    moderation: o.moderation,
+                    complexity: modelDef?.openai?.supportsComplexity ? o.complexity : undefined,
+                };
+            }
 
             const params: GenerationParams = {
                 provider: state.provider,

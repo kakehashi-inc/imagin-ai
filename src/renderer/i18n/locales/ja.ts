@@ -286,6 +286,13 @@ export default {
     'openai.quality.max': 'Max',
     'openai.background.opaque': 'Opaque (不透過)',
     'openai.background.transparent': 'Transparent (透過)',
+    'openai.parameter.complexity.label': '複雑さ',
+    'openai.complexity.low': 'Low',
+    'openai.complexity.medium': 'Medium',
+    'openai.complexity.high': 'High',
+    'openai.parameter.moderation.label': 'モデレーション',
+    'openai.moderation.auto': 'Auto (標準)',
+    'openai.moderation.low': 'Low (緩め)',
 
     // 画像編集モード (両プロバイダ共通トグル)
     'parameter.editMode.label': '画像編集モード',

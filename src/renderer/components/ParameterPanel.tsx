@@ -25,6 +25,8 @@ import {
     GENERATION_COUNT_MIN,
     MODEL_DEFINITIONS,
     OPENAI_BACKGROUND_OPTIONS,
+    OPENAI_COMPLEXITY_OPTIONS,
+    OPENAI_MODERATION_OPTIONS,
     OPENAI_OUTPUT_FORMAT_OPTIONS,
     OPENAI_QUALITY_OPTIONS,
     OPENAI_SIZE_OPTIONS,
@@ -37,8 +39,10 @@ import type {
     GeminiVideoResolution,
     MediaType,
     OpenAIBackground,
+    OpenAIComplexity,
     OpenAIImageQuality,
     OpenAIImageSize,
+    OpenAIModeration,
     OpenAIOutputFormat,
 } from '../../shared/types';
 import InfoIcon from '@mui/icons-material/Info';
@@ -97,6 +101,8 @@ export default function ParameterPanel() {
         setOpenAIQuality,
         setOpenAIOutputFormat,
         setOpenAIBackground,
+        setOpenAIModeration,
+        setOpenAIComplexity,
     } = useGenerationStore();
     const activeKeyInfo = useAppStore(s => s.activeKeyInfo);
     const isFreeTierKey = Boolean(activeKeyInfo?.isFreeTier);
@@ -136,6 +142,7 @@ export default function ParameterPanel() {
     // OpenAI capability flag. supportsBackground === false hides the
     // background selector entirely.
     const showOpenAIBackground = isOpenAI && currentModel?.openai?.supportsBackground === true;
+    const showOpenAIComplexity = isOpenAI && currentModel?.openai?.supportsComplexity === true;
 
     const groupedAspectRatioItems = useMemo(() => {
         const supported = GEMINI_ASPECT_RATIO_OPTIONS.filter(
@@ -500,6 +507,40 @@ export default function ParameterPanel() {
                         {visibleFormatOptions.map(v => (
                             <MenuItem key={v} value={v}>
                                 {v.toUpperCase()}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+            )}
+
+            {showOpenAIComplexity && (
+                <FormControl size='small' fullWidth>
+                    <InputLabel>{t('openai.parameter.complexity.label')}</InputLabel>
+                    <Select
+                        value={openai.complexity}
+                        label={t('openai.parameter.complexity.label')}
+                        onChange={e => setOpenAIComplexity(e.target.value as OpenAIComplexity)}
+                    >
+                        {OPENAI_COMPLEXITY_OPTIONS.map(v => (
+                            <MenuItem key={v} value={v}>
+                                {t(`openai.complexity.${v}`)}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+            )}
+
+            {isOpenAI && (
+                <FormControl size='small' fullWidth>
+                    <InputLabel>{t('openai.parameter.moderation.label')}</InputLabel>
+                    <Select
+                        value={openai.moderation}
+                        label={t('openai.parameter.moderation.label')}
+                        onChange={e => setOpenAIModeration(e.target.value as OpenAIModeration)}
+                    >
+                        {OPENAI_MODERATION_OPTIONS.map(v => (
+                            <MenuItem key={v} value={v}>
+                                {t(`openai.moderation.${v}`)}
                             </MenuItem>
                         ))}
                     </Select>

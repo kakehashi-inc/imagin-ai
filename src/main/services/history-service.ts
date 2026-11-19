@@ -11,7 +11,7 @@ import {
     resolveApiModelId,
 } from '../../shared/constants';
 import { ensureHistoryDir, loadSettings } from './settings-service';
-import { extractVideoThumbnail } from './ffmpeg-service';
+import { extractImageThumbnail, extractVideoThumbnail } from './ffmpeg-service';
 
 // =============================================================================
 // Directory helpers
@@ -308,20 +308,11 @@ export function createHistoryEntries(
         fs.writeFileSync(imagePath, imageBuffers[i]);
 
         const thumbPath = path.join(getThumbDir(), `${id}.jpg`);
-        generateThumbnail(imageBuffers[i], thumbPath);
+        generateThumbnail(imageBuffers[i], imagePath, thumbPath);
 
-        let imageWidth = 0;
-        let imageHeight = 0;
-        try {
-            // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy require so electron is only loaded when actually running in the main process
-            const { nativeImage } = require('electron');
-            const img = nativeImage.createFromBuffer(imageBuffers[i]);
-            const size = img.getSize();
-            imageWidth = size.width;
-            imageHeight = size.height;
-        } catch {
-            // Ignore dimension read errors
-        }
+        const dimensions = readImageDimensions(imageBuffers[i]);
+        const imageWidth = dimensions?.width ?? 0;
+        const imageHeight = dimensions?.height ?? 0;
 
         const sub = mergePerItemMeta(pickProviderSubObject(params), perItemMeta?.[i]);
 
@@ -445,11 +436,77 @@ export function createAudioHistoryEntry(
 // Thumbnails and viewers
 // =============================================================================
 
-function generateThumbnail(imageBuffer: Buffer, thumbPath: string): void {
+// Width/height of a WebP image from its RIFF header: the lossy ('VP8 '),
+// lossless ('VP8L') and extended ('VP8X') bitstreams store them differently.
+function readWebpDimensions(data: Buffer): { width: number; height: number } | null {
+    if (data.length < 30 || data.toString('ascii', 0, 4) !== 'RIFF' || data.toString('ascii', 8, 12) !== 'WEBP') {
+        return null;
+    }
+    const chunk = data.toString('ascii', 12, 16);
+    if (chunk === 'VP8 ') {
+        return { width: data.readUInt16LE(26) & 0x3fff, height: data.readUInt16LE(28) & 0x3fff };
+    }
+    if (chunk === 'VP8L') {
+        const bits = data.readUInt32LE(21);
+        return { width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 };
+    }
+    if (chunk === 'VP8X') {
+        return { width: data.readUIntLE(24, 3) + 1, height: data.readUIntLE(27, 3) + 1 };
+    }
+    return null;
+}
+
+// Pixel dimensions of a generated image. Electron's nativeImage decodes PNG and
+// JPEG; WebP, which it cannot decode, is read from its file header. Returns
+// null when the size cannot be determined.
+export function readImageDimensions(data: Buffer): { width: number; height: number } | null {
+    const webp = readWebpDimensions(data);
+    if (webp) return webp;
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy require so electron is only loaded when actually running in the main process
+        const { nativeImage } = require('electron');
+        const size = nativeImage.createFromBuffer(data).getSize();
+        return size.width > 0 && size.height > 0 ? size : null;
+    } catch {
+        return null;
+    }
+}
+
+// Whether a PNG can contain transparency: an alpha channel in the IHDR color
+// type (4 = gray + alpha, 6 = RGBA) or a tRNS chunk ahead of the image data.
+function pngHasAlpha(data: Buffer): boolean {
+    const PNG_SIGNATURE = '89504e470d0a1a0a';
+    if (data.length < 33 || data.toString('hex', 0, 8) !== PNG_SIGNATURE) return false;
+    const colorType = data[25];
+    if (colorType === 4 || colorType === 6) return true;
+    // Walk the chunks (length, type, data, CRC) until the image data starts.
+    let offset = 8;
+    while (offset + 8 <= data.length) {
+        const length = data.readUInt32BE(offset);
+        const type = data.toString('ascii', offset + 4, offset + 8);
+        if (type === 'tRNS') return true;
+        if (type === 'IDAT' || type === 'IEND') return false;
+        offset += 12 + length;
+    }
+    return false;
+}
+
+// Writes a JPEG thumbnail (long edge THUMBNAIL_SIZE) for a generated image.
+// Images that may be transparent (WebP, PNG with alpha) are converted with
+// ffmpeg, which lays them over a checkerboard because JPEG cannot keep the
+// transparency; ffmpeg also decodes WebP, which nativeImage cannot (it returns
+// an empty image rather than throwing). Opaque PNG and JPEG go through
+// nativeImage, which is also the fallback for a transparent PNG when ffmpeg is
+// unavailable.
+function generateThumbnail(imageBuffer: Buffer, imagePath: string, thumbPath: string): void {
     try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy require so electron is only loaded when actually running in the main process
         const { nativeImage } = require('electron');
         const img = nativeImage.createFromBuffer(imageBuffer);
+        if (img.isEmpty() || pngHasAlpha(imageBuffer)) {
+            const converted = extractImageThumbnail(imagePath, thumbPath, THUMBNAIL_SIZE);
+            if (converted || img.isEmpty()) return;
+        }
         const size = img.getSize();
 
         const longSide = Math.max(size.width, size.height);
@@ -470,7 +527,9 @@ export function getThumbnailDataUrl(imagePath: string): string {
         const baseName = path.basename(imagePath, path.extname(imagePath));
         const thumbPath = path.join(getThumbDir(), `${baseName}.jpg`);
 
-        if (fs.existsSync(thumbPath)) {
+        // An empty thumbnail file (left by a failed conversion) is treated as
+        // missing, so the image itself is shown instead.
+        if (fs.existsSync(thumbPath) && fs.statSync(thumbPath).size > 0) {
             const data = fs.readFileSync(thumbPath);
             return `data:image/jpeg;base64,${data.toString('base64')}`;
         }

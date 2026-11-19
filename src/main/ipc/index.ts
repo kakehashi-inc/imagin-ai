@@ -1,4 +1,4 @@
-import { ipcMain, dialog, BrowserWindow, screen, nativeImage, nativeTheme } from 'electron';
+import { ipcMain, dialog, BrowserWindow, screen, nativeTheme } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { IPC_CHANNELS, MODEL_DEFINITIONS, HISTORY_MAX_COUNT } from '../../shared/constants';
@@ -24,6 +24,7 @@ import {
     getThumbnailDataUrl,
     getImageDataUrl,
     moveHistoryDir,
+    readImageDimensions,
 } from '../services/history-service';
 import { getUpdateState, checkForUpdates, downloadUpdate, quitAndInstall } from '../services/updater-service';
 import type { ApiKeysData, ApiProvider, GenerationParams } from '../../shared/types';
@@ -390,9 +391,8 @@ function openImageViewerWindow(imagePath: string, title: string) {
     let imgHeight = 600;
 
     try {
-        const img = nativeImage.createFromPath(imagePath);
-        const size = img.getSize();
-        if (size.width > 0 && size.height > 0) {
+        const size = readImageDimensions(fs.readFileSync(imagePath));
+        if (size) {
             imgWidth = size.width;
             imgHeight = size.height;
         }

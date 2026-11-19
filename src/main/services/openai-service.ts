@@ -1,9 +1,21 @@
 import fs from 'fs';
 import OpenAI, { toFile } from 'openai';
 import type { Images as OpenAIImagesNs } from 'openai/resources/images';
-import type { ApiErrorDetail, GenerationParams, HistoryEntry } from '../../shared/types';
+import type {
+    ApiErrorDetail,
+    GenerationParams,
+    HistoryEntry,
+    ModelDefinition,
+    OpenAIBackground,
+    OpenAIComplexity,
+    OpenAIImageQuality,
+    OpenAIImageSize,
+    OpenAIModeration,
+    OpenAIOutputFormat,
+} from '../../shared/types';
 import {
     MODEL_DEFINITIONS,
+    OPENAI_OUTPUT_FORMAT_OPTIONS,
     OPENAI_QUALITY_OPTIONS,
     OPENAI_SIZE_OPTIONS,
     REFERENCE_IMAGE_JPEG_QUALITY,
@@ -96,7 +108,7 @@ function prepareReferenceImageBuffer(imgPath: string): { mimeType: string; buffe
 
 // Output MIME from the negotiated output_format. Caller derives the file
 // extension from this string.
-function mimeForOutputFormat(format: string): string {
+function mimeForOutputFormat(format: OpenAIOutputFormat): string {
     if (format === 'png') return 'image/png';
     if (format === 'webp') return 'image/webp';
     return 'image/jpeg';
@@ -124,13 +136,12 @@ export async function generateWithOpenAI(
     if (!modelDef?.openai) {
         throw appError('UNKNOWN_MODEL', `Unknown OpenAI model: ${params.model}`);
     }
-    const supportsBg = modelDef.openai.supportsBackground;
     const isEdit = params.editMode && params.referenceImagePaths.length > 0;
 
     // background=transparent only makes sense when the output format preserves
     // an alpha channel; the UI should already enforce this, but be defensive.
     let outputFormat = o.outputFormat;
-    if (supportsBg && o.background === 'transparent' && outputFormat === 'jpeg') {
+    if (modelDef.openai.supportsBackground && o.background === 'transparent' && outputFormat === 'jpeg') {
         outputFormat = 'png';
     }
 
@@ -138,12 +149,54 @@ export async function generateWithOpenAI(
 
     try {
         if (isEdit) {
-            return await runEdit(client, params, outputFormat, supportsBg);
+            return await runEdit(client, params, outputFormat, modelDef.openai);
         }
-        return await runGenerate(client, params, outputFormat, supportsBg);
+        return await runGenerate(client, params, outputFormat, modelDef.openai);
     } catch (err) {
         throw asOpenAIApiError(err);
     }
+}
+
+type OpenAIModelCapabilities = NonNullable<ModelDefinition['openai']>;
+
+// Request fields shared by the generate and edit endpoints, typed with the
+// app's own value sets so the object is assignable to both SDK parameter types.
+type CommonImageFields = {
+    model: string;
+    prompt: string;
+    size: OpenAIImageSize;
+    quality: OpenAIImageQuality;
+    output_format: OpenAIOutputFormat;
+    n: number;
+    moderation: OpenAIModeration;
+    background?: OpenAIBackground;
+    complexity?: OpenAIComplexity;
+};
+
+function buildCommonFields(
+    params: GenerationParams,
+    outputFormat: OpenAIOutputFormat,
+    caps: OpenAIModelCapabilities
+): CommonImageFields {
+    const o = params.openai!;
+    const fields: CommonImageFields = {
+        model: resolveApiModelId(params.model),
+        prompt: buildPromptWithNegative(params.prompt, o.negativePrompt),
+        size: o.size,
+        quality: o.quality,
+        output_format: outputFormat,
+        n: params.numberOfImages,
+        moderation: o.moderation,
+    };
+    // Only send background when the model accepts it — some models reject the
+    // parameter outright rather than ignoring it.
+    if (caps.supportsBackground) {
+        fields.background = o.background;
+    }
+    if (caps.supportsComplexity && o.complexity) {
+        fields.complexity = o.complexity;
+    }
+    return fields;
 }
 
 // -----------------------------------------------------------------------------
@@ -153,27 +206,11 @@ export async function generateWithOpenAI(
 async function runGenerate(
     client: OpenAI,
     params: GenerationParams,
-    outputFormat: 'png' | 'jpeg' | 'webp',
-    supportsBg: boolean
+    outputFormat: OpenAIOutputFormat,
+    caps: OpenAIModelCapabilities
 ): Promise<{ buffers: Buffer[]; mimeType: string; perItemMeta: OpenAIResponseMeta[] }> {
-    const o = params.openai!;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const body: any = {
-        model: resolveApiModelId(params.model),
-        prompt: buildPromptWithNegative(params.prompt, o.negativePrompt),
-        size: o.size,
-        quality: o.quality,
-        output_format: outputFormat,
-        n: params.numberOfImages,
-    };
-    // Only send background when the model accepts it — some models reject the
-    // parameter outright rather than ignoring it.
-    if (supportsBg) {
-        body.background = o.background;
-    }
     // input_fidelity is an edits-only parameter — do not send it on generate.
-
-    const response = await client.images.generate(body);
+    const response = await client.images.generate(buildCommonFields(params, outputFormat, caps));
     return extractBuffers(response, outputFormat);
 }
 
@@ -184,10 +221,9 @@ async function runGenerate(
 async function runEdit(
     client: OpenAI,
     params: GenerationParams,
-    outputFormat: 'png' | 'jpeg' | 'webp',
-    supportsBg: boolean
+    outputFormat: OpenAIOutputFormat,
+    caps: OpenAIModelCapabilities
 ): Promise<{ buffers: Buffer[]; mimeType: string; perItemMeta: OpenAIResponseMeta[] }> {
-    const o = params.openai!;
     // The renderer guarantees a single reference image when editMode is on
     // (see generation-store.setEditMode / addReferenceImages), so we send
     // whatever the request carries without re-clamping here.
@@ -201,20 +237,13 @@ async function runEdit(
         throw appError('NO_VALID_REFERENCE_IMAGE');
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const body: any = {
-        model: resolveApiModelId(params.model),
+    // The API reference documents `moderation` for the edit endpoint as well,
+    // but the SDK's edit parameter type does not declare it; the intersection
+    // adds it so the shared fields can be passed as they are.
+    const body: OpenAIImagesNs.ImageEditParamsNonStreaming & Pick<CommonImageFields, 'moderation'> = {
+        ...buildCommonFields(params, outputFormat, caps),
         image: files[0],
-        prompt: buildPromptWithNegative(params.prompt, o.negativePrompt),
-        size: o.size,
-        quality: o.quality,
-        output_format: outputFormat,
-        n: params.numberOfImages,
     };
-    if (supportsBg) {
-        body.background = o.background;
-    }
-
     const response = await client.images.edit(body);
     return extractBuffers(response, outputFormat);
 }
@@ -226,7 +255,7 @@ async function runEdit(
 function extractBuffers(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     response: any,
-    outputFormat: 'png' | 'jpeg' | 'webp'
+    outputFormat: OpenAIOutputFormat
 ): { buffers: Buffer[]; mimeType: string; perItemMeta: OpenAIResponseMeta[] } {
     // GPT image models always return b64_json (DALL-E variants return url, but
     // those are out of scope for this build).
@@ -249,11 +278,7 @@ function extractBuffers(
     if (responseAny.background === 'opaque' || responseAny.background === 'transparent') {
         baseMeta.apiAppliedBackground = responseAny.background;
     }
-    if (
-        responseAny.output_format === 'png' ||
-        responseAny.output_format === 'jpeg' ||
-        responseAny.output_format === 'webp'
-    ) {
+    if (OPENAI_OUTPUT_FORMAT_OPTIONS.includes(responseAny.output_format)) {
         baseMeta.apiAppliedOutputFormat = responseAny.output_format;
     }
     // Accept every value the app can request, so an echoed 'xhigh' / 'max' or a

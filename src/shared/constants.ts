@@ -11,10 +11,13 @@ import type {
     GeminiVideoResolution,
     ModelDefinition,
     OpenAIBackground,
+    OpenAIComplexity,
     OpenAIImageQuality,
     OpenAIImageSize,
+    OpenAIModeration,
     OpenAIOutputFormat,
 } from './types';
+import { buildOpenAICostLabel } from './openai-cost';
 
 // Application directory name
 export const APP_DIR_NAME = '.imaginai';
@@ -101,11 +104,15 @@ export const DEFAULT_GEMINI_VIDEO_RESOLUTION: GeminiVideoResolution = '720p';
 export const DEFAULT_GEMINI_MODEL_ID = 'gemini-nano-banana-2';
 
 // --- Default values (OpenAI) ---
-// Landscape + Low is the cheapest combination on the default model (GPT Image Flare).
+// Landscape + Low is among the cheapest combinations on the default model (GPT Image Flare).
 export const DEFAULT_OPENAI_SIZE: OpenAIImageSize = '1536x1024';
 export const DEFAULT_OPENAI_QUALITY: OpenAIImageQuality = 'low';
 export const DEFAULT_OPENAI_OUTPUT_FORMAT: OpenAIOutputFormat = 'jpeg';
 export const DEFAULT_OPENAI_BACKGROUND: OpenAIBackground = 'opaque';
+// The API's own defaults: complexity 'high' (applied when omitted) and
+// moderation 'auto'.
+export const DEFAULT_OPENAI_COMPLEXITY: OpenAIComplexity = 'high';
+export const DEFAULT_OPENAI_MODERATION: OpenAIModeration = 'auto';
 // GPT Image Flare is OpenAI's recommended default for everyday generation.
 export const DEFAULT_OPENAI_MODEL_ID = 'gpt-image-2-flare';
 
@@ -176,6 +183,8 @@ export const OPENAI_SIZE_OPTIONS: { value: OpenAIImageSize; labelKey: string }[]
 export const OPENAI_QUALITY_OPTIONS: OpenAIImageQuality[] = ['low', 'medium', 'high', 'xhigh', 'max'];
 export const OPENAI_OUTPUT_FORMAT_OPTIONS: OpenAIOutputFormat[] = ['png', 'jpeg', 'webp'];
 export const OPENAI_BACKGROUND_OPTIONS: OpenAIBackground[] = ['opaque', 'transparent'];
+export const OPENAI_COMPLEXITY_OPTIONS: OpenAIComplexity[] = ['low', 'medium', 'high'];
+export const OPENAI_MODERATION_OPTIONS: OpenAIModeration[] = ['auto', 'low'];
 
 // --- Model definitions ---
 // Sorted by family and cost within each family. Provider-specific capabilities
@@ -186,6 +195,18 @@ export const OPENAI_BACKGROUND_OPTIONS: OpenAIBackground[] = ['opaque', 'transpa
 // `apiModelId` and `displayName` follow the provider version currently in
 // use. A minor version update therefore edits only those two fields (plus any
 // capability and price changes) and keeps the key.
+
+// Sizes and quality tiers of the GPT Image 2.6 models (generation endpoint).
+const GPT_IMAGE_26_SIZES: OpenAIImageSize[] = [
+    '1024x1024',
+    '1024x1536',
+    '1536x1024',
+    '2048x2048',
+    '2048x1152',
+    '3840x2160',
+    '2160x3840',
+];
+const GPT_IMAGE_26_QUALITIES: OpenAIImageQuality[] = ['low', 'medium', 'high', 'xhigh', 'max'];
 
 // Every whole-second length the Gemini Omni Flash API accepts (3s to 15s).
 const GEMINI_OMNI_DURATIONS: GeminiVideoDuration[] = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
@@ -383,23 +404,21 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     // /v1/images/generations + /v1/images/edits.
     // These are the models OpenAI documents for new integrations. Both accept
     // the `xhigh` / `max` quality tiers, transparent backgrounds (PNG / WebP),
-    // and custom sizes; they share identical token rates, differing only in
-    // what they are tuned for. Complexity control, SVG and animated GIF output
-    // are not exposed by this app.
+    // custom sizes and the `complexity` setting; they share identical token
+    // rates, differing only in what they are tuned for. Animated GIF and SVG
+    // output are not offered by this app.
     //
     // In costLabel, each size group is a `< WIDTHxHEIGHT >` section header
     // followed by its price line(s); sizes that share a price are grouped on the
     // same header, and rows are listed in ascending Low-tier price.
     //
     // OpenAI publishes no per-image table for these models, only an interactive
-    // calculator. The figures are computed with the token formula that
-    // calculator uses for GPT Image 2.5, whose token rates ($30 / 1M image
-    // output tokens) GPT Image 2.6 shares unchanged: a patch grid sized from the
-    // long-edge coefficient for the quality tier (Low 16 / Med 24 / High 48 /
-    // XHigh 64 / Max 96), then ceil(grid area * (2M + pixels) / 4M) tokens. The
-    // formula reproduces OpenAI's published gpt-image-2 table exactly and is
-    // shown rounded to three decimals. Note that cost does NOT scale with pixel
-    // count: a wide 4K frame is cheaper than a 2K square.
+    // calculator. costLabel is built with that calculator's own formula (see
+    // shared/openai-cost.ts), which for GPT Image 2.6 multiplies the Low and
+    // Medium token counts by 4.2 and 3.3. The formula reproduces OpenAI's
+    // published gpt-image-2 table exactly and is shown rounded to three
+    // decimals. Note that cost does NOT scale with pixel count: a wide 4K frame
+    // is cheaper than a 2K square.
     // -------------------------------------------------------------------------
     {
         // GPT Image 2.6 Flare — fast, high-quality everyday generation.
@@ -412,31 +431,16 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         supportsReferenceFile: true,
         maxReferenceImages: 16,
         supportsImageEdit: true,
-        costLabel: [
-            '< 1024x1536, 1536x1024 >',
-            '$0.005(Low) / $0.010(Med) / $0.041(High)',
-            '$0.074(XHigh) / $0.165(Max)',
-            '< 2048x1152 >',
-            '$0.005(Low) / $0.011(Med) / $0.042(High)',
-            '$0.075(XHigh) / $0.170(Max)',
-            '< 1024x1024 >',
-            '$0.006(Low) / $0.013(Med) / $0.053(High)',
-            '$0.094(XHigh) / $0.211(Max)',
-            '< 3840x2160, 2160x3840 >',
-            '$0.011(Low) / $0.026(Med) / $0.100(High)',
-            '$0.178(XHigh) / $0.400(Max)',
-            '< 2048x2048 >',
-            '$0.012(Low) / $0.027(Med) / $0.107(High)',
-            '$0.190(XHigh) / $0.428(Max)',
-        ],
+        costLabel: buildOpenAICostLabel('gpt-image-2.6', GPT_IMAGE_26_SIZES, GPT_IMAGE_26_QUALITIES),
         supportsNegativePrompt: true,
         openai: {
-            supportedSizes: ['1024x1024', '1024x1536', '1536x1024', '2048x2048', '2048x1152', '3840x2160', '2160x3840'],
+            supportedSizes: GPT_IMAGE_26_SIZES,
             // Conservative narrowing: only the three recommended sizes are
             // documented for the edit endpoint.
             supportedEditSizes: ['1024x1024', '1024x1536', '1536x1024'],
-            supportedQualities: ['low', 'medium', 'high', 'xhigh', 'max'],
+            supportedQualities: GPT_IMAGE_26_QUALITIES,
             supportsBackground: true,
+            supportsComplexity: true,
         },
     },
     {
@@ -451,29 +455,14 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
         supportsReferenceFile: true,
         maxReferenceImages: 16,
         supportsImageEdit: true,
-        costLabel: [
-            '< 1024x1536, 1536x1024 >',
-            '$0.005(Low) / $0.010(Med) / $0.041(High)',
-            '$0.074(XHigh) / $0.165(Max)',
-            '< 2048x1152 >',
-            '$0.005(Low) / $0.011(Med) / $0.042(High)',
-            '$0.075(XHigh) / $0.170(Max)',
-            '< 1024x1024 >',
-            '$0.006(Low) / $0.013(Med) / $0.053(High)',
-            '$0.094(XHigh) / $0.211(Max)',
-            '< 3840x2160, 2160x3840 >',
-            '$0.011(Low) / $0.026(Med) / $0.100(High)',
-            '$0.178(XHigh) / $0.400(Max)',
-            '< 2048x2048 >',
-            '$0.012(Low) / $0.027(Med) / $0.107(High)',
-            '$0.190(XHigh) / $0.428(Max)',
-        ],
+        costLabel: buildOpenAICostLabel('gpt-image-2.6', GPT_IMAGE_26_SIZES, GPT_IMAGE_26_QUALITIES),
         supportsNegativePrompt: true,
         openai: {
-            supportedSizes: ['1024x1024', '1024x1536', '1536x1024', '2048x2048', '2048x1152', '3840x2160', '2160x3840'],
+            supportedSizes: GPT_IMAGE_26_SIZES,
             supportedEditSizes: ['1024x1024', '1024x1536', '1536x1024'],
-            supportedQualities: ['low', 'medium', 'high', 'xhigh', 'max'],
+            supportedQualities: GPT_IMAGE_26_QUALITIES,
             supportsBackground: true,
+            supportsComplexity: true,
         },
     },
 ];

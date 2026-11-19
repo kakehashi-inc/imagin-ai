@@ -281,6 +281,13 @@ export default {
     'openai.quality.max': 'Max',
     'openai.background.opaque': 'Opaque',
     'openai.background.transparent': 'Transparent',
+    'openai.parameter.complexity.label': 'Complexity',
+    'openai.complexity.low': 'Low',
+    'openai.complexity.medium': 'Medium',
+    'openai.complexity.high': 'High',
+    'openai.parameter.moderation.label': 'Moderation',
+    'openai.moderation.auto': 'Auto (standard)',
+    'openai.moderation.low': 'Low (less strict)',
 
     // Image edit mode (shared toggle, both providers)
     'parameter.editMode.label': 'Image Edit Mode',

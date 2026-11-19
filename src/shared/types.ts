@@ -77,6 +77,11 @@ export type OpenAIImageSize =
 export type OpenAIImageQuality = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type OpenAIOutputFormat = 'png' | 'jpeg' | 'webp';
 export type OpenAIBackground = 'transparent' | 'opaque';
+// How much the model plans the image (GPT Image 2.6 onward). The API applies
+// 'high' when the parameter is omitted.
+export type OpenAIComplexity = 'low' | 'medium' | 'high';
+// Content moderation strictness for GPT Image models ('auto' is the API default).
+export type OpenAIModeration = 'auto' | 'low';
 
 // =============================================================================
 // Model definition (per-provider sub-objects)
@@ -159,6 +164,8 @@ export type ModelDefinition = {
         // Whether the model accepts `background` (i.e. transparent output).
         // Declared false on models that reject the parameter outright.
         supportsBackground: boolean;
+        // Whether the model accepts the `complexity` parameter. Default: false.
+        supportsComplexity?: boolean;
     };
 };
 
@@ -195,6 +202,9 @@ export type GenerationParams = {
         // no dedicated API parameter for this; the openai-service handles the
         // prompt augmentation. Mirrors gemini.negativePrompt.
         negativePrompt: string;
+        moderation: OpenAIModeration;
+        // Set only for models that accept the complexity parameter.
+        complexity?: OpenAIComplexity;
     };
 };
 
@@ -282,6 +292,9 @@ export type HistoryEntry = {
         // native parameter — openai-service appends it to the prompt — but we
         // still record the user-entered value for parameter restore.
         negativePrompt: string;
+        // Absent on entries made before the setting existed.
+        moderation?: OpenAIModeration;
+        complexity?: OpenAIComplexity;
 
         // --- Response metadata (stored only; not displayed) -------------------
         // Returned by DALL·E 3 when the prompt was rewritten. Not set for GPT
