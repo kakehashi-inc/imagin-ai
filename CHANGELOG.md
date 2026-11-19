@@ -7,7 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [v0.7.0] - 2026-09-24
+## [0.7.1] - 2026-11-19
+
+### Added
+
+- **Gemini Omni Flash** videos can now be 3 to 15 seconds long, chosen with the Duration selector (default 10 seconds).
+- **Gemini Omni Flash** accepts up to six reference images. Describe in the prompt how they should be used - as the starting frame, as the first and last frame, or as the subjects to keep consistent.
+- The model ID shown under the model selector is now the exact provider model the request goes to, and each new history entry records it too.
+
+### Changed
+
+- Image generation on Google AI Studio now uses **Nano Banana 2.1**, which improves image quality and text rendering and is cheaper: $0.0336 (1K), $0.0504 (2K) and $0.113 (4K) per image. The 512px size is no longer offered because Nano Banana 2.1 does not produce it.
+- Video generation now uses **Gemini Omni 1.2 Flash**, which costs about 30% less: from $0.023 per second at 360p and about $0.07 per second at 720p.
+- OpenAI image generation now uses **GPT Image 2.6 Flare** and **GPT Image 2.6 Sunburst**, at the same token rates as before.
+- Models are now grouped by major version. When the provider releases a minor update (such as Nano Banana 2 to 2.1), the app moves to it in place. History entries made under the previous model names appear in the history filter under their own name, and restoring them selects the current version.
+- Reference prices were re-checked against the providers' current price lists; the reference date is now 2026.11.19.
+
+### Removed
+
+- **Veo 3.1**, **Veo 3.1 Fast** and **Veo 3.1 Lite**, which Google shut down in the Gemini API on 2026/10/22. Successor: Gemini Omni Flash. The "Starting frame / Subject reference" switch that only Veo used has been removed along with them.
+- Existing Veo history entries stay fully usable: you can browse them, filter the history by these models, and restore their parameters onto Gemini Omni Flash.
+
+## [0.7.0] - 2026-09-24
 
 ### Added
 
@@ -32,13 +53,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - GPT Image 2, GPT Image 1.5 and GPT Image 1 (the latter two shut down on 2026/12/1). Successor: GPT Image 2.5 Flare.
 - In every case above, existing history entries stay fully usable: you can browse them, filter the history by those models, and restore their parameters. Restoring an entry carries the prompt and settings over to the successor named above.
 
-## [v0.6.4] - 2026-07-19
+## [0.6.4] - 2026-07-19
 
 ### Added
 
 - Gemini Omni Flash, a new Google AI Studio video model, is now selectable. It generates 3-10 second videos at 720p / 24fps with automatically generated audio, at roughly $0.10 per second of video. Clip length and background music / sound effects are controlled through the prompt, and you can attach up to two reference images for image-to-video generation. The aspect ratio can be set to landscape (16:9) or portrait (9:16).
 
-## [v0.6.3] - 2026-07-14
+## [0.6.3] - 2026-07-14
 
 ### Added
 
@@ -49,7 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Reviewed reference pricing and availability for all Google AI Studio and OpenAI models against the current official price and deprecation tables. Prices and shutdown dates are unchanged; the reference pricing date in the panel is now 2026-07-14.
 
-## [v0.6.2] - 2026-06-16
+## [0.6.2] - 2026-06-16
 
 ### Changed
 
@@ -59,14 +80,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - The Imagen 4 image models (Imagen 4 Fast / Imagen 4 / Imagen 4 Ultra) are no longer available for new generations ahead of their shutdown on 2026/6/24. They have been removed from the model picker. Existing history entries created with Imagen 4 remain fully available: you can still browse them, filter the history by these models, and restore their parameters. When you restore parameters from an Imagen 4 entry, the prompt and settings are carried over to Nano Banana 2, the recommended replacement.
 
-## [v0.6.1] - 2026-06-05
+## [0.6.1] - 2026-06-05
 
 ### Fixed
 
 - In-app auto-update on macOS now works end to end. Previously pressing "Update" appeared to do nothing: the update either could not be downloaded, or downloaded successfully but was never applied after the app restarted. Both problems are fixed, so a new version now downloads and installs automatically. (Note: this fix takes effect only from a release that ships the new macOS build, so existing macOS users need to install the next version manually once; updates are automatic afterward.)
 - When a download fails, the update notification now shows an error message with "Retry" and "Close" buttons instead of silently disappearing. Failures of the automatic background update check (for example when offline) stay quiet and no longer interrupt you.
 
-## [v0.6.0] - 2026-05-13
+## [0.6.0] - 2026-05-13
 
 ### Added
 
@@ -84,7 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - "Restore parameters" from a history entry now also restores the reference images and the edit-mode toggle. Previously both were cleared even when the source entry had them.
 
-## [v0.5.1] - 2026-04-19
+## [0.5.1] - 2026-04-19
 
 ### Fixed
 
@@ -101,7 +122,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Reference images are now preprocessed uniformly across image, video, and music generation paths: each image is decoded via Electron `nativeImage`, downscaled (preserving aspect ratio) so the long edge is at most 1920 px, and re-encoded as JPEG (quality 85). PNG/WebP inputs are converted to JPEG. Per-model attachment caps replace the previous boolean `supportsImageInput` field — `ModelDefinition.maxReferenceImages?: number` declares the maximum (omitted = 0 = no image input). Defaults: Nano Banana 10, Veo 1, Lyria 5. Imagen and TTS models declare no image input.
 - Video (Veo) reference image is now strictly limited to 1 in the UI: adding a new attachment overwrites the previous one (the image is used as the starting frame). The reference image area shows an "開始フレーム" / "Starting frame" label for video models.
 
-## [v0.5.0] - 2026-04-17
+## [0.5.0] - 2026-04-17
 
 ### Added
 

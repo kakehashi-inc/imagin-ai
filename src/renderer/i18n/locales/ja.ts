@@ -77,7 +77,7 @@ export default {
     'gemini.model.note.lyriaClip': '30秒固定',
     'gemini.model.note.lyria': 'フルレングス楽曲（数分程度）。曲の長さや構成はプロンプトで指示可能',
     'gemini.model.note.omniFlash':
-        '長さは3〜10秒で、プロンプトで指示します（例:「8秒の動画。穏やかなBGM付き」）。BGM・効果音もプロンプトで指定します。1080p / 4K はアップスケールによる出力です',
+        '最初と最後のフレームを指定する場合は10秒までです。BGM・効果音はプロンプトで指定します。1080p / 4K はアップスケールによる出力です',
     'gemini.model.freeTier.tts':
         '無料枠あり:\nレート上限はプロジェクトの利用ティアによって変わります。実際の上限は Google AI Studio のレート制限ページで確認してください',
 
@@ -252,16 +252,13 @@ export default {
 
     // Gemini Quality
     'gemini.quality.label': '出力解像度',
-    'gemini.quality.512px': '512px',
     'gemini.quality.1k': '1K (標準)',
     'gemini.quality.2k': '2K (高精細)',
     'gemini.quality.4k': '4K (最高品質)',
 
     // Gemini Duration (video)
     'gemini.duration.label': '長さ',
-    'gemini.duration.4s': '4秒',
-    'gemini.duration.6s': '6秒',
-    'gemini.duration.8s': '8秒',
+    'gemini.duration.seconds': '{{count}}秒',
 
     // Gemini Resolution (video)
     'gemini.resolution.label': '動画解像度',
@@ -315,10 +312,8 @@ export default {
     'prompt.placeholderTts': '読み上げたいテキストを入力してください。',
     'prompt.required': 'プロンプトは必須です',
     'prompt.charCount': '{{count}}文字',
-    'prompt.startingFrame': '開始フレーム（動画は1枚のみ）',
-    'prompt.subjectReference': '被写体の参照画像（最大{{count}}枚・長さは8秒固定）',
-    'prompt.referenceMode.firstFrame': '開始フレーム',
-    'prompt.referenceMode.reference': '被写体参照',
+    'prompt.videoReferenceHint':
+        '最大{{count}}枚。開始フレーム・最初と最後のフレーム・被写体参照など、画像の使い方はプロンプトで指示します',
 
     // ネガティブプロンプト
     'negativePrompt.label': 'ネガティブプロンプト',
@@ -338,8 +333,6 @@ export default {
     'generation.generatingMusic': '音楽を生成中...',
     'generation.generatingSpeech': '読み上げを生成中...',
     'generation.generatingVideoProgress': '動画を生成中... ({{elapsed}}秒)',
-    'generation.videoDurationConstraint': '1080p/4K解像度では長さは8秒のみ指定できます。',
-    'generation.videoReferenceDurationConstraint': '被写体参照画像を使う場合、長さは8秒のみ指定できます。',
     'generation.historyLimitExceeded': '履歴が上限({{limit}}件)を超えています。履歴を整理してください。',
     'generation.error': '生成に失敗しました: {{message}}',
     'generation.errorRetry': 'リトライ',

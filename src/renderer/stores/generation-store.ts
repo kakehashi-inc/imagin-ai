@@ -5,7 +5,6 @@ import type {
     GeminiAspectRatio,
     GeminiQuality,
     GeminiVideoDuration,
-    GeminiVideoReferenceMode,
     GeminiVideoResolution,
     GenerationParams,
     GenerationProgress,
@@ -42,6 +41,20 @@ function getStyleInstructions(): string[] {
     return Array.isArray(presets) ? presets.map(p => p.instruction) : [];
 }
 
+// Keeps a video duration the model supports; otherwise picks the supported
+// length closest to it. With no declared range the value is kept as is.
+function clampDuration(value: GeminiVideoDuration, supported?: GeminiVideoDuration[]): GeminiVideoDuration {
+    if (!supported || supported.length === 0 || supported.includes(value)) return value;
+    return supported.reduce((best, d) => (Math.abs(d - value) < Math.abs(best - value) ? d : best), supported[0]);
+}
+
+// Keeps a video resolution the model supports; otherwise falls back to the
+// default resolution when supported, else the model's first one.
+function clampResolution(value: GeminiVideoResolution, supported?: GeminiVideoResolution[]): GeminiVideoResolution {
+    if (!supported || supported.length === 0 || supported.includes(value)) return value;
+    return supported.includes(DEFAULT_GEMINI_VIDEO_RESOLUTION) ? DEFAULT_GEMINI_VIDEO_RESOLUTION : supported[0];
+}
+
 // =============================================================================
 // State shape
 // =============================================================================
@@ -55,9 +68,6 @@ type GeminiParamsState = {
     quality: GeminiQuality;
     duration: GeminiVideoDuration;
     resolution: GeminiVideoResolution;
-    // Video models only: whether attached images are the starting frame or
-    // subject references. Ignored by every other media type.
-    videoReferenceMode: GeminiVideoReferenceMode;
     styleSelection: string;
     styleInstruction: string;
     voice: string;
@@ -98,7 +108,6 @@ type GenerationState = {
     setGeminiQuality: (quality: GeminiQuality) => void;
     setGeminiDuration: (duration: GeminiVideoDuration) => void;
     setGeminiResolution: (resolution: GeminiVideoResolution) => void;
-    setGeminiVideoReferenceMode: (mode: GeminiVideoReferenceMode) => void;
     setGeminiStyleSelection: (id: string) => void;
     setGeminiStyleInstruction: (instruction: string) => void;
     setGeminiVoice: (voice: string) => void;
@@ -131,7 +140,6 @@ function initialGemini(): GeminiParamsState {
         quality: DEFAULT_GEMINI_QUALITY,
         duration: DEFAULT_GEMINI_VIDEO_DURATION,
         resolution: DEFAULT_GEMINI_VIDEO_RESOLUTION,
-        videoReferenceMode: 'firstFrame',
         styleSelection: GEMINI_TTS_DEFAULT_STYLE,
         styleInstruction: GEMINI_TTS_DEFAULT_STYLE,
         voice: GEMINI_TTS_DEFAULT_VOICE,
@@ -211,20 +219,9 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
             const quality = g?.supportedQualities?.includes(state.gemini.quality)
                 ? state.gemini.quality
                 : (g?.supportedQualities?.[0] ?? DEFAULT_GEMINI_QUALITY);
-            const duration = g?.supportedDurations?.includes(state.gemini.duration)
-                ? state.gemini.duration
-                : (g?.supportedDurations?.[0] ?? DEFAULT_GEMINI_VIDEO_DURATION);
-            const resolution = g?.supportedResolutions?.includes(state.gemini.resolution)
-                ? state.gemini.resolution
-                : (g?.supportedResolutions?.[0] ?? DEFAULT_GEMINI_VIDEO_RESOLUTION);
-            // Subject-reference mode only exists on models that declare a cap
-            // for it (Veo 3.1 / Fast); everything else falls back to the single
-            // starting-frame slot.
-            const videoReferenceMode: GeminiVideoReferenceMode =
-                state.gemini.videoReferenceMode === 'reference' && g?.maxSubjectReferenceImages
-                    ? 'reference'
-                    : 'firstFrame';
-            gemini = { ...state.gemini, aspectRatio, quality, duration, resolution, videoReferenceMode };
+            const duration = clampDuration(state.gemini.duration, g?.supportedDurations);
+            const resolution = clampResolution(state.gemini.resolution, g?.supportedResolutions);
+            gemini = { ...state.gemini, aspectRatio, quality, duration, resolution };
         } else {
             const o = modelDef.openai;
             const size = o?.supportedSizes.includes(state.openai.size)
@@ -242,9 +239,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
 
         // Drop reference images that exceed the new model's cap. Models that
         // do not accept references at all drop everything.
-        const maxRefs = resolveMaxReferenceImages(modelDef, {
-            videoReferenceMode: provider === 'gemini' ? gemini.videoReferenceMode : undefined,
-        });
+        const maxRefs = resolveMaxReferenceImages(modelDef);
         const cappedRefs = state.referenceImagePaths.slice(0, maxRefs);
         const cappedThumbs = new Map(state.referenceImageThumbnails);
         for (const p of state.referenceImagePaths.slice(maxRefs)) cappedThumbs.delete(p);
@@ -295,22 +290,6 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     setGeminiQuality: (quality: GeminiQuality) => set(s => ({ gemini: { ...s.gemini, quality } })),
     setGeminiDuration: (duration: GeminiVideoDuration) => set(s => ({ gemini: { ...s.gemini, duration } })),
     setGeminiResolution: (resolution: GeminiVideoResolution) => set(s => ({ gemini: { ...s.gemini, resolution } })),
-    setGeminiVideoReferenceMode: (mode: GeminiVideoReferenceMode) => {
-        const state = get();
-        const modelDef = MODEL_DEFINITIONS.find(m => m.id === state.model);
-        // Switching back to the single starting-frame slot drops the extras so
-        // the request body never carries more images than the mode allows.
-        const maxRefs = resolveMaxReferenceImages(modelDef, { editMode: state.editMode, videoReferenceMode: mode });
-        const cappedRefs = state.referenceImagePaths.slice(0, maxRefs);
-        const cappedThumbs = new Map(state.referenceImageThumbnails);
-        for (const p of state.referenceImagePaths.slice(maxRefs)) cappedThumbs.delete(p);
-        set({
-            gemini: { ...state.gemini, videoReferenceMode: mode },
-            referenceImagePaths: cappedRefs,
-            referenceImageThumbnails: cappedThumbs,
-        });
-    },
-
     setGeminiStyleSelection: (id: string) => {
         if (id === GEMINI_TTS_STYLE_CUSTOM_ID) {
             set(s => ({ gemini: { ...s.gemini, styleSelection: GEMINI_TTS_STYLE_CUSTOM_ID } }));
@@ -354,15 +333,11 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         const modelDef = MODEL_DEFINITIONS.find(m => m.id === state.model);
         if (!modelDef?.supportsReferenceFile) return;
         // Edit mode forces a single-slot behavior regardless of model cap so
-        // the request body never carries more than one reference. Veo in
-        // subject-reference mode accepts up to its declared cap.
-        const maxRefs = resolveMaxReferenceImages(modelDef, {
-            editMode: state.editMode,
-            videoReferenceMode: state.gemini.videoReferenceMode,
-        });
+        // the request body never carries more than one reference.
+        const maxRefs = resolveMaxReferenceImages(modelDef, { editMode: state.editMode });
         if (maxRefs <= 0) return;
-        // Single-slot models (e.g. Veo's starting frame): latest attachment
-        // overwrites the prior one; multi-slot models append uniquely.
+        // Single-slot (edit mode): latest attachment overwrites the prior one;
+        // multi-slot models append uniquely.
         if (maxRefs === 1) {
             const next = paths[paths.length - 1];
             if (!next) return;
@@ -441,12 +416,10 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
                 negativePrompt: g.negativePrompt ?? state.gemini.negativePrompt,
                 aspectRatio,
                 quality,
-                duration: g.duration ?? state.gemini.duration,
-                resolution: g.resolution ?? state.gemini.resolution,
-                videoReferenceMode:
-                    g.videoReferenceMode === 'reference' && modelDef?.gemini?.maxSubjectReferenceImages
-                        ? 'reference'
-                        : 'firstFrame',
+                // Values outside the resolved model's range (e.g. from a retired
+                // model) snap to the nearest supported setting.
+                duration: clampDuration(g.duration ?? state.gemini.duration, gd?.supportedDurations),
+                resolution: clampResolution(g.resolution ?? state.gemini.resolution, gd?.supportedResolutions),
                 styleInstruction: g.styleInstruction ?? state.gemini.styleInstruction,
                 styleSelection: g.styleInstruction
                     ? getStyleInstructions().includes(g.styleInstruction)
@@ -462,7 +435,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
             // Clamp size / quality against the resolved model, the same way the
             // Gemini branch above does: a retired-model entry restored onto its
             // successor must never carry a value that model would reject (e.g.
-            // the `max` quality tier, which only GPT Image 2.5 accepts).
+            // the `max` quality tier, which earlier GPT Image models reject).
             const od = modelDef?.openai;
             const size =
                 params.openai.size && (!od || od.supportedSizes.includes(params.openai.size))
@@ -481,10 +454,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         const incomingRefs = params.referenceImagePaths ?? state.referenceImagePaths;
         const requestedEditMode = params.editMode ?? state.editMode;
         // Edit mode forces a single-slot behavior regardless of the model cap.
-        const cap = resolveMaxReferenceImages(modelDef, {
-            editMode: requestedEditMode,
-            videoReferenceMode: gemini.videoReferenceMode,
-        });
+        const cap = resolveMaxReferenceImages(modelDef, { editMode: requestedEditMode });
         const referenceImagePaths = incomingRefs.slice(0, cap);
         const referenceImageThumbnails = new Map<string, string>();
         for (const p of referenceImagePaths) {
@@ -544,21 +514,16 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
             if (state.provider === 'gemini') {
                 const isVoiceModel = modelDef?.mediaType === 'voice';
                 // Duration/resolution only apply to video models that actually
-                // expose them: Veo has both, Omni Flash has resolution only
-                // (clip length is prompt-controlled). Omitting what a model
-                // doesn't accept keeps the request and the history entry honest.
+                // expose them. Omitting what a model doesn't accept keeps the
+                // request and the history entry honest.
                 const hasDuration = isVideo && (modelDef?.gemini?.supportedDurations?.length ?? 0) > 0;
                 const hasResolution = isVideo && (modelDef?.gemini?.supportedResolutions?.length ?? 0) > 0;
-                // The reference mode is only meaningful for a video model that
-                // can actually take subject references.
-                const hasReferenceMode = isVideo && Boolean(modelDef?.gemini?.maxSubjectReferenceImages);
                 geminiSub = {
                     negativePrompt: state.gemini.negativePrompt,
                     aspectRatio: state.gemini.aspectRatio,
                     quality: state.gemini.quality,
                     duration: hasDuration ? state.gemini.duration : undefined,
                     resolution: hasResolution ? state.gemini.resolution : undefined,
-                    videoReferenceMode: hasReferenceMode ? state.gemini.videoReferenceMode : undefined,
                     styleInstruction: isVoiceModel ? state.gemini.styleInstruction : undefined,
                     voice: isVoiceModel ? state.gemini.voice : undefined,
                 };

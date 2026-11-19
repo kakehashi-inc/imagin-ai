@@ -23,8 +23,8 @@ export type ApiProvider = 'gemini' | 'openai';
 export const API_PROVIDERS: readonly ApiProvider[] = ['gemini', 'openai'] as const;
 
 // --- Media type (shared by both providers) ---
-// image: Imagen / Nano Banana / GPT Image
-// video: Veo
+// image: Nano Banana / GPT Image
+// video: Gemini Omni Flash
 // music: Lyria
 // voice: Gemini TTS (speech)
 export type MediaType = 'image' | 'video' | 'music' | 'voice';
@@ -35,38 +35,20 @@ export type MediaType = 'image' | 'video' | 'music' | 'voice';
 
 // Aspect ratio (Gemini image / video)
 export type GeminiAspectRatio =
-    | '1:1'
-    | '4:3'
-    | '3:2'
-    | '5:4'
-    | '16:9'
-    | '21:9'
-    | '4:1'
-    | '8:1'
-    | '3:4'
-    | '2:3'
-    | '4:5'
-    | '9:16'
-    | '1:4'
-    | '1:8';
+    '1:1' | '4:3' | '3:2' | '5:4' | '16:9' | '21:9' | '4:1' | '8:1' | '3:4' | '2:3' | '4:5' | '9:16' | '1:4' | '1:8';
 
-// Quality (Gemini image)
+// Quality (Gemini image). '512px' is offered by no active model and appears
+// only on history entries and retired model definitions.
 export type GeminiQuality = '512px' | '1k' | '2k' | '4k';
 
-// Video duration (Veo)
-export type GeminiVideoDuration = 4 | 6 | 8;
+// Video duration in whole seconds (Gemini video). The range is the one the API
+// accepts for `response_format.duration`; per-model availability is declared
+// via ModelDefinition.gemini.supportedDurations.
+export type GeminiVideoDuration = 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
 
-// Video resolution (Veo / Gemini Omni Flash)
-// '360p' is Gemini Omni Flash only; Veo starts at 720p. Per-model availability
-// is declared via ModelDefinition.gemini.supportedResolutions.
+// Video resolution (Gemini video). Per-model availability is declared via
+// ModelDefinition.gemini.supportedResolutions.
 export type GeminiVideoResolution = '360p' | '720p' | '1080p' | '4k';
-
-// How attached images are used by a Veo request.
-// 'firstFrame': the single attached image becomes the video's starting frame
-//   (image-to-video). This is the default and the only mode Veo 3.1 Lite has.
-// 'reference': up to 3 attached images guide the subject's appearance
-//   (`referenceImages`, Veo 3.1 / Veo 3.1 Fast only). Requires an 8s duration.
-export type GeminiVideoReferenceMode = 'firstFrame' | 'reference';
 
 // Aspect ratio grouping for UI (Gemini)
 export type GeminiAspectRatioGroup = 'square' | 'landscape' | 'portrait';
@@ -89,8 +71,8 @@ export type OpenAIImageSize =
     | '3840x2160' // 4K Landscape (16:9)
     | '2160x3840'; // 4K Portrait (9:16)
 
-// Image quality. 'xhigh' / 'max' are GPT Image 2.5 (Sunburst / Flare) only;
-// earlier GPT Image models stop at 'high'. Per-model availability is declared
+// Image quality. 'xhigh' / 'max' are accepted from GPT Image 2.5 (Sunburst /
+// Flare) onward; earlier GPT Image models stop at 'high'. Per-model availability is declared
 // via ModelDefinition.openai.supportedQualities.
 export type OpenAIImageQuality = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type OpenAIOutputFormat = 'png' | 'jpeg' | 'webp';
@@ -101,7 +83,15 @@ export type OpenAIBackground = 'transparent' | 'opaque';
 // =============================================================================
 
 export type ModelDefinition = {
+    // App-side model key, fixed per major version of a model line (e.g.
+    // 'gemini-nano-banana-2'). History entries and parameter restore refer to
+    // models by this key, so a minor version update keeps it unchanged.
     id: string;
+    // Model id sent to the provider API (e.g. 'gemini-nano-banana-2.1'). A
+    // minor version update changes this field and `displayName`. Declared on
+    // every active model; retired models omit it.
+    apiModelId?: string;
+    // Name of the provider model version in use.
     displayName: string;
     provider: ApiProvider;
     mediaType: MediaType;
@@ -142,31 +132,16 @@ export type ModelDefinition = {
     // the supported successor. Generic across future retirements.
     replacementModelId?: string;
     // Whether to show the negative-prompt UI for this model. Default: false.
-    // For models without a native parameter, the service prepends a
+    // No model takes a dedicated parameter for it; the service appends a
     // "Do not include: ..." instruction to the prompt instead.
     supportsNegativePrompt?: boolean;
-    // Whether the underlying API accepts negative_prompt as a dedicated
-    // parameter. Default: false (embedded in the prompt text by the service).
-    apiNegativePrompt?: boolean;
     // Gemini-only block (set when provider === 'gemini')
     gemini?: {
         supportedAspectRatios?: GeminiAspectRatio[];
         supportedQualities?: GeminiQuality[];
         supportedDurations?: GeminiVideoDuration[];
         supportedResolutions?: GeminiVideoResolution[];
-        // Cap on `referenceImages` (subject references) for a Veo model. Declared
-        // only by models that accept them — Veo 3.1 and Veo 3.1 Fast. Distinct
-        // from the top-level `maxReferenceImages`, which stays at 1 because the
-        // default starting-frame mode is a single slot. Declaring this is what
-        // makes the reference-mode toggle appear.
-        maxSubjectReferenceImages?: number;
         supportsAudioTags?: boolean;
-        // Which API a video model is served through. Omitted (default) means
-        // the Veo predictLongRunning path (generateVideos + LRO polling).
-        // 'interactions' routes to the Interactions API (interactions.create),
-        // used by Gemini Omni Flash. Only meaningful when mediaType === 'video'
-        // — image, music and voice models are always served by Interactions.
-        videoApi?: 'interactions';
     };
     // OpenAI-only block (set when provider === 'openai')
     openai?: {
@@ -204,9 +179,6 @@ export type GenerationParams = {
         quality: GeminiQuality;
         duration?: GeminiVideoDuration;
         resolution?: GeminiVideoResolution;
-        // Video models only: how the attached images are used (starting frame
-        // vs subject references). Omitted for every other media type.
-        videoReferenceMode?: GeminiVideoReferenceMode;
         // Note: no `seed` field here. The current @google/genai SDK rejects a
         // user-provided seed in Developer API mode, so the renderer never
         // collects one. If the server returns a seed in the response it is
@@ -226,16 +198,6 @@ export type GenerationParams = {
     };
 };
 
-// A destination inside the history directory that was handed out before the
-// bytes existed, so a download can be streamed straight to its final location
-// instead of going through a temporary file. `id` becomes the history entry id
-// so the file name and the entry stay in step. Used by the Veo URI-delivery
-// path; every other generator still returns buffers.
-export type ReservedMediaFile = {
-    id: string;
-    path: string;
-};
-
 // =============================================================================
 // History entry (per-provider sub-objects)
 // =============================================================================
@@ -245,7 +207,11 @@ export type HistoryEntry = {
     createdAt: string;
     updatedAt: string;
     provider: ApiProvider;
+    // App-side model key (ModelDefinition.id) at generation time.
     model: string;
+    // Model id actually sent to the provider API, i.e. the exact version that
+    // produced this entry. Absent on entries recorded before it was captured.
+    apiModelId?: string;
     modelDisplayName: string;
     mediaType: MediaType;
     prompt: string;
@@ -263,9 +229,8 @@ export type HistoryEntry = {
         quality: GeminiQuality;
         videoDuration?: GeminiVideoDuration;
         videoResolution?: GeminiVideoResolution;
-        videoReferenceMode?: GeminiVideoReferenceMode;
-        // Populated only when the server returns a seed in the response (e.g.
-        // future Veo releases). Never set from the renderer.
+        // Populated only when the server returns a seed in the response. Never
+        // set from the renderer.
         seed?: number;
         // Texts that the API returned alongside the audio (Lyria lyrics /
         // descriptions, TTS supplementary text). Displayed in the audio viewer.
@@ -274,8 +239,8 @@ export type HistoryEntry = {
         voice?: string;
 
         // --- Response metadata (stored only; not displayed) -------------------
-        // generateContent diagnostics (image / music / voice). These are
-        // captured even on success so the JSON file can be inspected later.
+        // generateContent diagnostics. Present only on entries made through
+        // generateContent; kept so those JSON files stay typed.
         finishReason?: string;
         finishMessage?: string;
         safetyRatings?: Array<{ category?: string; probability?: string; blocked?: boolean }>;
@@ -284,22 +249,22 @@ export type HistoryEntry = {
             blockReasonMessage?: string;
             safetyRatings?: Array<{ category?: string; probability?: string; blocked?: boolean }>;
         };
-        // Token usage (Nano Banana, Imagen via generateContent, Lyria, TTS).
+        // Token usage (Nano Banana, Gemini Omni Flash, Lyria, TTS).
         usageTokens?: {
             promptTokens?: number;
             candidatesTokens?: number;
             totalTokens?: number;
         };
-        // Imagen-specific.
+        // Present only on entries made with the retired Imagen models.
         enhancedPrompt?: string;
         raiFilteredReason?: string;
-        // Interactions API (Gemini Omni Flash). The interaction id returned by
-        // interactions.create — recorded so a future conversational-edit flow
-        // could reference it via previous_interaction_id.
+        // The interaction id returned by interactions.create — recorded so a
+        // conversational-edit flow could reference it via
+        // previous_interaction_id.
         interactionId?: string;
-        // Veo-specific. Stored as-is for forward compatibility (e.g. future
-        // metadata.seed). The shape is intentionally untyped because the
-        // server may add fields the SDK doesn't model yet.
+        // Present only on entries made with the retired Veo models (long-running
+        // operation name and metadata, RAI filter results). The metadata shape
+        // is intentionally untyped.
         operationName?: string;
         operationMetadata?: Record<string, unknown>;
         raiMediaFilteredCount?: number;

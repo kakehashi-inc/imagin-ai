@@ -1,3 +1,6 @@
+/* eslint-disable no-console -- This module wraps every console method (log /
+   info / debug included) so main-process output also reaches DevTools; it has
+   to read and replace those methods by name. */
 import { BrowserWindow } from 'electron';
 
 let mainWindow: BrowserWindow | null = null;
@@ -6,7 +9,7 @@ export function setMainWindow(window: BrowserWindow | null) {
     mainWindow = window;
 }
 
-function sendToRenderer(level: 'log' | 'error' | 'warn' | 'info' | 'debug', ...args: any[]) {
+function sendToRenderer(level: 'log' | 'error' | 'warn' | 'info' | 'debug', ...args: unknown[]) {
     // Send to renderer process for DevTools output
     if (mainWindow && !mainWindow.isDestroyed()) {
         try {
@@ -39,7 +42,7 @@ function sendToRenderer(level: 'log' | 'error' | 'warn' | 'info' | 'debug', ...a
                 }
             });
             mainWindow.webContents.send('main:console', { level, args: serializedArgs });
-        } catch (error) {
+        } catch {
             // Ignore errors when sending to renderer
         }
     }
@@ -55,27 +58,27 @@ const originalConsole = {
 
 export function setupConsoleBridge() {
     // Override console methods to also send to renderer
-    console.log = (...args: any[]) => {
+    console.log = (...args: unknown[]) => {
         originalConsole.log(...args);
         sendToRenderer('log', ...args);
     };
 
-    console.error = (...args: any[]) => {
+    console.error = (...args: unknown[]) => {
         originalConsole.error(...args);
         sendToRenderer('error', ...args);
     };
 
-    console.warn = (...args: any[]) => {
+    console.warn = (...args: unknown[]) => {
         originalConsole.warn(...args);
         sendToRenderer('warn', ...args);
     };
 
-    console.info = (...args: any[]) => {
+    console.info = (...args: unknown[]) => {
         originalConsole.info(...args);
         sendToRenderer('info', ...args);
     };
 
-    console.debug = (...args: any[]) => {
+    console.debug = (...args: unknown[]) => {
         originalConsole.debug(...args);
         sendToRenderer('debug', ...args);
     };

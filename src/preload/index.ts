@@ -248,6 +248,10 @@ ipcRenderer.on(
             }
         });
 
+        // Each main-process level is replayed with the console method of the
+        // same name so DevTools keeps its level filter; log / info / debug are
+        // therefore needed alongside warn / error.
+        /* eslint-disable no-console */
         switch (level) {
             case 'log':
                 console.log('[Main]', ...deserializedArgs);
@@ -267,5 +271,6 @@ ipcRenderer.on(
             default:
                 console.log('[Main]', ...deserializedArgs);
         }
+        /* eslint-enable no-console */
     }
 );

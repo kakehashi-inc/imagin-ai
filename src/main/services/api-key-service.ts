@@ -2,10 +2,15 @@ import { safeStorage } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
-import { API_KEY_CUSTOM_MAX, API_KEY_SCHEMA_VERSION, makeApiKeyId, parseApiKeyId } from '../../shared/constants';
+import {
+    API_KEY_CUSTOM_MAX,
+    API_KEY_SCHEMA_VERSION,
+    GEMINI_API_VERSION,
+    makeApiKeyId,
+    parseApiKeyId,
+} from '../../shared/constants';
 import type {
     ActiveKeyInfo,
-    ApiKeyOption,
     ApiKeySlot,
     ApiKeysData,
     ApiProvider,
@@ -183,41 +188,44 @@ function writeBackup(encryptedBuf: Buffer): void {
     }
 }
 
-function writeEncrypted(data: ApiKeysData): boolean {
+async function writeEncrypted(data: ApiKeysData): Promise<boolean> {
     const filePath = getKeysFilePath();
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
     }
-    if (!safeStorage.isEncryptionAvailable()) {
+    if (!(await safeStorage.isAsyncEncryptionAvailable())) {
         console.warn('Encryption not available, storing keys in plain text is not supported.');
         return false;
     }
-    const encrypted = safeStorage.encryptString(JSON.stringify(data));
+    const encrypted = await safeStorage.encryptStringAsync(JSON.stringify(data));
     fs.writeFileSync(filePath, encrypted);
     return true;
 }
 
-function loadData(): ApiKeysData {
+async function loadData(): Promise<ApiKeysData> {
     const filePath = getKeysFilePath();
     try {
         if (!fs.existsSync(filePath)) return emptyData();
-        if (!safeStorage.isEncryptionAvailable()) return emptyData();
+        if (!(await safeStorage.isAsyncEncryptionAvailable())) return emptyData();
 
         const encrypted = fs.readFileSync(filePath);
-        const decrypted = safeStorage.decryptString(encrypted);
+        const { result: decrypted, shouldReEncrypt } = await safeStorage.decryptStringAsync(encrypted);
         const parsed = JSON.parse(decrypted) as Record<string, unknown>;
 
         // v2: schemaVersion present -> sanitize and return.
         if (parsed && typeof parsed === 'object' && parsed.schemaVersion === API_KEY_SCHEMA_VERSION) {
-            return sanitizeNewSchema(parsed);
+            const data = sanitizeNewSchema(parsed);
+            // The OS key was rotated or upgraded; store the data under the new key.
+            if (shouldReEncrypt) await writeEncrypted(data);
+            return data;
         }
 
         // Anything else: migrate. Save a one-time backup of the original
         // encrypted blob before overwriting with the new schema.
         writeBackup(encrypted);
         const migrated = migrateFromLegacy(parsed ?? {});
-        writeEncrypted(migrated);
+        await writeEncrypted(migrated);
         return migrated;
     } catch (err) {
         console.error('Failed to load API keys:', err);
@@ -229,22 +237,22 @@ function loadData(): ApiKeysData {
 // Public API
 // =============================================================================
 
-export function getApiKeysData(): ApiKeysData {
+export async function getApiKeysData(): Promise<ApiKeysData> {
     return loadData();
 }
 
-export function saveApiKeysData(incoming: ApiKeysData): { success: boolean; data: ApiKeysData } {
+export async function saveApiKeysData(incoming: ApiKeysData): Promise<{ success: boolean; data: ApiKeysData }> {
     // Always re-sanitize the incoming payload before persisting.
     const sanitized = sanitizeNewSchema(incoming as unknown as Record<string, unknown>);
-    const saved = writeEncrypted(sanitized);
+    const saved = await writeEncrypted(sanitized);
     return { success: saved, data: sanitized };
 }
 
-export function setActiveApiKeyId(id: string): { success: boolean; data: ApiKeysData } {
-    const current = loadData();
+export async function setActiveApiKeyId(id: string): Promise<{ success: boolean; data: ApiKeysData }> {
+    const current = await loadData();
     const newId = validateActiveId(id, current);
     const updated: ApiKeysData = { ...current, activeId: newId };
-    const saved = writeEncrypted(updated);
+    const saved = await writeEncrypted(updated);
     return { success: saved, data: updated };
 }
 
@@ -268,20 +276,15 @@ function getActiveEntry(data: ApiKeysData): {
     return { provider: 'gemini', kind: 'default', slot: fallback };
 }
 
-// Returns the active key string (empty if not configured).
-export function getActiveApiKey(): string {
-    const data = loadData();
-    return getActiveEntry(data).slot.key;
+// Returns the active key string (empty if not configured) together with the
+// provider derived from the active key id, read in one decryption pass.
+export async function getActiveKeyAndProvider(): Promise<{ key: string; provider: ApiProvider }> {
+    const entry = getActiveEntry(await loadData());
+    return { key: entry.slot.key, provider: entry.provider };
 }
 
-// Returns the active provider derived from the active key id.
-export function getActiveProvider(): ApiProvider {
-    const data = loadData();
-    return getActiveEntry(data).provider;
-}
-
-export function getActiveKeyInfo(): ActiveKeyInfo {
-    const data = loadData();
+export async function getActiveKeyInfo(): Promise<ActiveKeyInfo> {
+    const data = await loadData();
     const entry = getActiveEntry(data);
     return {
         id: data.activeId,
@@ -293,61 +296,6 @@ export function getActiveKeyInfo(): ActiveKeyInfo {
     };
 }
 
-// Lookup helper: get a key string by (provider, slot) without changing activeId.
-export function getKeyByProviderSlot(provider: ApiProvider, slot: 'default' | 'freeTier' | number): string {
-    const data = loadData();
-    const set = data.providers[provider];
-    if (!set) return '';
-    if (slot === 'default') return set.default.key;
-    if (slot === 'freeTier') return set.freeTier.key;
-    if (typeof slot === 'number') {
-        const entry = set.customs[slot];
-        return entry?.key ?? '';
-    }
-    return '';
-}
-
-// List all key slots across both providers, in display order (gemini -> openai).
-export function listApiKeyOptions(): ApiKeyOption[] {
-    const data = loadData();
-    const options: ApiKeyOption[] = [];
-    const providers: ApiProvider[] = ['gemini', 'openai'];
-    for (const provider of providers) {
-        const set = data.providers[provider];
-        options.push({
-            id: makeApiKeyId(provider, 'default'),
-            provider,
-            kind: 'default',
-            title: '',
-            hasKey: set.default.key.length > 0,
-            isFreeTier: set.default.isFreeTier,
-        });
-        // Only Gemini exposes a free-tier slot in the UI. OpenAI keeps the slot
-        // structurally for schema symmetry but doesn't surface it.
-        if (provider === 'gemini') {
-            options.push({
-                id: makeApiKeyId(provider, 'freeTier'),
-                provider,
-                kind: 'freeTier',
-                title: '',
-                hasKey: set.freeTier.key.length > 0,
-                isFreeTier: true,
-            });
-        }
-        set.customs.forEach((c, i) => {
-            options.push({
-                id: makeApiKeyId(provider, `custom:${i}` as const),
-                provider,
-                kind: 'custom',
-                title: c.title ?? '',
-                hasKey: c.key.length > 0,
-                isFreeTier: c.isFreeTier,
-            });
-        });
-    }
-    return options;
-}
-
 // =============================================================================
 // testApiKey: provider-specific validation
 // =============================================================================
@@ -357,7 +305,7 @@ export function listApiKeyOptions(): ApiKeyOption[] {
 async function testGeminiKey(key: string): Promise<ApiTestResult> {
     try {
         const { GoogleGenAI } = await import('@google/genai');
-        const ai = new GoogleGenAI({ apiKey: key });
+        const ai = new GoogleGenAI({ apiKey: key, apiVersion: GEMINI_API_VERSION });
         // models.list returns a Pager; iterating once is enough to confirm auth.
         const pager = await ai.models.list();
         // Pull at least one page so a 401 surfaces.

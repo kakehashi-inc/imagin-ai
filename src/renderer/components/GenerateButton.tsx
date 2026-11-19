@@ -117,42 +117,11 @@ export default function GenerateButton() {
     const overLimit = isOverLimit();
     const [diskWarning, setDiskWarning] = React.useState(false);
 
-    // Video duration/resolution live under the gemini sub-state in the new schema.
-    const { gemini, referenceImagePaths } = useGenerationStore();
-    const [validationError, setValidationError] = React.useState<string | null>(null);
     const [showDetails, setShowDetails] = React.useState(false);
 
     const handleGenerate = async () => {
         clearError();
         setDiskWarning(false);
-        setValidationError(null);
-
-        // Validate video parameters: 1080p/4K requires 8 seconds (Gemini Veo
-        // constraint). Only applies to models that expose a duration parameter
-        // at all — Gemini Omni Flash also offers 1080p/4K but has no duration
-        // API parameter (clip length is prompt-controlled), so it is exempt.
-        const hasDurationParam = (currentModel?.gemini?.supportedDurations?.length ?? 0) > 0;
-        if (
-            isVideoModel &&
-            hasDurationParam &&
-            (gemini.resolution === '1080p' || gemini.resolution === '4k') &&
-            gemini.duration !== 8
-        ) {
-            setValidationError(t('generation.videoDurationConstraint'));
-            return;
-        }
-
-        // Veo also requires 8 seconds whenever subject reference images are used.
-        if (
-            isVideoModel &&
-            hasDurationParam &&
-            gemini.videoReferenceMode === 'reference' &&
-            referenceImagePaths.length > 0 &&
-            gemini.duration !== 8
-        ) {
-            setValidationError(t('generation.videoReferenceDurationConstraint'));
-            return;
-        }
 
         // Check disk space before generation
         try {
@@ -209,12 +178,6 @@ export default function GenerateButton() {
             {diskWarning && (
                 <Alert severity='warning' variant='outlined' onClose={() => setDiskWarning(false)}>
                     {t('generation.diskSpaceWarning')}
-                </Alert>
-            )}
-
-            {validationError && (
-                <Alert severity='warning' variant='outlined' onClose={() => setValidationError(null)}>
-                    {validationError}
                 </Alert>
             )}
 

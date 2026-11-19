@@ -77,7 +77,7 @@ export default {
     'gemini.model.note.lyriaClip': 'Fixed 30-second clip',
     'gemini.model.note.lyria': 'Full-length song (a couple of minutes). Steer length and structure in the prompt',
     'gemini.model.note.omniFlash':
-        '3-10 seconds long, set in the prompt (e.g. "An 8-second video with calm background music"). Background music and sound effects are prompt-controlled too. 1080p / 4K are produced by upscaling',
+        'With a first and last frame the limit is 10 seconds. Background music and sound effects are set in the prompt. 1080p / 4K are produced by upscaling',
     'gemini.model.freeTier.tts':
         'Free tier available:\nRate limits depend on your project usage tier. Check the rate limits page in Google AI Studio for your actual limits',
 
@@ -247,16 +247,13 @@ export default {
 
     // Gemini Quality
     'gemini.quality.label': 'Resolution',
-    'gemini.quality.512px': '512px',
     'gemini.quality.1k': '1K (Standard)',
     'gemini.quality.2k': '2K (High)',
     'gemini.quality.4k': '4K (Ultra)',
 
     // Gemini Duration (video)
     'gemini.duration.label': 'Duration',
-    'gemini.duration.4s': '4 seconds',
-    'gemini.duration.6s': '6 seconds',
-    'gemini.duration.8s': '8 seconds',
+    'gemini.duration.seconds': '{{count}} seconds',
 
     // Gemini Resolution (video)
     'gemini.resolution.label': 'Video Resolution',
@@ -310,10 +307,8 @@ export default {
     'prompt.placeholderTts': 'Enter the text you want read aloud.',
     'prompt.required': 'Prompt is required',
     'prompt.charCount': '{{count}} characters',
-    'prompt.startingFrame': 'Starting frame (video uses 1 image)',
-    'prompt.subjectReference': 'Subject reference images (up to {{count}}, duration fixed at 8s)',
-    'prompt.referenceMode.firstFrame': 'Starting frame',
-    'prompt.referenceMode.reference': 'Subject reference',
+    'prompt.videoReferenceHint':
+        'Up to {{count}} images. Say in the prompt how to use them: starting frame, first and last frame, subject reference, and so on',
 
     // Negative prompt
     'negativePrompt.label': 'Negative Prompt',
@@ -333,9 +328,6 @@ export default {
     'generation.generatingMusic': 'Generating music...',
     'generation.generatingSpeech': 'Generating speech...',
     'generation.generatingVideoProgress': 'Generating video... ({{elapsed}}s)',
-    'generation.videoDurationConstraint': '1080p/4K resolution requires a duration of 8 seconds.',
-    'generation.videoReferenceDurationConstraint':
-        'Subject reference images require a duration of 8 seconds.',
     'generation.historyLimitExceeded':
         'History limit ({{limit}} entries) exceeded. Please clean up history before generating.',
     'generation.error': 'Generation failed: {{message}}',

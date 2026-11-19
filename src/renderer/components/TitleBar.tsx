@@ -25,9 +25,8 @@ export default function TitleBar({ onOpenSettings }: Props) {
     const [options, setOptions] = useState<ApiKeyOption[]>([]);
     const [noticesOpen, setNoticesOpen] = useState(false);
 
-    // Mirror main's listApiKeyOptions output: gemini slots first, then openai.
-    // We rebuild here from getApiKeysData so the dropdown can update without
-    // an extra IPC round-trip after writes.
+    // Builds the key dropdown from getApiKeysData: gemini slots first, then
+    // openai.
     const refreshOptions = useCallback(async () => {
         const data = await window.imaginai.getApiKeysData();
         const list: ApiKeyOption[] = [];

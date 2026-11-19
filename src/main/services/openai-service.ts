@@ -8,6 +8,7 @@ import {
     OPENAI_SIZE_OPTIONS,
     REFERENCE_IMAGE_JPEG_QUALITY,
     REFERENCE_IMAGE_MAX_LONG_EDGE,
+    resolveApiModelId,
 } from '../../shared/constants';
 
 // Per-call OpenAI response metadata that the history layer persists as-is.
@@ -90,28 +91,6 @@ function prepareReferenceImageBuffer(imgPath: string): { mimeType: string; buffe
 }
 
 // =============================================================================
-// API key validation
-// =============================================================================
-
-import type { ApiTestResult } from '../../shared/types';
-
-export async function testOpenAIApiKey(rawKey: string): Promise<ApiTestResult> {
-    if (!rawKey) return { success: false, status: 'KEY_NOT_SET', rawMessage: null };
-    try {
-        const client = new OpenAI({ apiKey: rawKey });
-        await client.models.list();
-        return { success: true, status: 'KEY_VALID', rawMessage: null };
-    } catch (err) {
-        const detail = toApiErrorDetail(err);
-        const message = detail.apiMessage ?? '';
-        if (detail.httpStatus === 401 || detail.httpStatus === 403 || /invalid_api_key/i.test(message)) {
-            return { success: false, status: 'KEY_INVALID', rawMessage: message };
-        }
-        return { success: false, status: 'TEST_ERROR', rawMessage: message };
-    }
-}
-
-// =============================================================================
 // Generation entry point
 // =============================================================================
 
@@ -180,7 +159,7 @@ async function runGenerate(
     const o = params.openai!;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const body: any = {
-        model: params.model,
+        model: resolveApiModelId(params.model),
         prompt: buildPromptWithNegative(params.prompt, o.negativePrompt),
         size: o.size,
         quality: o.quality,
@@ -224,7 +203,7 @@ async function runEdit(
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const body: any = {
-        model: params.model,
+        model: resolveApiModelId(params.model),
         image: files[0],
         prompt: buildPromptWithNegative(params.prompt, o.negativePrompt),
         size: o.size,

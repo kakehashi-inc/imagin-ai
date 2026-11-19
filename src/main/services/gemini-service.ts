@@ -1,11 +1,5 @@
 import fs from 'fs';
-import { GoogleGenAI, VideoGenerationReferenceType } from '@google/genai';
-import type {
-    GenerateVideosConfig,
-    GenerateVideosOperation,
-    Image as GenAiImage,
-    VideoGenerationReferenceImage,
-} from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 import type {
     ApiErrorDetail,
     GeminiAspectRatio,
@@ -14,7 +8,6 @@ import type {
     GenerationParams,
     GenerationProgress,
     HistoryEntry,
-    ReservedMediaFile,
 } from '../../shared/types';
 
 // Per-call metadata that we capture from the API response and persist on the
@@ -22,14 +15,16 @@ import type {
 // can just spread it into the entry without any field-by-field mapping.
 type GeminiResponseMeta = Partial<NonNullable<HistoryEntry['gemini']>>;
 import {
+    DEFAULT_GEMINI_VIDEO_DURATION,
     DEFAULT_GEMINI_VIDEO_RESOLUTION,
+    GEMINI_API_VERSION,
     MODEL_DEFINITIONS,
     REFERENCE_IMAGE_JPEG_QUALITY,
     REFERENCE_IMAGE_MAX_LONG_EDGE,
+    resolveApiModelId,
     resolveMaxReferenceImages,
 } from '../../shared/constants';
 import { encodePcmToMp3, wrapPcmAsWav } from './ffmpeg-service';
-import { discardReservedMedia, reserveMediaPath } from './history-service';
 
 // =============================================================================
 // Errors
@@ -125,7 +120,7 @@ function prepareReferenceImage(imgPath: string): { mimeType: string; base64: str
 }
 
 // =============================================================================
-// Progress callback (consumed by the Veo polling loop and the Interactions timers)
+// Progress callback (consumed by the Interactions elapsed-time timers)
 // =============================================================================
 
 let progressCallback: ((progress: GenerationProgress) => void) | null = null;
@@ -138,39 +133,27 @@ export function setGenerationProgressCallback(cb: ((progress: GenerationProgress
 // Top-level entry point (Gemini only — provider dispatch lives in generation-service.ts)
 // =============================================================================
 
-// Dispatches by mediaType. Every model except Veo is served by the Interactions
-// API; Veo keeps its own predictLongRunning + polling path.
-// `perItemMeta` is parallel to the produced artifacts — one metadata bag each,
+// Dispatches by mediaType; every Gemini model is served by the Interactions API.
+// `perItemMeta` is parallel to the produced buffers — one metadata bag each,
 // persisted onto the corresponding history entry. The metadata is a partial of
 // HistoryEntry.gemini so history-service can spread it directly.
-// Artifacts come back as `buffers`, except Veo's URI-delivered videos which are
-// already written to their final location and come back as `reservedFiles`. A
-// single call never returns both.
 export async function generateWithGemini(
     params: GenerationParams,
     apiKey: string
 ): Promise<{
     buffers: Buffer[];
-    reservedFiles?: ReservedMediaFile[];
     mimeType: string;
     audioTexts?: string[];
     perItemMeta?: GeminiResponseMeta[];
 }> {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey, apiVersion: GEMINI_API_VERSION });
     const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
     if (!modelDef) throw appError('UNKNOWN_MODEL', `Unknown model: ${params.model}`);
 
     try {
         switch (modelDef.mediaType) {
             case 'video':
-                // Video models are served by two different APIs: Veo goes
-                // through generateVideos + LRO polling, Gemini Omni Flash goes
-                // through the synchronous Interactions API. The model
-                // definition declares which one applies.
-                if (modelDef.gemini?.videoApi === 'interactions') {
-                    return await generateOmniVideo(ai, params, apiKey);
-                }
-                return await generateVideo(ai, params);
+                return await generateOmniVideo(ai, params, apiKey);
             case 'music':
                 return await generateMusic(ai, params, apiKey);
             case 'voice':
@@ -185,12 +168,13 @@ export async function generateWithGemini(
 }
 
 // =============================================================================
-// Interactions API (shared by image, music, voice and Omni Flash video)
+// Interactions API (shared by image, video, music and voice)
 // =============================================================================
 //
-// ai.google.dev documents every generative-media model through the Interactions
-// API (`/v1beta/interactions`). Veo is the single exception and keeps its
-// predictLongRunning + polling path (see generateVideo).
+// The Gemini API documentation describes every generative-media model through
+// the Interactions API (`/v1beta/interactions`). The client is pinned to that
+// API version because the SDK otherwise defaults to `v1`, where some preview
+// models are not served.
 
 // The non-streaming result of interactions.create, taken from the SDK so the
 // fields we read (status, output_*, usage) stay checked against it. The method
@@ -200,8 +184,8 @@ export async function generateWithGemini(
 type InteractionResult = Extract<Awaited<ReturnType<GoogleGenAI['interactions']['create']>>, { status: unknown }>;
 
 // interactions.create is a single synchronous HTTP call that can run for
-// minutes; there is no LRO to poll, so a local timer drives the elapsed-time
-// progress feedback instead.
+// minutes; there is no operation to poll, so a local timer drives the
+// elapsed-time progress feedback instead.
 const INTERACTIONS_PROGRESS_TICK_MS = 5000;
 
 // Interaction id + token usage, in the shape persisted on the history entry.
@@ -228,8 +212,8 @@ function extractInteractionMeta(interaction: InteractionResult): GeminiResponseM
 
 // Diagnostic string for an interaction that returned without the expected
 // output. The Interactions API reports a coarse `status` plus any explanatory
-// model text instead of the per-candidate safety breakdown the old
-// generateContent responses carried, so this is everything available.
+// model text, with no per-candidate safety breakdown, so this is everything
+// available.
 function formatInteractionDiagnostics(interaction: InteractionResult): string {
     return [
         `interaction.status: ${interaction.status ?? 'unknown'}`,
@@ -268,9 +252,15 @@ type InteractionContentBlock = InteractionTextBlock | InteractionImageBlock;
 //   mime_type (audio): 'audio/mp3' | 'audio/ogg_opus' | 'audio/l16' | 'audio/wav'
 //                      | 'audio/alaw' | 'audio/mulaw'
 //   resolution: '360p' | '720p' | '1080p' | '4k'
+//   duration: whole seconds with an 's' suffix, '3s' to '15s'
 type ImageResponseFormat = { type: 'image'; aspect_ratio: GeminiAspectRatio; image_size?: string };
 type AudioResponseFormat = { type: 'audio'; mime_type: string; sample_rate: number };
-type VideoResponseFormat = { type: 'video'; aspect_ratio: '16:9' | '9:16'; resolution: GeminiVideoResolution };
+type VideoResponseFormat = {
+    type: 'video';
+    aspect_ratio: '16:9' | '9:16';
+    resolution: GeminiVideoResolution;
+    duration: `${number}s`;
+};
 
 // Every text block the model produced, one array element per block, verbatim.
 // `interaction.output_text` is NOT used for this: the SDK documents it as the
@@ -314,12 +304,10 @@ function buildInteractionImageBlocks(
 // =============================================================================
 
 // Maps our own quality identifier onto the API's `image_size` value. The
-// accepted values are '512', '1K', '2K' and '4K' per the SDK's
-// ImageResponseFormatImageSize type; the uppercase 'K' is required and
-// lowercase (e.g. '1k') is rejected.
+// uppercase 'K' is required and lowercase (e.g. '1k') is rejected. '512px' is
+// offered by no active model, so it has no mapping.
 function mapGeminiQualityToImageSize(q: GeminiQuality | undefined): string | undefined {
     if (!q) return undefined;
-    if (q === '512px') return '512';
     if (q === '1k') return '1K';
     if (q === '2k') return '2K';
     if (q === '4k') return '4K';
@@ -335,7 +323,6 @@ async function generateGeminiImage(
     if (!g) throw appError('INVALID_PARAMS', 'Gemini params missing for image generation');
 
     const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
-    const apiNegative = modelDef?.apiNegativePrompt ?? false;
     // Edit mode is fixed to a single reference image across all providers;
     // otherwise honor the model's declared reference cap.
     const maxRefs = resolveMaxReferenceImages(modelDef, { editMode: params.editMode });
@@ -347,7 +334,7 @@ async function generateGeminiImage(
     // dedicated `editImage` endpoint nor a "fidelity" parameter (Vertex AI's
     // imagen-3.0-capability with EditMode and SubjectReference/StyleReference
     // images is *not* available with an AI Studio API key — see the model
-    // catalog at ai.google.dev/gemini-api/docs/models). The official Nano
+    // catalog at aistudio.google.com/docs/models). The official Nano
     // Banana guidance is to (1) describe what to change explicitly and (2)
     // describe what to keep exactly the same. We prepend that instruction
     // here so the user's prompt only needs to focus on the actual edit.
@@ -357,7 +344,7 @@ async function generateGeminiImage(
             'Edit the attached image according to the instruction below. Keep every other element of the image exactly the same — preserve the subject identity, faces, poses, layout, lighting, and color grading unless the instruction explicitly changes them.\n\n' +
             promptText;
     }
-    if (g.negativePrompt && !apiNegative) {
+    if (g.negativePrompt) {
         promptText += `\n\nDo not include: ${g.negativePrompt}`;
     }
 
@@ -385,7 +372,7 @@ async function generateGeminiImage(
     // its diagnostics are collected and only reported if nothing succeeds.
     for (let i = 0; i < params.numberOfImages; i++) {
         const interaction = await ai.interactions.create({
-            model: params.model,
+            model: resolveApiModelId(params.model),
             input: contents,
             response_format: responseFormat,
         });
@@ -415,203 +402,6 @@ async function generateGeminiImage(
 }
 
 // =============================================================================
-// Veo video (generateVideos + LRO polling via SDK)
-// =============================================================================
-
-const VEO_POLL_INTERVAL_MS = 10000;
-
-async function generateVideo(
-    ai: GoogleGenAI,
-    params: GenerationParams
-): Promise<{
-    buffers: Buffer[];
-    reservedFiles: ReservedMediaFile[];
-    mimeType: string;
-    perItemMeta: GeminiResponseMeta[];
-}> {
-    const g = params.gemini;
-    if (!g) throw appError('INVALID_PARAMS', 'Gemini params missing for video request');
-
-    const modelDef = MODEL_DEFINITIONS.find(m => m.id === params.model);
-    const apiNegative = modelDef?.apiNegativePrompt ?? false;
-    // Subject-reference mode is only honored for a model that declares a cap for
-    // it; otherwise the attachment is treated as the starting frame.
-    const referenceMode =
-        g.videoReferenceMode === 'reference' && modelDef?.gemini?.maxSubjectReferenceImages
-            ? 'reference'
-            : 'firstFrame';
-    const maxRefs = resolveMaxReferenceImages(modelDef, { videoReferenceMode: referenceMode });
-
-    let promptText = params.prompt;
-    if (g.negativePrompt && !apiNegative) {
-        promptText += `\n\nDo not include: ${g.negativePrompt}`;
-    }
-
-    // Image-to-video (`firstFrame`): the single attachment becomes the starting
-    // frame. Subject references (`reference`): up to the model's cap are sent as
-    // `referenceImages`, each tagged `asset` so Veo preserves the subject's
-    // appearance instead of animating out of the image.
-    let firstImage: GenAiImage | undefined;
-    const referenceImages: VideoGenerationReferenceImage[] = [];
-    if (maxRefs > 0 && params.referenceImagePaths.length > 0) {
-        if (referenceMode === 'reference') {
-            const capped = params.referenceImagePaths.slice(0, maxRefs);
-            if (params.referenceImagePaths.length > maxRefs) {
-                console.warn(`Veo reference images truncated from ${params.referenceImagePaths.length} to ${maxRefs}`);
-            }
-            for (const imgPath of capped) {
-                const prepared = prepareReferenceImage(imgPath);
-                if (!prepared) continue;
-                referenceImages.push({
-                    image: { imageBytes: prepared.base64, mimeType: prepared.mimeType },
-                    referenceType: VideoGenerationReferenceType.ASSET,
-                });
-            }
-        } else {
-            const prepared = prepareReferenceImage(params.referenceImagePaths[0]);
-            if (prepared) {
-                firstImage = { imageBytes: prepared.base64, mimeType: prepared.mimeType };
-            }
-        }
-    }
-
-    // The `seed` config field is intentionally not set here. The current SDK
-    // (Gemini Developer API mode) rejects it client-side, and the Vertex AI
-    // path is out of scope for this app. The app never accepts a seed from the
-    // user, but if the server returns one in the response we still capture it
-    // below so it's retained in history for future reference.
-    const config: GenerateVideosConfig = {
-        aspectRatio: g.aspectRatio,
-        durationSeconds: g.duration ?? 4,
-        resolution: g.resolution ?? '720p',
-    };
-    if (apiNegative && g.negativePrompt) {
-        config.negativePrompt = g.negativePrompt;
-    }
-    if (referenceImages.length > 0) {
-        config.referenceImages = referenceImages;
-        // The API requires an 8s duration whenever reference images are used.
-        // The generate button validates this too; this is a defensive fallback.
-        config.durationSeconds = 8;
-    }
-
-    let operation: GenerateVideosOperation = await ai.models.generateVideos({
-        model: params.model,
-        prompt: promptText,
-        image: firstImage,
-        config,
-    });
-
-    if (!operation.name) {
-        throw appError('NO_RESPONSE', 'Veo did not return an operation name');
-    }
-
-    // Poll for completion. The SDK's getVideosOperation throws on terminal API
-    // errors, so we just keep polling until done. Progress callback fires each
-    // iteration so the renderer can show "generating Xs" feedback.
-    const startTime = Date.now();
-    while (!operation.done) {
-        await new Promise(resolve => setTimeout(resolve, VEO_POLL_INTERVAL_MS));
-        const elapsed = Math.round((Date.now() - startTime) / 1000);
-        if (progressCallback) {
-            progressCallback({ status: 'generating', elapsedSeconds: elapsed });
-        }
-        operation = await ai.operations.getVideosOperation({ operation });
-    }
-
-    // operation.error can be set by the long-running operation even when the
-    // overall request returned 200; surface it through the diagnostics panel.
-    if (operation.error) {
-        const e = operation.error as { code?: number; status?: string; message?: string };
-        throw new GeminiApiError({
-            httpStatus: typeof e.code === 'number' ? e.code : 0,
-            apiCode: typeof e.code === 'number' ? e.code : null,
-            apiStatus: typeof e.status === 'string' ? e.status : null,
-            apiMessage: typeof e.message === 'string' ? e.message : null,
-        });
-    }
-
-    const videoResp = operation.response;
-    if (!videoResp) {
-        throw appError('NO_VIDEO_GENERATED', 'LRO completed but response payload is empty');
-    }
-
-    const generated = videoResp.generatedVideos ?? [];
-
-    // RAI filter signals on the video response.
-    const raiDiagnostics: string[] = [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rawVideoResp = videoResp as any;
-    const raiCount = rawVideoResp.raiMediaFilteredCount;
-    const raiReasons = rawVideoResp.raiMediaFilteredReasons;
-    if (typeof raiCount === 'number' && raiCount > 0) {
-        raiDiagnostics.push(`raiMediaFilteredCount: ${raiCount}`);
-    }
-    if (Array.isArray(raiReasons) && raiReasons.length > 0) {
-        raiDiagnostics.push(`raiMediaFilteredReasons: ${raiReasons.join(' | ')}`);
-    }
-
-    if (generated.length === 0) {
-        throw appError('NO_VIDEO_GENERATED', raiDiagnostics.join('\n'));
-    }
-
-    const buffers: Buffer[] = [];
-    // URI-delivered videos are streamed straight into the history directory
-    // instead of being buffered, so a 4K clip never has to sit in memory and is
-    // never written twice. Anything reserved here is discarded if this function
-    // fails afterwards: a reserved file with no metadata JSON would be invisible
-    // to the app yet still occupy disk.
-    const reservedFiles: ReservedMediaFile[] = [];
-    try {
-        for (const item of generated) {
-            const video = item.video;
-            if (!video) continue;
-            if (video.videoBytes) {
-                // Base64-encoded inline video.
-                buffers.push(Buffer.from(video.videoBytes, 'base64'));
-            } else if (video.uri) {
-                const reserved = reserveMediaPath('mp4');
-                reservedFiles.push(reserved);
-                await ai.files.download({ file: video, downloadPath: reserved.path });
-            }
-        }
-
-        if (buffers.length === 0 && reservedFiles.length === 0) {
-            const diag = [
-                ...raiDiagnostics,
-                `generatedVideos count: ${generated.length} but no decodable video data extracted`,
-            ].join('\n');
-            throw appError('NO_VIDEO_GENERATED', diag);
-        }
-    } catch (err) {
-        for (const reserved of reservedFiles) discardReservedMedia(reserved);
-        throw err;
-    }
-
-    // Build operation-wide metadata once, then mirror onto every buffer so the
-    // shape matches the other generators. operation.metadata is `Record<string,
-    // unknown>` in the SDK type, so we copy it verbatim — this is the slot
-    // that would receive a future server-side seed value, for example.
-    const veoMeta: GeminiResponseMeta = {};
-    if (typeof operation.name === 'string' && operation.name.length > 0) {
-        veoMeta.operationName = operation.name;
-    }
-    if (operation.metadata && typeof operation.metadata === 'object') {
-        veoMeta.operationMetadata = operation.metadata as Record<string, unknown>;
-    }
-    if (typeof raiCount === 'number') {
-        veoMeta.raiMediaFilteredCount = raiCount;
-    }
-    if (Array.isArray(raiReasons) && raiReasons.length > 0) {
-        veoMeta.raiMediaFilteredReasons = raiReasons.map(String);
-    }
-    const itemCount = buffers.length + reservedFiles.length;
-    const perItemMeta: GeminiResponseMeta[] = Array.from({ length: itemCount }, () => veoMeta);
-
-    return { buffers, reservedFiles, mimeType: 'video/mp4', perItemMeta };
-}
-
-// =============================================================================
 // Gemini Omni Flash video (Interactions API via SDK)
 // =============================================================================
 
@@ -627,7 +417,9 @@ async function generateOmniVideo(
     const maxRefs = resolveMaxReferenceImages(modelDef);
 
     // Interactions content blocks: reference images first, then the prompt,
-    // mirroring the order shown in the official image-to-video examples.
+    // mirroring the order shown in the official examples. No role is attached
+    // to the images: the model infers from the prompt whether they are a
+    // starting frame, a first/last frame pair or subject references.
     const contents: InteractionContentBlock[] = [
         ...buildInteractionImageBlocks(params, maxRefs, 'Omni video'),
         { type: 'text', text: params.prompt },
@@ -643,7 +435,17 @@ async function generateOmniVideo(
     const resolution =
         g.resolution && supportedResolutions.includes(g.resolution) ? g.resolution : DEFAULT_GEMINI_VIDEO_RESOLUTION;
 
-    const videoResponseFormat: VideoResponseFormat = { type: 'video', aspect_ratio: aspectRatio, resolution };
+    // Clip length. The API overrides any length stated in the prompt with this
+    // value; an unsupported value falls back to the API's own default.
+    const supportedDurations = modelDef?.gemini?.supportedDurations ?? [];
+    const duration = g.duration && supportedDurations.includes(g.duration) ? g.duration : DEFAULT_GEMINI_VIDEO_DURATION;
+
+    const videoResponseFormat: VideoResponseFormat = {
+        type: 'video',
+        aspect_ratio: aspectRatio,
+        resolution,
+        duration: `${duration}s`,
+    };
 
     // Drive the renderer's "generating Xs" feedback with a local timer since
     // this request has no polling loop to hook into.
@@ -657,7 +459,7 @@ async function generateOmniVideo(
     let interaction: InteractionResult;
     try {
         interaction = await ai.interactions.create({
-            model: params.model,
+            model: resolveApiModelId(params.model),
             input: contents,
             response_format: videoResponseFormat,
         });
@@ -712,7 +514,7 @@ async function generateMusic(
         { type: 'text', text: params.prompt },
     ];
 
-    // Song generation runs for tens of seconds with no LRO to poll, so drive
+    // Song generation runs for tens of seconds with no operation to poll, so drive
     // the elapsed-time feedback from a local timer as the Omni path does.
     const startTime = Date.now();
     const progressTimer = setInterval(() => {
@@ -727,7 +529,7 @@ async function generateMusic(
         // which is what the history store keeps. Passing {type:'audio'} would
         // switch Lyria 3.5 to WAV.
         interaction = await ai.interactions.create({
-            model: params.model,
+            model: resolveApiModelId(params.model),
             input: contents,
         });
     } finally {
@@ -813,7 +615,7 @@ async function generateSpeech(
         sample_rate: TTS_INTERACTIONS_SAMPLE_RATE,
     };
     const interaction = await ai.interactions.create({
-        model: params.model,
+        model: resolveApiModelId(params.model),
         input: [{ type: 'user_input', content: [textBlock] }],
         response_format: audioResponseFormat,
         generation_config: {

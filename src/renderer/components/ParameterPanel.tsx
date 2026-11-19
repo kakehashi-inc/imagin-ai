@@ -21,7 +21,6 @@ import {
     GEMINI_ASPECT_RATIO_GROUP_ORDER,
     GEMINI_ASPECT_RATIO_OPTIONS,
     GEMINI_QUALITY_OPTIONS,
-    GEMINI_VIDEO_DURATION_OPTIONS,
     GEMINI_VIDEO_RESOLUTION_OPTIONS,
     GENERATION_COUNT_MIN,
     MODEL_DEFINITIONS,
@@ -29,6 +28,7 @@ import {
     OPENAI_OUTPUT_FORMAT_OPTIONS,
     OPENAI_QUALITY_OPTIONS,
     OPENAI_SIZE_OPTIONS,
+    resolveApiModelId,
 } from '../../shared/constants';
 import type {
     GeminiAspectRatio,
@@ -167,7 +167,7 @@ export default function ParameterPanel() {
     const supportedOpenAISizes = currentModel?.openai?.supportedSizes ?? [];
     const editAllowedSizes = currentModel?.openai?.supportedEditSizes ?? supportedOpenAISizes;
     const visibleSizeOptions = OPENAI_SIZE_OPTIONS.filter(o => supportedOpenAISizes.includes(o.value));
-    // Quality tiers are also per model: xhigh / max exist on GPT Image 2.5 only.
+    // Quality tiers are also per model: earlier GPT Image models stop at high.
     const supportedOpenAIQualities = currentModel?.openai?.supportedQualities ?? [];
     const visibleQualityOptions = OPENAI_QUALITY_OPTIONS.filter(v => supportedOpenAIQualities.includes(v));
     const isSizeAllowed = (value: OpenAIImageSize): boolean =>
@@ -266,7 +266,7 @@ export default function ParameterPanel() {
                     color='text.secondary'
                     sx={{ mt: -1, ml: 0.5, fontFamily: 'monospace', lineHeight: 1.4 }}
                 >
-                    {currentModel.id}
+                    {resolveApiModelId(currentModel.id)}
                 </Typography>
             )}
             {isFreeTierKey && currentModel?.freeTierAvailable === true && currentModel.freeTierNoteKey ? (
@@ -418,14 +418,11 @@ export default function ParameterPanel() {
                         label={t('gemini.duration.label')}
                         onChange={e => setGeminiDuration(Number(e.target.value) as GeminiVideoDuration)}
                     >
-                        {GEMINI_VIDEO_DURATION_OPTIONS.map(opt => {
-                            const supported = currentModel?.gemini?.supportedDurations?.includes(opt.value) ?? true;
-                            return (
-                                <MenuItem key={opt.value} value={opt.value} disabled={!supported}>
-                                    {t(opt.labelKey)}
-                                </MenuItem>
-                            );
-                        })}
+                        {(currentModel?.gemini?.supportedDurations ?? []).map(seconds => (
+                            <MenuItem key={seconds} value={seconds}>
+                                {t('gemini.duration.seconds', { count: seconds })}
+                            </MenuItem>
+                        ))}
                     </Select>
                 </FormControl>
             )}
